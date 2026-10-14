@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Bar owner sign-in
+  - name: drinks
+    description: Menu management
+  - name: insights
+    description: Menu performance
+  - name: ios
+    description: Public iOS app API
 paths:
   /healthz:
     get:
@@ -24,6 +32,158 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/session:
+    get:
+      operationId: getSession
+      tags: [auth]
+      responses:
+        "200":
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /drinks:
+    get:
+      operationId: listDrinks
+      tags: [drinks]
+      responses:
+        "200":
+          description: Bar menu
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Drink"
+    post:
+      operationId: createDrink
+      tags: [drinks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrinkInput"
+      responses:
+        "201":
+          description: Drink created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Drink"
+  /drinks/{id}:
+    patch:
+      operationId: updateDrink
+      tags: [drinks]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrinkUpdate"
+      responses:
+        "200":
+          description: Drink updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Drink"
+    delete:
+      operationId: deleteDrink
+      tags: [drinks]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Drink deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /insights:
+    get:
+      operationId: getInsights
+      tags: [insights]
+      responses:
+        "200":
+          description: Menu performance insights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insights"
+  /api/v1/bars/{slug}/menu-version:
+    get:
+      operationId: getPublicMenuVersion
+      tags: [ios]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current menu version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuVersion"
+  /api/v1/bars/{slug}/menu:
+    get:
+      operationId: getPublicMenu
+      tags: [ios]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published menu
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicMenu"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +193,103 @@ components:
           type: string
       required:
         - status
+    Message:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    Session:
+      type: object
+      properties:
+        authenticated: { type: boolean }
+        userName: { type: ["string", "null"] }
+        barName: { type: ["string", "null"] }
+        barSlug: { type: ["string", "null"] }
+      required: [authenticated, userName, barName, barSlug]
+    LoginInput:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+      required: [email, password]
+    Drink:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        priceCents: { type: integer }
+        category: { type: string }
+        isAvailable: { type: boolean }
+        isPublished: { type: boolean }
+        sortOrder: { type: integer }
+        thumbnailUrl: { type: ["string", "null"] }
+        generationStatus: { type: string }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, description, priceCents, category, isAvailable, isPublished, sortOrder, thumbnailUrl, generationStatus, updatedAt]
+    DrinkInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string }
+        priceCents: { type: integer, minimum: 0 }
+        category: { type: string, enum: [signature, classic, seasonal, beer, wine, zero-proof] }
+      required: [name, description, priceCents, category]
+    DrinkUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string }
+        priceCents: { type: integer, minimum: 0 }
+        category: { type: string, enum: [signature, classic, seasonal, beer, wine, zero-proof] }
+        isAvailable: { type: boolean }
+        isPublished: { type: boolean }
+        sortOrder: { type: integer }
+    Insights:
+      type: object
+      properties:
+        viewsThisWeek: { type: integer }
+        mostViewedDrink: { type: ["string", "null"] }
+        publishedSignatures: { type: integer }
+        lastMenuUpdate: { type: ["string", "null"], format: date-time }
+        viewsByDrink:
+          type: array
+          items:
+            $ref: "#/components/schemas/DrinkViews"
+      required: [viewsThisWeek, mostViewedDrink, publishedSignatures, lastMenuUpdate, viewsByDrink]
+    DrinkViews:
+      type: object
+      properties:
+        drinkName: { type: string }
+        views: { type: integer }
+      required: [drinkName, views]
+    MenuVersion:
+      type: object
+      properties:
+        version: { type: integer }
+      required: [version]
+    PublicMenu:
+      type: object
+      properties:
+        barName: { type: string }
+        logoUrl: { type: ["string", "null"] }
+        drinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicDrink"
+      required: [barName, logoUrl, drinks]
+    PublicDrink:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        price: { type: string }
+        priceCents: { type: integer }
+        category: { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        modelUsdzUrl: { type: ["string", "null"] }
+        modelGlbUrl: { type: ["string", "null"] }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, description, price, priceCents, category, thumbnailUrl, modelUsdzUrl, modelGlbUrl, updatedAt]
 
