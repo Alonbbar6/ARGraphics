@@ -1,6 +1,6 @@
 # Garnish
 
-Garnish is a mobile-first menu dashboard for independent cocktail bars. The current first release includes a public marketing page, a demo bar sign-in, persistent drink and price management, availability controls, menu versioning, and an insights page.
+Garnish is a mobile-first menu dashboard for independent cocktail bars. The current first release includes a public marketing page, bar-owner sign-in, persistent drink and price management, availability controls, menu versioning, an insights page, and table-card artwork management with print-size PDF export.
 
 ## Run the app
 
@@ -35,8 +35,12 @@ All routes below are served under `/api`.
 - `PATCH /drinks/{id}` accepts any subset of the drink fields, such as `{"priceCents":1600,"isAvailable":false}`.
 - `DELETE /drinks/{id}` removes a drink.
 - `GET /insights` returns view totals and per-drink counts.
-- `GET /v1/bars/{slug}/menu-version` returns `{"version":1}`. Requires the `x-api-key` header.
+- `GET /v1/bars/{slug}/menu-version` returns the current menu version number. Requires the `x-api-key` header.
 - `GET /v1/bars/{slug}/menu` returns the published and available menu. Requires the `x-api-key` header.
+- `GET /v1/bars/{slug}/table-cards` returns active artwork and its physical width in centimeters. Requires the `x-api-key` header.
+- `POST /v1/bars/{slug}/events` records a `view`, `ar_open`, or `ar_close` event for a drink. Requires the `x-api-key` header and is rate limited to 120 requests per IP per minute.
+- `GET /table-cards`, `POST /table-cards`, and `DELETE /table-cards/{id}` manage a signed-in bar's table cards.
+- `POST /storage/uploads/request-url` creates a short-lived upload URL for authenticated owners. Upload the image bytes directly to that URL.
 
 Example iOS request:
 
@@ -44,6 +48,23 @@ Example iOS request:
 curl -H "x-api-key: $IOS_API_KEY" \
   http://localhost:80/api/v1/bars/demo-bar/menu
 ```
+
+Fetch table cards and record an AR opening:
+
+```sh
+curl -H "x-api-key: $IOS_API_KEY" \
+  http://localhost:80/api/v1/bars/demo-bar/table-cards
+
+curl -X POST \
+  -H "x-api-key: $IOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"drinkId":"demo-cocktail-1","eventType":"ar_open"}' \
+  http://localhost:80/api/v1/bars/demo-bar/events
+```
+
+The iOS API accepts browser preflight requests and the `x-api-key` header. Keep `IOS_API_KEY` in Replit Secrets; do not embed it in a public client build or commit it to source control. iOS API traffic is limited to 120 requests per IP per minute.
+
+Table-card owner uploads accept PNG, JPEG, and WebP images up to 10 MB. The owner dashboard estimates print DPI and contrast before saving. The PDF export sets the requested physical width in centimeters and preserves the uploaded artwork's aspect ratio.
 
 The current menu response shape is:
 
@@ -70,4 +91,4 @@ The current menu response shape is:
 
 ## Next implementation stages
 
-The image cleanup and Meshy task polling flow, interactive 3D review and publishing, table card uploads and print-ready PDFs, event logging, and owner self-service registration are not part of this first release yet. Those features need their UI and API work completed before the iOS client can use the full contract described in the original product brief.
+The photo cleanup and Meshy task polling flow, interactive 3D review and publishing, and owner self-service registration still need their UI and API work before those parts of the original product brief are complete.

@@ -2,15 +2,20 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { and, asc, eq, gte, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { db, arEventsTable, barsTable, drinksTable, menuVersionTable, usersTable } from "@workspace/db";
+import { db, arEventsTable, barsTable, drinksTable, menuVersionTable, tableCardsTable, usersTable } from "@workspace/db";
 import {
+  CreatePublicEventParams,
+  CreatePublicEventResponse,
   CreateDrinkBody,
+  CreatePublicEventBody,
   DeleteDrinkParams,
+  GetPublicTableCardsParams,
   GetInsightsResponse,
   GetPublicMenuParams,
   GetPublicMenuResponse,
   GetPublicMenuVersionParams,
   GetPublicMenuVersionResponse,
+  GetPublicTableCardsResponse,
   GetSessionResponse,
   ListDrinksResponse,
   LoginBody,
@@ -19,6 +24,7 @@ import {
   UpdateDrinkBody,
   UpdateDrinkParams,
 } from "@workspace/api-zod";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 const demoBarId = "garnish-demo-bar";
@@ -36,7 +42,7 @@ function getCookie(req: Request, key: string): string | undefined {
     .find((part) => part.startsWith(`${key}=`))?.slice(key.length + 1);
 }
 
-async function currentUser(req: Request) {
+export async function currentUser(req: Request) {
   const token = getCookie(req, sessionCookie);
   if (!token) return null;
   const [payload, signature] = token.split(".");
@@ -76,6 +82,30 @@ function requireIosKey(req: Request, res: Response): boolean {
   }
   return true;
 }
+
+const iosRateWindows = new Map<string, { count: number; resetAt: number }>();
+function rateLimitIos(req: Request, res: Response, next: NextFunction): void {
+  const now = Date.now();
+  const key = req.ip || req.socket.remoteAddress || "unknown";
+  const current = iosRateWindows.get(key);
+  if (!current || current.resetAt <= now) {
+    iosRateWindows.set(key, { count: 1, resetAt: now + 60_000 });
+  } else if (current.count >= 120) {
+    res.setHeader("Retry-After", String(Math.ceil((current.resetAt - now) / 1000)));
+    res.status(429).json({ error: "Too many iOS API requests. Try again shortly." });
+    return;
+  } else {
+    current.count += 1;
+  }
+  if (iosRateWindows.size > 2_000) {
+    for (const [address, window] of iosRateWindows) {
+      if (window.resetAt <= now) iosRateWindows.delete(address);
+    }
+  }
+  next();
+}
+
+router.use("/v1/bars", rateLimitIos);
 
 router.get("/auth/session", async (req, res): Promise<void> => {
   const user = await currentUser(req);
@@ -231,27 +261,37 @@ router.get("/insights", async (_req, res): Promise<void> => {
 router.get("/v1/bars/:slug/menu-version", async (req, res): Promise<void> => {
   if (!requireIosKey(req, res)) return;
   const params = GetPublicMenuVersionParams.safeParse(req.params);
-  if (!params.success || params.data.slug !== demoSlug) {
+  if (!params.success) {
     res.status(404).json({ error: "Bar not found." });
     return;
   }
-  const [version] = await db.select().from(menuVersionTable).where(eq(menuVersionTable.barId, demoBarId));
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
+  if (!bar) {
+    res.status(404).json({ error: "Bar not found." });
+    return;
+  }
+  const [version] = await db.select().from(menuVersionTable).where(eq(menuVersionTable.barId, bar.id));
   res.json(GetPublicMenuVersionResponse.parse({ version: version?.version ?? 1 }));
 });
 
 router.get("/v1/bars/:slug/menu", async (req, res): Promise<void> => {
   if (!requireIosKey(req, res)) return;
   const params = GetPublicMenuParams.safeParse(req.params);
-  if (!params.success || params.data.slug !== demoSlug) {
+  if (!params.success) {
     res.status(404).json({ error: "Bar not found." });
     return;
   }
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, demoBarId));
+  const [bar] = await db.select().from(barsTable).where(eq(barsTable.slug, params.data.slug));
+  if (!bar) {
+    res.status(404).json({ error: "Bar not found." });
+    return;
+  }
   const drinks = await db.select().from(drinksTable)
-    .where(and(eq(drinksTable.barId, demoBarId), eq(drinksTable.isPublished, true), eq(drinksTable.isAvailable, true)))
+    .where(and(eq(drinksTable.barId, bar.id), eq(drinksTable.isPublished, true), eq(drinksTable.isAvailable, true)))
     .orderBy(asc(drinksTable.sortOrder));
   res.json(GetPublicMenuResponse.parse({
-    barName: bar?.name ?? "Demo Bar",
+    barName: bar.name,
     logoUrl: bar?.logoUrl ?? null,
     drinks: drinks.map((drink) => ({
       id: drink.id,
@@ -266,6 +306,61 @@ router.get("/v1/bars/:slug/menu", async (req, res): Promise<void> => {
       updatedAt: drink.updatedAt.toISOString(),
     })),
   }));
+});
+
+router.get("/v1/bars/:slug/table-cards", async (req, res): Promise<void> => {
+  if (!requireIosKey(req, res)) return;
+  const params = GetPublicTableCardsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid bar slug." });
+    return;
+  }
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
+  if (!bar) {
+    res.status(404).json({ error: "Bar not found." });
+    return;
+  }
+  const cards = await db.select().from(tableCardsTable)
+    .where(and(eq(tableCardsTable.barId, bar.id), eq(tableCardsTable.isActive, true)))
+    .orderBy(asc(tableCardsTable.createdAt));
+  const storage = new ObjectStorageService();
+  const response = await Promise.all(cards.map(async (card) => ({
+    id: card.id,
+    name: card.name,
+    referenceImageUrl: await storage.getObjectEntityDownloadURL(card.referenceImageUrl),
+    physicalWidthCm: Number(card.physicalWidthMeters) * 100,
+  })));
+  res.json(GetPublicTableCardsResponse.parse(response));
+});
+
+router.post("/v1/bars/:slug/events", async (req, res): Promise<void> => {
+  if (!requireIosKey(req, res)) return;
+  const params = CreatePublicEventParams.safeParse(req.params);
+  const body = CreatePublicEventBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Provide a valid bar, drink, and event type." });
+    return;
+  }
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
+  if (!bar) {
+    res.status(404).json({ error: "Bar not found." });
+    return;
+  }
+  const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
+    .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
+  if (!drink) {
+    res.status(404).json({ error: "Drink not found." });
+    return;
+  }
+  await db.insert(arEventsTable).values({
+    id: randomUUID(),
+    barId: bar.id,
+    drinkId: drink.id,
+    eventType: body.data.eventType,
+  });
+  res.status(201).json(CreatePublicEventResponse.parse({ message: "Event recorded." }));
 });
 
 async function seedDemoBar() {

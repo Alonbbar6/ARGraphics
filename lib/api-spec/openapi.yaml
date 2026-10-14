@@ -18,6 +18,10 @@ tags:
     description: Menu performance
   - name: ios
     description: Public iOS app API
+  - name: storage
+    description: Private bar artwork uploads
+  - name: tableCards
+    description: Bar-owner table-card management
 paths:
   /healthz:
     get:
@@ -150,6 +154,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Insights"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a signed upload URL for table-card artwork
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Signed upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      parameters:
+        - in: path
+          name: objectPath
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Private uploaded image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+  /table-cards:
+    get:
+      operationId: listTableCards
+      tags: [tableCards]
+      responses:
+        "200":
+          description: Table cards for the signed-in bar
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TableCard"
+    post:
+      operationId: createTableCard
+      tags: [tableCards]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TableCardInput"
+      responses:
+        "201":
+          description: Table card created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableCard"
+  /table-cards/{id}:
+    delete:
+      operationId: deleteTableCard
+      tags: [tableCards]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Table card deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
   /v1/bars/{slug}/menu-version:
     get:
       operationId: getPublicMenuVersion
@@ -172,6 +258,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuVersion"
+        "401":
+          description: Missing or invalid iOS API key
+        "503":
+          description: iOS API key is not configured
+        "429":
+          description: Rate limit exceeded
   /v1/bars/{slug}/menu:
     get:
       operationId: getPublicMenu
@@ -194,6 +286,80 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicMenu"
+        "401":
+          description: Missing or invalid iOS API key
+        "503":
+          description: iOS API key is not configured
+        "429":
+          description: Rate limit exceeded
+  /v1/bars/{slug}/table-cards:
+    get:
+      operationId: getPublicTableCards
+      tags: [ios]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-api-key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Active table cards for the bar
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicTableCard"
+        "401":
+          description: Missing or invalid iOS API key
+        "503":
+          description: iOS API key is not configured
+        "429":
+          description: Rate limit exceeded
+  /v1/bars/{slug}/events:
+    post:
+      operationId: createPublicEvent
+      tags: [ios]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-api-key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArEventInput"
+      responses:
+        "201":
+          description: Event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Event input is invalid
+        "401":
+          description: Missing or invalid iOS API key
+        "404":
+          description: Bar or drink not found
+        "503":
+          description: iOS API key is not configured
+        "429":
+          description: Rate limit exceeded
 components:
   schemas:
     HealthStatus:
@@ -302,4 +468,50 @@ components:
         modelGlbUrl: { type: ["string", "null"] }
         updatedAt: { type: string, format: date-time }
       required: [id, name, description, price, priceCents, category, thumbnailUrl, modelUsdzUrl, modelGlbUrl, updatedAt]
+    UploadUrlRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+      required: [name, size, contentType]
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+      required: [uploadURL, objectPath]
+    TableCard:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        referenceImageUrl: { type: string, format: uri-reference }
+        physicalWidthCm: { type: number, exclusiveMinimum: 0, maximum: 100 }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, name, referenceImageUrl, physicalWidthCm, isActive, createdAt]
+    TableCardInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        objectPath: { type: string, pattern: "^/objects/uploads/[a-f0-9-]{36}$" }
+        physicalWidthCm: { type: number, exclusiveMinimum: 0, maximum: 100 }
+      required: [name, objectPath, physicalWidthCm]
+    PublicTableCard:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        referenceImageUrl: { type: string, format: uri }
+        physicalWidthCm: { type: number }
+      required: [id, name, referenceImageUrl, physicalWidthCm]
+    ArEventInput:
+      type: object
+      properties:
+        drinkId: { type: string, minLength: 1, maxLength: 120 }
+        eventType: { type: string, enum: [view, ar_open, ar_close] }
+      required: [drinkId, eventType]
 

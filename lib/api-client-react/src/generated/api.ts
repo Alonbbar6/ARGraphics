@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ArEventInput,
   Drink,
   DrinkInput,
   DrinkUpdate,
@@ -29,7 +30,12 @@ import type {
   MenuVersion,
   Message,
   PublicMenu,
-  Session
+  PublicTableCard,
+  Session,
+  TableCard,
+  TableCardInput,
+  UploadUrlRequest,
+  UploadUrlResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -733,6 +739,386 @@ export function useGetInsights<TData = Awaited<ReturnType<typeof getInsights>>, 
 
 
 
+export const getRequestUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a signed upload URL for table-card artwork
+ */
+export const requestUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<UploadUrlResponse>(getRequestUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(uploadUrlRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestUploadUrlMutationKey = () => ['requestUploadUrl'] as const;
+
+export const getRequestUploadUrlMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,RequestUploadUrlMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,RequestUploadUrlMutationVariables, TContext> => {
+
+const mutationKey = getRequestUploadUrlMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUploadUrl>>, RequestUploadUrlMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestUploadUrl>>>
+    export type RequestUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestUploadUrlMutationError = ErrorType<unknown>
+    export type RequestUploadUrlMutationVariables = {data: BodyType<UploadUrlRequest>}
+
+    /**
+ * @summary Request a signed upload URL for table-card artwork
+ */
+export const useRequestUploadUrl = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,RequestUploadUrlMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestUploadUrl>>,
+        TError,
+        RequestUploadUrlMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestUploadUrlMutationOptions(options));
+    }
+
+export const getGetStorageObjectUrl = (objectPath: string,) => {
+
+
+
+
+  return `/api/storage/objects/${objectPath}`
+}
+
+export const getStorageObject = async (objectPath: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetStorageObjectUrl(objectPath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStorageObjectQueryKey = (objectPath: string,) => {
+    return [
+    `/api/storage/objects/${objectPath}`
+    ] as const;
+    }
+
+
+export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<unknown>>(objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: objectPath !== null && objectPath !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStorageObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getStorageObject>>>
+export type GetStorageObjectQueryError = ErrorType<unknown>
+
+
+
+export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<unknown>>(
+ objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStorageObjectQueryOptions(objectPath,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTableCardsUrl = () => {
+
+
+
+
+  return `/api/table-cards`
+}
+
+export const listTableCards = async ( options?: Parameters<typeof customFetch>[1]): Promise<TableCard[]> => {
+
+  return customFetch<TableCard[]>(getListTableCardsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTableCardsQueryKey = () => {
+    return [
+    `/api/table-cards`
+    ] as const;
+    }
+
+
+export const getListTableCardsQueryOptions = <TData = Awaited<ReturnType<typeof listTableCards>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTableCards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTableCardsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTableCards>>> = ({ signal }) => listTableCards({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTableCards>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTableCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listTableCards>>>
+export type ListTableCardsQueryError = ErrorType<unknown>
+
+
+
+export function useListTableCards<TData = Awaited<ReturnType<typeof listTableCards>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTableCards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTableCardsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTableCardUrl = () => {
+
+
+
+
+  return `/api/table-cards`
+}
+
+export const createTableCard = async (tableCardInput: TableCardInput, options?: Parameters<typeof customFetch>[1]): Promise<TableCard> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TableCard>(getCreateTableCardUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(tableCardInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTableCardMutationKey = () => ['createTableCard'] as const;
+
+export const getCreateTableCardMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTableCard>>, TError,CreateTableCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTableCard>>, TError,CreateTableCardMutationVariables, TContext> => {
+
+const mutationKey = getCreateTableCardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTableCard>>, CreateTableCardMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTableCard(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTableCardMutationResult = NonNullable<Awaited<ReturnType<typeof createTableCard>>>
+    export type CreateTableCardMutationBody = BodyType<TableCardInput>
+    export type CreateTableCardMutationError = ErrorType<unknown>
+    export type CreateTableCardMutationVariables = {data: BodyType<TableCardInput>}
+
+    export const useCreateTableCard = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTableCard>>, TError,CreateTableCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTableCard>>,
+        TError,
+        CreateTableCardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateTableCardMutationOptions(options));
+    }
+
+export const getDeleteTableCardUrl = (id: string,) => {
+
+
+
+
+  return `/api/table-cards/${id}`
+}
+
+export const deleteTableCard = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getDeleteTableCardUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTableCardMutationKey = () => ['deleteTableCard'] as const;
+
+export const getDeleteTableCardMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTableCard>>, TError,DeleteTableCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTableCard>>, TError,DeleteTableCardMutationVariables, TContext> => {
+
+const mutationKey = getDeleteTableCardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTableCard>>, DeleteTableCardMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTableCard(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTableCardMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTableCard>>>
+
+    export type DeleteTableCardMutationError = ErrorType<unknown>
+    export type DeleteTableCardMutationVariables = {id: string}
+
+    export const useDeleteTableCard = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTableCard>>, TError,DeleteTableCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTableCard>>,
+        TError,
+        DeleteTableCardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteTableCardMutationOptions(options));
+    }
+
 export const getGetPublicMenuVersionUrl = (slug: string,) => {
 
 
@@ -763,7 +1149,7 @@ export const getGetPublicMenuVersionQueryKey = (slug: string,) => {
     }
 
 
-export const getGetPublicMenuVersionQueryOptions = <TData = Awaited<ReturnType<typeof getPublicMenuVersion>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMenuVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPublicMenuVersionQueryOptions = <TData = Awaited<ReturnType<typeof getPublicMenuVersion>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMenuVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -782,11 +1168,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetPublicMenuVersionQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicMenuVersion>>>
-export type GetPublicMenuVersionQueryError = ErrorType<unknown>
+export type GetPublicMenuVersionQueryError = ErrorType<void>
 
 
 
-export function useGetPublicMenuVersion<TData = Awaited<ReturnType<typeof getPublicMenuVersion>>, TError = ErrorType<unknown>>(
+export function useGetPublicMenuVersion<TData = Awaited<ReturnType<typeof getPublicMenuVersion>>, TError = ErrorType<void>>(
  slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMenuVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -834,7 +1220,7 @@ export const getGetPublicMenuQueryKey = (slug: string,) => {
     }
 
 
-export const getGetPublicMenuQueryOptions = <TData = Awaited<ReturnType<typeof getPublicMenu>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMenu>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPublicMenuQueryOptions = <TData = Awaited<ReturnType<typeof getPublicMenu>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMenu>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -853,11 +1239,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetPublicMenuQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicMenu>>>
-export type GetPublicMenuQueryError = ErrorType<unknown>
+export type GetPublicMenuQueryError = ErrorType<void>
 
 
 
-export function useGetPublicMenu<TData = Awaited<ReturnType<typeof getPublicMenu>>, TError = ErrorType<unknown>>(
+export function useGetPublicMenu<TData = Awaited<ReturnType<typeof getPublicMenu>>, TError = ErrorType<void>>(
  slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMenu>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -874,4 +1260,158 @@ export function useGetPublicMenu<TData = Awaited<ReturnType<typeof getPublicMenu
 
 
 
+
+export const getGetPublicTableCardsUrl = (slug: string,) => {
+
+
+
+
+  return `/api/v1/bars/${slug}/table-cards`
+}
+
+export const getPublicTableCards = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicTableCard[]> => {
+
+  return customFetch<PublicTableCard[]>(getGetPublicTableCardsUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicTableCardsQueryKey = (slug: string,) => {
+    return [
+    `/api/v1/bars/${slug}/table-cards`
+    ] as const;
+    }
+
+
+export const getGetPublicTableCardsQueryOptions = <TData = Awaited<ReturnType<typeof getPublicTableCards>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicTableCards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicTableCardsQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicTableCards>>> = ({ signal }) => getPublicTableCards(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicTableCards>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicTableCardsQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicTableCards>>>
+export type GetPublicTableCardsQueryError = ErrorType<void>
+
+
+
+export function useGetPublicTableCards<TData = Awaited<ReturnType<typeof getPublicTableCards>>, TError = ErrorType<void>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicTableCards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicTableCardsQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePublicEventUrl = (slug: string,) => {
+
+
+
+
+  return `/api/v1/bars/${slug}/events`
+}
+
+export const createPublicEvent = async (slug: string,
+    arEventInput: ArEventInput, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Message>(getCreatePublicEventUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(arEventInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePublicEventMutationKey = () => ['createPublicEvent'] as const;
+
+export const getCreatePublicEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicEvent>>, TError,CreatePublicEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPublicEvent>>, TError,CreatePublicEventMutationVariables, TContext> => {
+
+const mutationKey = getCreatePublicEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPublicEvent>>, CreatePublicEventMutationVariables> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  createPublicEvent(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePublicEventMutationResult = NonNullable<Awaited<ReturnType<typeof createPublicEvent>>>
+    export type CreatePublicEventMutationBody = BodyType<ArEventInput>
+    export type CreatePublicEventMutationError = ErrorType<void>
+    export type CreatePublicEventMutationVariables = {slug: string;data: BodyType<ArEventInput>}
+
+    export const useCreatePublicEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicEvent>>, TError,CreatePublicEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPublicEvent>>,
+        TError,
+        CreatePublicEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePublicEventMutationOptions(options));
+    }
 

@@ -146,6 +146,99 @@ export const GetInsightsResponse = zod.object({
 })
 
 
+/**
+ * @summary Request a signed upload URL for table-card artwork
+ */
+export const requestUploadUrlBodyNameMax = 160;
+
+export const requestUploadUrlBodySizeMax = 10485760;
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1).max(requestUploadUrlBodyNameMax),
+  "size": zod.number().int().min(1).max(requestUploadUrlBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const requestUploadUrlResponseMetadataNameMax = 160;
+
+export const requestUploadUrlResponseMetadataSizeMax = 10485760;
+
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1).max(requestUploadUrlResponseMetadataNameMax),
+  "size": zod.number().int().min(1).max(requestUploadUrlResponseMetadataSizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+}).optional()
+})
+
+
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
+
+
+export const listTableCardsResponsePhysicalWidthCmExclusiveMin = 0;
+export const listTableCardsResponsePhysicalWidthCmMax = 100;
+
+
+
+export const ListTableCardsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "referenceImageUrl": zod.string(),
+  "physicalWidthCm": zod.number().gt(listTableCardsResponsePhysicalWidthCmExclusiveMin).max(listTableCardsResponsePhysicalWidthCmMax),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTableCardsResponse = zod.array(ListTableCardsResponseItem)
+
+
+export const createTableCardBodyNameMax = 80;
+
+export const createTableCardBodyObjectPathRegExp = new RegExp('^/objects/uploads/[a-f0-9-]{36}$');
+export const createTableCardBodyPhysicalWidthCmExclusiveMin = 0;
+export const createTableCardBodyPhysicalWidthCmMax = 100;
+
+
+
+export const CreateTableCardBody = zod.object({
+  "name": zod.string().min(1).max(createTableCardBodyNameMax),
+  "objectPath": zod.string().regex(createTableCardBodyObjectPathRegExp),
+  "physicalWidthCm": zod.number().gt(createTableCardBodyPhysicalWidthCmExclusiveMin).max(createTableCardBodyPhysicalWidthCmMax)
+})
+
+export const createTableCardResponsePhysicalWidthCmExclusiveMin = 0;
+export const createTableCardResponsePhysicalWidthCmMax = 100;
+
+
+
+export const CreateTableCardResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "referenceImageUrl": zod.string(),
+  "physicalWidthCm": zod.number().gt(createTableCardResponsePhysicalWidthCmExclusiveMin).max(createTableCardResponsePhysicalWidthCmMax),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const DeleteTableCardParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteTableCardResponse = zod.object({
+  "message": zod.string()
+})
+
+
 export const GetPublicMenuVersionParams = zod.object({
   "slug": zod.coerce.string()
 })
@@ -182,6 +275,45 @@ export const GetPublicMenuResponse = zod.object({
   "modelGlbUrl": zod.string().nullable(),
   "updatedAt": zod.coerce.date()
 }))
+})
+
+
+export const GetPublicTableCardsParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetPublicTableCardsHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const GetPublicTableCardsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "referenceImageUrl": zod.string().url(),
+  "physicalWidthCm": zod.number()
+})
+export const GetPublicTableCardsResponse = zod.array(GetPublicTableCardsResponseItem)
+
+
+export const CreatePublicEventParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const CreatePublicEventHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const createPublicEventBodyDrinkIdMax = 120;
+
+
+
+export const CreatePublicEventBody = zod.object({
+  "drinkId": zod.string().min(1).max(createPublicEventBodyDrinkIdMax),
+  "eventType": zod.enum(['view', 'ar_open', 'ar_close'])
+})
+
+export const CreatePublicEventResponse = zod.object({
+  "message": zod.string()
 })
 
 

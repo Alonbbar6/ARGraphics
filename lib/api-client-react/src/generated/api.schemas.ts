@@ -137,3 +137,85 @@ export interface PublicMenu {
   drinks: PublicDrink[];
 }
 
+export type UploadUrlRequestContentType = typeof UploadUrlRequestContentType[keyof typeof UploadUrlRequestContentType];
+
+
+export const UploadUrlRequestContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface UploadUrlRequest {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  size: number;
+  contentType: UploadUrlRequestContentType;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
+export interface TableCard {
+  id: string;
+  name: string;
+  referenceImageUrl: string;
+  /**
+     * @maximum 100
+     * @exclusiveMinimum 0
+     */
+  physicalWidthCm: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface TableCardInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @pattern ^/objects/uploads/[a-f0-9-]{36}$ */
+  objectPath: string;
+  /**
+     * @maximum 100
+     * @exclusiveMinimum 0
+     */
+  physicalWidthCm: number;
+}
+
+export interface PublicTableCard {
+  id: string;
+  name: string;
+  referenceImageUrl: string;
+  physicalWidthCm: number;
+}
+
+export type ArEventInputEventType = typeof ArEventInputEventType[keyof typeof ArEventInputEventType];
+
+
+export const ArEventInputEventType = {
+  view: 'view',
+  ar_open: 'ar_open',
+  ar_close: 'ar_close',
+} as const;
+
+export interface ArEventInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  drinkId: string;
+  eventType: ArEventInputEventType;
+}
+

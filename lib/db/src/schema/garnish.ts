@@ -44,7 +44,7 @@ export const tableCardsTable = pgTable("table_cards", {
   barId: text("bar_id").notNull().references(() => barsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   referenceImageUrl: text("reference_image_url").notNull(),
-  physicalWidthMeters: numeric("physical_width_meters", { precision: 7, scale: 3 }).notNull().default("0.1"),
+  physicalWidthMeters: numeric("physical_width_meters", { precision: 7, scale: 5 }).notNull().default("0.1"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
