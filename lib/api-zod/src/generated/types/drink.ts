@@ -18,5 +18,12 @@ export interface Drink {
   /** @nullable */
   thumbnailUrl: string | null;
   generationStatus: string;
+  generationProgress: number;
+  /** @nullable */
+  modelGlbUrl: string | null;
+  /** @nullable */
+  modelUsdzUrl: string | null;
+  /** @nullable */
+  generationError: string | null;
   updatedAt: Date;
 }

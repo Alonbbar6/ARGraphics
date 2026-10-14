@@ -150,6 +150,27 @@ export class ObjectStorageService {
     });
   }
 
+  async getObjectEntityReadURL(
+    objectPath: string,
+    ttlSec: number = 3600,
+  ): Promise<string> {
+    const objectFile = await this.getObjectEntityFile(objectPath);
+    const entityId = objectPath.replace(/^\/objects\//, "");
+    const { bucketName, objectName } = parseObjectPath(
+      `${this.getPrivateObjectDir().replace(/\/$/, "")}/${entityId}`,
+    );
+    const [exists] = await objectFile.exists();
+    if (!exists) {
+      throw new ObjectNotFoundError();
+    }
+    return signObjectURL({
+      bucketName,
+      objectName,
+      method: "GET",
+      ttlSec,
+    });
+  }
+
   async deleteObjectEntity(objectPath: string): Promise<void> {
     const objectFile = await this.getObjectEntityFile(objectPath);
     await objectFile.delete({ ignoreNotFound: true });

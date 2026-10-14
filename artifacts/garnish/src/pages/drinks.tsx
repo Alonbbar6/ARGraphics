@@ -1,12 +1,16 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { createElement, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListDrinksQueryKey, getGetInsightsQueryKey, useCreateDrink, useDeleteDrink, useListDrinks, useUpdateDrink } from '@workspace/api-client-react';
-import type { Drink, DrinkInput } from '@workspace/api-client-react';
-import { AlertCircle, Check, ChevronDown, CirclePlus, GlassWater, LoaderCircle, MoreHorizontal, Pencil, Search, Sparkles, Trash2, X } from 'lucide-react';
+import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useListDrinks, useRequestDrinkPhotoUpload, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
+import type { Drink, DrinkInput, DrinkPhotoUploadInput } from '@workspace/api-client-react';
+import { AlertCircle, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { removePhotoBackground } from '@/lib/photo-cleanup';
+import heic2any from 'heic2any';
+import modelViewerUrl from '@google/model-viewer/dist/model-viewer.min.js?url';
 
 const categories = ['all', 'signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof'];
 type Category = DrinkInput['category'];
 
+const MAX_PHOTO_SIZE = 15 * 1024 * 1024;
 function formatPrice(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -23,6 +27,7 @@ export function DrinksPage() {
   const [editing, setEditing] = useState<Drink | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
+  const [studioDrink, setStudioDrink] = useState<Drink | null>(null);
 
   const drinks = useMemo(() => (drinksQuery.data || []).filter((drink) => {
     const matchesSearch = `${drink.name} ${drink.description}`.toLowerCase().includes(query.toLowerCase());
@@ -44,6 +49,11 @@ export function DrinksPage() {
     setEditing(drink);
     setFormError('');
     setModalOpen(true);
+    setMenuFor(null);
+  };
+
+  const openStudio = (drink: Drink) => {
+    setStudioDrink(drink);
     setMenuFor(null);
   };
 
@@ -74,6 +84,10 @@ export function DrinksPage() {
   };
 
   const toggleDrink = (drink: Drink, field: 'isAvailable' | 'isPublished') => {
+    if (field === 'isPublished' && !drink.isPublished && !drink.modelGlbUrl) {
+      openStudio(drink);
+      return;
+    }
     updateDrink.mutate({ id: drink.id, data: { [field]: !drink[field] } }, { onSuccess: refresh });
     setMenuFor(null);
   };
@@ -140,6 +154,11 @@ export function DrinksPage() {
                 <div className="min-w-0">
                   <h2 className="truncate font-semibold">{drink.name}</h2>
                   <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{drink.description || 'A little something worth talking about.'}</p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${drink.modelGlbUrl ? 'text-emerald-600 dark:text-emerald-400' : drink.generationStatus === 'processing' ? 'text-primary' : 'text-muted-foreground'}`}>
+                      {drink.modelGlbUrl ? <><Check size={11} /> 3D ready</> : drink.generationStatus === 'processing' ? <><LoaderCircle size={11} className="animate-spin" /> Building 3D</> : 'No 3D preview'}
+                    </span>
+                  </div>
                 </div>
               </div>
               <span className="hidden text-sm capitalize text-muted-foreground sm:block">{drink.category.replace('-', ' ')}</span>
@@ -155,7 +174,8 @@ export function DrinksPage() {
                 <button onClick={() => setMenuFor(menuFor === drink.id ? null : drink.id)} className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted" aria-label={`More for ${drink.name}`} data-testid={`button-more-${drink.id}`}><MoreHorizontal size={19} /></button>
                 {menuFor === drink.id && <div className="absolute right-0 top-12 z-20 min-w-48 rounded-2xl border border-border bg-card p-1.5 shadow-xl">
                   <button onClick={() => openEdit(drink)} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted"><Pencil size={15} /> Edit details</button>
-                  <button onClick={() => toggleDrink(drink, 'isPublished')} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted"><Sparkles size={15} /> {drink.isPublished ? 'Hide from menu' : 'Publish to menu'}</button>
+                  <button onClick={() => openStudio(drink)} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted"><Sparkles size={15} /> {drink.modelGlbUrl ? 'Review 3D preview' : 'Make 3D preview'}</button>
+                  <button onClick={() => toggleDrink(drink, 'isPublished')} disabled={!drink.isPublished && !drink.modelGlbUrl} title={!drink.isPublished && !drink.modelGlbUrl ? 'A generated 3D model is required before publishing.' : undefined} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45"><Check size={15} /> {drink.isPublished ? 'Hide from menu' : drink.modelGlbUrl ? 'Publish to menu' : 'Generate model to publish'}</button>
                   <button onClick={() => removeDrink(drink)} disabled={deleteDrink.isPending} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-destructive hover:bg-muted"><Trash2 size={15} /> Remove drink</button>
                 </div>}
               </div>
@@ -188,6 +208,241 @@ export function DrinksPage() {
           </form>
         </section>
       </div>}
+      {studioDrink && <PhotoTo3DStudio drink={studioDrink} onClose={() => setStudioDrink(null)} onPublished={() => { refresh(); setStudioDrink(null); }} />}
     </div>
   );
 }
+
+function messageFrom(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+let modelViewerLoading: Promise<void> | null = null;
+
+function ensureModelViewer() {
+  if (customElements.get('model-viewer')) return Promise.resolve();
+  if (modelViewerLoading) return modelViewerLoading;
+  modelViewerLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = modelViewerUrl;
+    script.dataset.garnishModelViewer = 'true';
+    script.addEventListener('load', () => resolve(), { once: true });
+    script.addEventListener('error', () => reject(new Error('The interactive 3D viewer could not load.')), { once: true });
+    document.head.appendChild(script);
+  });
+  return modelViewerLoading;
+}
+
+function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClose: () => void; onPublished: () => void }) {
+  const queryClient = useQueryClient();
+  const requestUpload = useRequestDrinkPhotoUpload();
+  const startGeneration = useStartDrinkGeneration();
+  const updateDrink = useUpdateDrink();
+  const generationQuery = useGetDrinkGeneration(drink.id, {
+    query: {
+      enabled: true,
+      queryKey: getGetDrinkGenerationQueryKey(drink.id),
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === 'processing' ? 1800 : false;
+      },
+    },
+  });
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [cleanedBlob, setCleanedBlob] = useState<Blob | null>(null);
+  const [originalPreview, setOriginalPreview] = useState('');
+  const [cleanedPreview, setCleanedPreview] = useState('');
+  const [busyMessage, setBusyMessage] = useState('');
+  const [error, setError] = useState('');
+  const [approved, setApproved] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => () => {
+    if (originalPreview) URL.revokeObjectURL(originalPreview);
+    if (cleanedPreview) URL.revokeObjectURL(cleanedPreview);
+  }, [originalPreview, cleanedPreview]);
+
+  const generation = generationQuery.data;
+  const modelUrl = generation?.modelGlbUrl || drink.modelGlbUrl;
+  const active = generation?.status === 'processing';
+  const progress = Math.min(100, Math.max(0, generation?.progress ?? drink.generationProgress ?? 0));
+
+  useEffect(() => {
+    if (generation?.status === 'ready' || generation?.status === 'failed') {
+      void queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
+    }
+  }, [generation?.status, queryClient]);
+
+  useEffect(() => {
+    if (modelUrl) void ensureModelViewer().catch((cause: unknown) => setError(messageFrom(cause, 'The interactive 3D viewer could not load.')));
+  }, [modelUrl]);
+
+  const choosePhoto = async (file?: File) => {
+    if (!file) return;
+    setError('');
+    setNotice('');
+    const looksHeic = /\\.hei[cf]$/i.test(file.name) || ['image/heic', 'image/heif'].includes(file.type.toLowerCase());
+    if (!ACCEPTED_TYPES.includes(file.type.toLowerCase()) && !looksHeic) {
+      setError('Choose a JPG, PNG, WebP, HEIC or HEIF image.');
+      return;
+    }
+    if (file.size > MAX_PHOTO_SIZE) {
+      setError('That photo is over 15 MB. Choose a smaller image.');
+      return;
+    }
+    setBusyMessage(looksHeic ? 'Converting HEIC photo to JPEG…' : 'Preparing your photo…');
+    setSourceFile(null);
+    setCleanedBlob(null);
+    setOriginalPreview('');
+    setCleanedPreview('');
+    setApproved(false);
+    try {
+      let normalized = file;
+      if (looksHeic) {
+        const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+        const jpegBlob = Array.isArray(converted) ? converted[0] : converted;
+        normalized = new File([jpegBlob], file.name.replace(/\\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg', lastModified: Date.now() });
+      } else if (!normalized.type) {
+        const extensionType: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        normalized = new File([file], file.name, { type: extensionType[extension] || '' });
+      }
+      if (normalized.size > MAX_PHOTO_SIZE) throw new Error('The converted photo is over 15 MB. Choose a smaller image.');
+      setSourceFile(normalized);
+      const sourceUrl = URL.createObjectURL(normalized);
+      setOriginalPreview(sourceUrl);
+      const result = await removePhotoBackground(normalized, setBusyMessage);
+      if (result.size > MAX_PHOTO_SIZE) throw new Error('The cleaned image is over 15 MB. Try a smaller source photo.');
+      setCleanedBlob(result);
+      setCleanedPreview(URL.createObjectURL(result));
+      setBusyMessage('');
+    } catch (cause) {
+      setBusyMessage('');
+      setError(messageFrom(cause, 'Could not prepare that photo. Try another.'));
+    }
+  };
+
+  const uploadFile = async (file: Blob, name: string, kind: DrinkPhotoUploadInput['kind'], contentType: DrinkPhotoUploadInput['contentType']) => {
+    const upload = await requestUpload.mutateAsync({
+      data: { drinkId: drink.id, kind, name: name.slice(0, 255), size: file.size, contentType },
+    });
+    const response = await fetch(upload.uploadURL, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
+    if (!response.ok) throw new Error(`The ${kind} photo upload did not finish. Try again.`);
+    return upload.objectPath;
+  };
+
+  const generate = async () => {
+    if (!sourceFile || !cleanedBlob || !approved) return;
+    setError('');
+    setNotice('');
+    setBusyMessage('Uploading both reviewed photos…');
+    try {
+      const originalType = sourceFile.type as DrinkPhotoUploadInput['contentType'];
+      const originalName = sourceFile.name || `${drink.name}-original.jpg`;
+      const cleanedName = `${drink.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-cutout.png`;
+      const sourcePhotoPath = await uploadFile(sourceFile, originalName, 'original', originalType);
+      const cleanedPhotoPath = await uploadFile(cleanedBlob, cleanedName, 'cleaned', 'image/png');
+      setBusyMessage('Starting the 3D build…');
+      const result = await startGeneration.mutateAsync({ id: drink.id, data: { sourcePhotoPath, cleanedPhotoPath } });
+      queryClient.setQueryData(getGetDrinkGenerationQueryKey(drink.id), result);
+      queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
+      setNotice('Your photos are in. We’ll keep this preview up to date while the model is built.');
+      setBusyMessage('');
+      void generationQuery.refetch();
+    } catch (cause) {
+      setBusyMessage('');
+      setError(messageFrom(cause, 'The 3D build could not start. Your photos are still here—try again.'));
+    }
+  };
+
+  const publish = () => {
+    if (!modelUrl) return;
+    setError('');
+    updateDrink.mutate({ id: drink.id, data: { isPublished: true } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetInsightsQueryKey() });
+        setNotice('Published to your menu.');
+        onPublished();
+      },
+      onError: () => setError('Could not publish this drink. Try again.'),
+    });
+  };
+
+  const reshoot = () => {
+    setSourceFile(null);
+    setCleanedBlob(null);
+    setOriginalPreview('');
+    setCleanedPreview('');
+    setApproved(false);
+    setError('');
+    setNotice('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="studio-title" className="max-h-[94dvh] w-full max-w-3xl overflow-y-auto rounded-t-[2rem] border border-border bg-card shadow-2xl sm:rounded-[2rem]">
+        <header className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-card/95 px-5 py-4 backdrop-blur sm:px-7">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">Photo to 3D · {drink.category}</p><h2 id="studio-title" className="serif mt-1 text-3xl">Make {drink.name} menu-ready.</h2><p className="mt-1 text-sm text-muted-foreground">A clean cutout makes a better model. You approve it before we build.</p></div>
+          <button onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl hover:bg-muted" aria-label="Close 3D studio" data-testid="button-close-3d-studio"><X size={19} /></button>
+        </header>
+        <div className="space-y-5 p-5 sm:p-7">
+          {!sourceFile && !active && !modelUrl && (
+            <label className="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-primary/40 bg-secondary/35 px-5 text-center transition-colors hover:bg-secondary/60">
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-sm"><ImagePlus size={25} /></span>
+              <span className="mt-4 font-semibold">Choose a drink photo</span>
+              <span className="mt-1 text-sm text-muted-foreground">Use a camera shot or upload from your library.</span>
+              <span className="mt-3 text-[11px] text-muted-foreground">JPG, PNG, WebP, HEIC or HEIF · up to 15 MB</span>
+              <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} data-testid="input-drink-photo" />
+            </label>
+          )}
+          {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
+          {sourceFile && cleanedPreview && (
+            <div>
+              <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={reshoot} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <figure className="overflow-hidden rounded-2xl border border-border bg-muted"><div className="grid h-48 place-items-center sm:h-60"><img src={originalPreview} alt="Original drink photo" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Original photo</figcaption></figure>
+                <figure className="overflow-hidden rounded-2xl border border-border bg-card"><div className="checkerboard grid h-48 place-items-center sm:h-60" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}><img src={cleanedPreview} alt="Transparent background cutout preview" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Background removed <span className="ml-1 font-normal text-muted-foreground">· transparent</span></figcaption></figure>
+              </div>
+              <label className="mt-4 flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-background px-3 text-sm">
+                <input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} className="h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-approve-cutout" />
+                <span>I’ve checked the cutout. It’s ready to become a 3D model.</span>
+              </label>
+               <button onClick={() => void generate()} disabled={!approved || !!busyMessage || active || startGeneration.isPending} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-generation"><Sparkles size={17} /> Build the 3D preview</button>
+            </div>
+          )}
+          {sourceFile && !cleanedBlob && !busyMessage && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup"><RefreshCw size={15} /> Choose or retake photo</button>}
+          {generationQuery.isLoading && !sourceFile && !modelUrl && <div className="space-y-3"><div className="h-8 w-44 animate-pulse rounded-lg bg-muted" /><div className="h-48 animate-pulse rounded-2xl bg-muted" /></div>}
+          {active && (
+            <div className="rounded-[1.5rem] border border-border bg-background p-5" data-testid="status-generation-progress">
+              <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Building your model</p><p className="serif mt-1 text-2xl">A little patience. A better pour.</p><p className="mt-1 text-sm text-muted-foreground">{generation?.status === 'uploaded' ? 'Photos received and queued.' : 'Meshy is shaping the glass and garnish.'}</p></div><span className="font-mono text-lg tabular-nums text-primary">{progress}%</span></div>
+              <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${progress}%` }} /></div>
+              <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle size={14} className="animate-spin" /> This panel updates automatically.</p>
+            </div>
+          )}
+          {generation?.status === 'failed' && (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4" role="alert" data-testid="status-generation-error"><p className="font-semibold text-destructive">The model needs another go.</p><p className="mt-1 text-sm text-muted-foreground">{generation.error || drink.generationError || 'The 3D build did not finish.'}</p>
+              <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => sourceFile && cleanedBlob ? void generate() : reshoot()} disabled={!!busyMessage} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-retry-generation"><RefreshCw size={15} /> Retry build</button><button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-reshoot-after-error">Reshoot photo</button></div>
+            </div>
+          )}
+          {generationQuery.isError && !active && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive" role="alert">Couldn’t load the latest generation status. <button onClick={() => generationQuery.refetch()} className="font-semibold underline underline-offset-2">Try again</button></div>}
+          {modelUrl && (
+            <div className="overflow-hidden rounded-[1.5rem] border border-border bg-background" data-testid="panel-model-review">
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Ready for a closer look</p><p className="text-sm text-muted-foreground">Drag to rotate · pinch or scroll to zoom</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">3D ready</span></div>
+              <div className="checkerboard flex h-72 items-center justify-center sm:h-96" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}>{createElement('model-viewer', { src: modelUrl, 'camera-controls': true, 'auto-rotate': true, 'rotation-per-second': '18deg', 'shadow-intensity': '0.7', 'environment-image': 'neutral', 'alt': `Interactive 3D preview of ${drink.name}`, style: { width: '100%', height: '100%', backgroundColor: 'transparent' } })}</div>
+              <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
+            </div>
+          )}
+          {modelUrl && !sourceFile && <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a new photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label>}
+          {notice && <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm" role="status" data-testid="status-studio-notice">{notice}</p>}
+          {error && <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert" data-testid="status-studio-error"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div>}
+          {(generation?.status === 'ready' || modelUrl) && sourceFile && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
+          {!sourceFile && !active && !modelUrl && generation?.status === 'failed' && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold"><Upload size={15} /> Choose a new photo</button>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];

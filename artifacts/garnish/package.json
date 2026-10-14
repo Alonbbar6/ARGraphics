@@ -75,6 +75,9 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "jspdf": "^4.2.1"
+    "@google/model-viewer": "^4.4.0",
+    "heic2any": "^0.0.4",
+    "jspdf": "^4.2.1",
+    "three": "^0.183.2"
   }
 }

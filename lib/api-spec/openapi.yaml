@@ -161,6 +161,102 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /drinks/{id}/generation:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getDrinkGeneration
+      tags: [drinks]
+      responses:
+        "200":
+          description: Current photo-to-3D generation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrinkGeneration"
+    post:
+      operationId: startDrinkGeneration
+      tags: [drinks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrinkGenerationInput"
+      responses:
+        "200":
+          description: Generation task started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrinkGeneration"
+  /drinks/{id}/photos/{kind}:
+    get:
+      operationId: getDrinkPhoto
+      tags: [drinks]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            enum: [source, cleaned]
+      responses:
+        "200":
+          description: Private drink photo served to its owner
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Photo not found
+  /storage/public-objects/{filePath}:
+    get:
+      operationId: getPublicDrinkAsset
+      tags: [drinks]
+      parameters:
+        - in: path
+          name: filePath
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public iOS menu model or thumbnail asset
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Asset not found
+  /storage/drink-photos/request-url:
+    post:
+      operationId: requestDrinkPhotoUpload
+      tags: [drinks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrinkPhotoUploadInput"
+      responses:
+        "200":
+          description: Presigned App Storage upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrinkPhotoUpload"
   /insights:
     get:
       operationId: getInsights
@@ -427,8 +523,49 @@ components:
         sortOrder: { type: integer }
         thumbnailUrl: { type: ["string", "null"] }
         generationStatus: { type: string }
+        generationProgress: { type: integer }
+        modelGlbUrl: { type: ["string", "null"], format: uri }
+        modelUsdzUrl: { type: ["string", "null"], format: uri }
+        generationError: { type: ["string", "null"] }
         updatedAt: { type: string, format: date-time }
-      required: [id, name, description, priceCents, category, isAvailable, isPublished, sortOrder, thumbnailUrl, generationStatus, updatedAt]
+      required: [id, name, description, priceCents, category, isAvailable, isPublished, sortOrder, thumbnailUrl, generationStatus, generationProgress, modelGlbUrl, modelUsdzUrl, generationError, updatedAt]
+    DrinkPhotoUploadInput:
+      type: object
+      properties:
+        drinkId: { type: string }
+        kind: { type: string, enum: [original, cleaned] }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size:
+          type: integer
+          minimum: 1
+          description: Image byte size; no greater than 15728640 (15 MB).
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+      required: [drinkId, kind, name, size, contentType]
+    DrinkPhotoUpload:
+      type: object
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+      required: [uploadURL, objectPath]
+    DrinkGenerationInput:
+      type: object
+      properties:
+        sourcePhotoPath: { type: string, minLength: 1 }
+        cleanedPhotoPath: { type: string, minLength: 1 }
+      required: [sourcePhotoPath, cleanedPhotoPath]
+    DrinkGeneration:
+      type: object
+      properties:
+        status: { type: string, enum: [none, uploaded, processing, ready, failed] }
+        progress:
+          type: integer
+          description: Generation progress from 0 to 100.
+        error: { type: ["string", "null"] }
+        sourcePhotoUrl: { type: ["string", "null"], format: uri }
+        cleanedPhotoUrl: { type: ["string", "null"], format: uri }
+        modelGlbUrl: { type: ["string", "null"], format: uri }
+        thumbnailUrl: { type: ["string", "null"], format: uri }
+      required: [status, progress, error, sourcePhotoUrl, cleanedPhotoUrl, modelGlbUrl, thumbnailUrl]
     DrinkInput:
       type: object
       properties:

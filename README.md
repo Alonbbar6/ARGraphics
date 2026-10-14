@@ -1,6 +1,6 @@
 # Garnish
 
-Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners can create a private bar account, manage drinks and prices, view menu insights, and manage table-card artwork with print-size PDF export.
+Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners can create a private bar account, manage drinks and prices, view menu insights, manage table-card artwork with print-size PDF export, and turn drink photos into reviewed 3D models for their iOS menu.
 ## Run the app
 
 - Start the web app with `pnpm --filter @workspace/garnish run dev`.
@@ -20,7 +20,8 @@ Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners c
 Set secrets in Replit Secrets. Never put secret values in source files.
 
 - `SESSION_SECRET` signs the HTTP-only owner session cookie.
-- `MESHY_API_KEY` is reserved for the planned photo-to-3D generation flow, which is not implemented yet.
+- `MESHY_API_KEY` is used by the server to create and poll image-to-3D tasks. Keep it in Replit Secrets.
+- App Storage holds uploaded drink photos and generated model and thumbnail files.
 - `IOS_API_KEY` must be set before the iOS menu API will respond. Requests without it receive HTTP 503; requests with an invalid key receive HTTP 401.
 
 ## Current API endpoints
@@ -33,12 +34,16 @@ All routes below are served under `/api`.
 - `POST /auth/login` accepts an email and password and sets an HTTP-only session cookie.
 - `POST /auth/logout` clears the session cookie.
 - `GET /drinks` lists the signed-in owner's drinks.
+- `POST /storage/drink-photos/request-url` creates a short-lived upload URL for a validated drink photo; the browser uploads directly to App Storage.
+- `GET /drinks/{id}/generation` returns photo-to-3D progress and review links.
+- `POST /drinks/{id}/generation` starts Meshy image-to-3D generation from the approved photos.
+- `GET /drinks/{id}/photos/{source|cleaned}` serves the owner's private before-and-after photos.
 - `POST /drinks` accepts `{"name":"Garden Gimlet","description":"Cucumber, basil, lime","priceCents":1500,"category":"signature"}`.
 - `PATCH /drinks/{id}` accepts any subset of the drink fields, such as `{"priceCents":1600,"isAvailable":false}`.
 - `DELETE /drinks/{id}` removes a drink.
 - `GET /insights` returns view totals and per-drink counts.
 - `GET /table-cards`, `POST /table-cards`, and `DELETE /table-cards/{id}` manage the signed-in owner's table cards.
-- `POST /storage/uploads/request-url` creates an upload URL for signed-in owners. Upload image bytes directly to that URL.
+- `POST /storage/uploads/request-url` creates a short-lived upload URL for table-card artwork. Upload image bytes directly to that URL.
 - Drink, table-card, and storage operations are scoped to the signed-in owner's bar.
 - `GET /v1/bars/{slug}/menu-version` returns that bar's menu version. Requires the `x-api-key` header.
 - `GET /v1/bars/{slug}/menu` returns that bar's published and available drinks. Requires the `x-api-key` header.
@@ -92,6 +97,6 @@ The current menu response shape is:
 }
 ```
 
-## Next implementation stages
+## Remaining implementation stages
 
-Photo cleanup, Meshy task polling, and interactive 3D review and publishing remain to be implemented.
+Password recovery remains future work. The iOS menu exposes published model asset URLs and table-card artwork, with a menu version that updates when menu content changes.

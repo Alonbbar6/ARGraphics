@@ -1,8 +1,12 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import bcrypt from "bcryptjs";
 import { db, arEventsTable, barsTable, drinksTable, menuVersionTable, tableCardsTable, usersTable } from "@workspace/db";
+import { objectStorageClient } from "../lib/objectStorage";
 import {
   CreatePublicEventParams,
   CreatePublicEventResponse,
@@ -10,6 +14,8 @@ import {
   CreatePublicEventBody,
   DeleteDrinkParams,
   GetPublicTableCardsParams,
+  GetDrinkGenerationParams,
+  GetDrinkGenerationResponse,
   GetInsightsResponse,
   GetPublicMenuParams,
   GetPublicMenuResponse,
@@ -22,6 +28,11 @@ import {
   LoginResponse,
   LogoutResponse,
   RegisterBody,
+  RequestDrinkPhotoUploadBody,
+  RequestDrinkPhotoUploadResponse,
+  StartDrinkGenerationBody,
+  StartDrinkGenerationParams,
+  StartDrinkGenerationResponse,
   UpdateDrinkBody,
   UpdateDrinkParams,
 } from "@workspace/api-zod";
@@ -31,6 +42,9 @@ const router: IRouter = Router();
 const demoBarId = "garnish-demo-bar";
 const demoSlug = "demo-bar";
 const sessionCookie = "garnish_session";
+const MAX_PHOTO_SIZE = 15 * 1024 * 1024;
+const objectStorage = new ObjectStorageService();
+const activeMeshyPolls = new Set<string>();
 
 declare global {
   namespace Express {
@@ -256,7 +270,60 @@ router.post("/auth/logout", (_req, res): void => {
 
 router.use(["/drinks", "/insights"], requireOwner);
 
-function asDrink(drink: typeof drinksTable.$inferSelect) {
+router.post("/storage/drink-photos/request-url", requireOwner, async (req, res): Promise<void> => {
+  const parsed = RequestDrinkPhotoUploadBody.safeParse(req.body);
+  if (!parsed.success || parsed.data.size > MAX_PHOTO_SIZE) {
+    res.status(400).json({ error: "Choose a JPEG, PNG, or WebP photo no larger than 15 MB." });
+    return;
+  }
+  const input = parsed.data;
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
+  const [drink] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, input.drinkId), eq(drinksTable.barId, barId))).limit(1);
+  if (!drink) {
+    res.status(404).json({ error: "Drink not found." });
+    return;
+  }
+  try {
+    const uploadURL = await objectStorage.getObjectEntityUploadURL();
+    const objectPath = objectStorage.normalizeObjectEntityPath(uploadURL);
+    await db.update(drinksTable).set({
+      ...(input.kind === "original" ? { sourcePhotoUrl: objectPath } : { cleanedPhotoUrl: objectPath }),
+      generationStatus: "uploaded",
+      generationProgress: 0,
+      generationError: null,
+      updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, input.drinkId), eq(drinksTable.barId, barId)));
+    res.json(RequestDrinkPhotoUploadResponse.parse({ uploadURL, objectPath }));
+  } catch (error) {
+    req.log.error({ err: error }, "Could not create App Storage upload URL");
+    res.status(503).json({ error: "Photo storage is unavailable right now. Try again shortly." });
+  }
+});
+
+function publicAssetUrl(req: Request, storedPath: string | null): string | null {
+  if (!storedPath) return null;
+  const filePath = storedPath.startsWith("/public-objects/")
+    ? storedPath.slice("/public-objects/".length)
+    : storedPath.replace(/^\/+/, "");
+  const host = req.get("x-forwarded-host")?.split(",")[0]?.trim() || req.get("host");
+  const protocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim() || req.protocol;
+  const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+  return `${protocol}://${host}/api/storage/public-objects/${encodedPath}`;
+}
+
+function drinkPhotoUrl(req: Request, drinkId: string, kind: "source" | "cleaned", path: string | null) {
+  if (!path) return null;
+  const host = req.get("x-forwarded-host")?.split(",")[0]?.trim() || req.get("host");
+  const protocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim() || req.protocol;
+  return `${protocol}://${host}/api/drinks/${encodeURIComponent(drinkId)}/photos/${kind}`;
+}
+
+function asDrink(req: Request, drink: typeof drinksTable.$inferSelect) {
   return {
     id: drink.id,
     name: drink.name,
@@ -266,10 +333,26 @@ function asDrink(drink: typeof drinksTable.$inferSelect) {
     isAvailable: drink.isAvailable,
     isPublished: drink.isPublished,
     sortOrder: drink.sortOrder,
-    thumbnailUrl: drink.thumbnailUrl,
+    thumbnailUrl: publicAssetUrl(req, drink.thumbnailUrl),
     generationStatus: drink.generationStatus,
+    generationProgress: drink.generationProgress,
+    modelGlbUrl: publicAssetUrl(req, drink.modelGlbUrl),
+    modelUsdzUrl: publicAssetUrl(req, drink.modelUsdzUrl),
+    generationError: drink.generationError,
     updatedAt: drink.updatedAt.toISOString(),
   };
+}
+
+function generationState(req: Request, drink: typeof drinksTable.$inferSelect) {
+  return GetDrinkGenerationResponse.parse({
+    status: drink.generationStatus,
+    progress: drink.generationProgress,
+    error: drink.generationError,
+    sourcePhotoUrl: drinkPhotoUrl(req, drink.id, "source", drink.sourcePhotoUrl),
+    cleanedPhotoUrl: drinkPhotoUrl(req, drink.id, "cleaned", drink.cleanedPhotoUrl),
+    modelGlbUrl: publicAssetUrl(req, drink.modelGlbUrl),
+    thumbnailUrl: publicAssetUrl(req, drink.thumbnailUrl),
+  });
 }
 
 async function bumpMenuVersion(barId: string) {
@@ -288,7 +371,327 @@ router.get("/drinks", async (req, res): Promise<void> => {
   }
   const drinks = await db.select().from(drinksTable)
     .where(eq(drinksTable.barId, barId)).orderBy(asc(drinksTable.sortOrder));
-  res.json(ListDrinksResponse.parse(drinks.map(asDrink)));
+  res.json(ListDrinksResponse.parse(drinks.map((drink) => asDrink(req, drink))));
+});
+
+function storageTarget(searchPath: string, assetName: string) {
+  const parts = searchPath.replace(/^\/+|\/+$/g, "").split("/");
+  const bucketName = parts.shift();
+  if (!bucketName) throw new Error("App Storage public path is invalid.");
+  const folder = parts.join("/");
+  const objectName = [folder, assetName].filter(Boolean).join("/");
+  return { bucketName, objectName };
+}
+
+async function saveMeshyDownload(
+  sourceUrl: string,
+  drinkId: string,
+  extension: string,
+  contentType: string,
+): Promise<string> {
+  const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(5 * 60_000) });
+  if (!response.ok || !response.body) {
+    throw new Error(`Meshy asset download failed (${response.status}).`);
+  }
+  const declaredSize = Number(response.headers.get("content-length") || 0);
+  if (declaredSize > 200 * 1024 * 1024) throw new Error("The generated model is larger than App Storage allows.");
+
+  const assetName = `garnish/drinks/${drinkId}/${randomUUID()}.${extension}`;
+  for (const searchPath of objectStorage.getPublicObjectSearchPaths()) {
+    const target = storageTarget(searchPath, assetName);
+    const file = objectStorageClient.bucket(target.bucketName).file(target.objectName);
+    try {
+      await pipeline(
+        Readable.fromWeb(response.body as ReadableStream<Uint8Array>),
+        file.createWriteStream({
+          metadata: {
+            contentType,
+            cacheControl: "public, max-age=31536000, immutable",
+          },
+        }),
+      );
+      return `/public-objects/${assetName}`;
+    } catch (error) {
+      await file.delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+  throw new Error("No public App Storage path is configured.");
+}
+
+type MeshyTask = {
+  id?: string;
+  status?: string;
+  progress?: number;
+  model_urls?: Record<string, string>;
+  thumbnail_url?: string;
+  task_error?: { message?: string };
+};
+
+async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Promise<boolean> {
+  const apiKey = process.env.MESHY_API_KEY;
+  if (!apiKey) throw new Error("MESHY_API_KEY is not configured.");
+  const [drink] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).limit(1);
+  if (!drink || drink.meshyTaskId !== taskId) return true;
+
+  const response = await fetch(`https://api.meshy.ai/openapi/v1/image-to-3d/${encodeURIComponent(taskId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const result = await response.json() as MeshyTask & { message?: string };
+  if (!response.ok) throw new Error(result.message || `Meshy returned HTTP ${response.status}.`);
+
+  if (result.status === "PENDING" || result.status === "IN_PROGRESS") {
+    await db.update(drinksTable).set({
+      generationStatus: "processing",
+      generationProgress: Math.max(0, Math.min(99, Math.round(result.progress ?? drink.generationProgress))),
+      updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
+    return false;
+  }
+
+  if (result.status === "FAILED" || result.status === "CANCELED") {
+    await db.update(drinksTable).set({
+      generationStatus: "failed",
+      generationError: result.task_error?.message || "Meshy could not make a model from this photo. Try another image.",
+      updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
+    return true;
+  }
+
+  if (result.status !== "SUCCEEDED") return false;
+  const glbSource = result.model_urls?.glb;
+  const thumbnailSource = result.thumbnail_url;
+  if (!glbSource || !thumbnailSource) {
+    throw new Error("Meshy finished without returning the model and preview image.");
+  }
+  const [glbPath, thumbnailPath, usdzPath] = await Promise.all([
+    saveMeshyDownload(glbSource, drinkId, "glb", "model/gltf-binary"),
+    saveMeshyDownload(thumbnailSource, drinkId, "png", "image/png"),
+    result.model_urls?.usdz
+      ? saveMeshyDownload(result.model_urls.usdz, drinkId, "usdz", "model/vnd.usdz+zip")
+      : Promise.resolve(null),
+  ]);
+  await db.update(drinksTable).set({
+    modelGlbUrl: glbPath,
+    modelUsdzUrl: usdzPath,
+    thumbnailUrl: thumbnailPath,
+    generationStatus: "ready",
+    generationProgress: 100,
+    generationError: null,
+    updatedAt: new Date(),
+  }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
+  return true;
+}
+
+function startBackgroundPolling(drinkId: string, barId: string, taskId: string) {
+  const key = `${drinkId}:${taskId}`;
+  if (activeMeshyPolls.has(key)) return;
+  activeMeshyPolls.add(key);
+  void (async () => {
+    try {
+      for (let attempt = 0; attempt < 360; attempt += 1) {
+        await delay(5_000);
+        if (await pollMeshyTask(drinkId, barId, taskId)) return;
+      }
+      await db.update(drinksTable).set({
+        generationStatus: "failed",
+        generationError: "This model is taking longer than expected. Try again or choose another photo.",
+        updatedAt: new Date(),
+      }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The 3D preview could not be saved.";
+      await db.update(drinksTable).set({
+        generationStatus: "failed",
+        generationError: message,
+        updatedAt: new Date(),
+      }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
+    } finally {
+      activeMeshyPolls.delete(key);
+    }
+  })();
+}
+
+router.get("/drinks/:id/photos/:kind", async (req, res): Promise<void> => {
+  const kind = req.params.kind;
+  if (kind !== "source" && kind !== "cleaned") {
+    res.status(404).json({ error: "Photo not found." });
+    return;
+  }
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
+  const [drink] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, req.params.id), eq(drinksTable.barId, barId))).limit(1);
+  const objectPath = kind === "source" ? drink?.sourcePhotoUrl : drink?.cleanedPhotoUrl;
+  if (!objectPath) {
+    res.status(404).json({ error: "Photo not found." });
+    return;
+  }
+  try {
+    const file = await objectStorage.getObjectEntityFile(objectPath);
+    const response = await objectStorage.downloadObject(file, 300);
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    res.setHeader("Cache-Control", "private, no-store");
+    if (response.body) {
+      Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    req.log.error({ err: error }, "Could not serve drink photo");
+    res.status(404).json({ error: "Photo is not available." });
+  }
+});
+
+router.get("/storage/public-objects/*filePath", async (req, res): Promise<void> => {
+  try {
+    const raw = req.params.filePath;
+    const filePath = Array.isArray(raw) ? raw.join("/") : raw;
+    const file = await objectStorage.searchPublicObject(filePath);
+    if (!file) {
+      res.status(404).json({ error: "Asset not found." });
+      return;
+    }
+    const response = await objectStorage.downloadObject(file, 31_536_000);
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    if (response.body) {
+      Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    req.log.error({ err: error }, "Could not serve public drink asset");
+    res.status(500).json({ error: "Could not load this menu asset." });
+  }
+});
+
+router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
+  const params = GetDrinkGenerationParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Drink not found." });
+    return;
+  }
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
+  const [drink] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
+  if (!drink) {
+    res.status(404).json({ error: "Drink not found." });
+    return;
+  }
+  if (drink.generationStatus === "processing" && drink.meshyTaskId) {
+    startBackgroundPolling(drink.id, drink.barId, drink.meshyTaskId);
+  }
+  res.json(GetDrinkGenerationResponse.parse(generationState(req, drink)));
+});
+
+router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
+  const params = StartDrinkGenerationParams.safeParse(req.params);
+  const body = StartDrinkGenerationBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Choose both the original and cleaned photos before generating a preview." });
+    return;
+  }
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
+  const [drink] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
+  if (!drink) {
+    res.status(404).json({ error: "Drink not found." });
+    return;
+  }
+  if (drink.generationStatus === "processing") {
+    res.status(409).json({ error: "A 3D preview is already being generated for this drink." });
+    return;
+  }
+  const { sourcePhotoPath, cleanedPhotoPath } = body.data;
+  if (sourcePhotoPath !== drink.sourcePhotoUrl || cleanedPhotoPath !== drink.cleanedPhotoUrl ||
+      !sourcePhotoPath.startsWith("/objects/uploads/") || !cleanedPhotoPath.startsWith("/objects/uploads/")) {
+    res.status(400).json({ error: "The approved photos do not match the uploaded files. Upload them again." });
+    return;
+  }
+  const apiKey = process.env.MESHY_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "3D generation is not configured. Check the Meshy connection." });
+    return;
+  }
+  try {
+    const [sourceFile, cleanedFile] = await Promise.all([
+      objectStorage.getObjectEntityFile(sourcePhotoPath),
+      objectStorage.getObjectEntityFile(cleanedPhotoPath),
+    ]);
+    const [[sourceMetadata], [cleanedMetadata]] = await Promise.all([
+      sourceFile.getMetadata(),
+      cleanedFile.getMetadata(),
+    ]);
+    for (const metadata of [sourceMetadata, cleanedMetadata]) {
+      if (Number(metadata.size || 0) < 1 || Number(metadata.size || 0) > MAX_PHOTO_SIZE ||
+          !["image/jpeg", "image/png", "image/webp"].includes(String(metadata.contentType || ""))) {
+        res.status(400).json({ error: "One of the uploaded photos is too large or is not a supported image." });
+        return;
+      }
+    }
+    const imageUrl = await objectStorage.getObjectEntityReadURL(cleanedPhotoPath, 3600);
+    const response = await fetch("https://api.meshy.ai/openapi/v1/image-to-3d", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        ai_model: "latest",
+        should_texture: true,
+        texture_resolution: "2k",
+        alpha_thumbnail: true,
+        target_formats: ["glb", "usdz"],
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    const result = await response.json() as { result?: string; message?: string };
+    if (!response.ok || !result.result) {
+      const message = result.message || `Meshy could not start the task (HTTP ${response.status}).`;
+      await db.update(drinksTable).set({
+        generationStatus: "failed",
+        generationError: message,
+        updatedAt: new Date(),
+      }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId)));
+      res.status(502).json({ error: message });
+      return;
+    }
+    const [updated] = await db.update(drinksTable).set({
+      meshyTaskId: result.result,
+      generationStatus: "processing",
+      generationProgress: 0,
+      generationError: null,
+      ...(drink.isPublished ? { isPublished: false } : {}),
+      updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId))).returning();
+    if (drink.isPublished) await bumpMenuVersion(drink.barId);
+    startBackgroundPolling(drink.id, drink.barId, result.result);
+    res.json(StartDrinkGenerationResponse.parse(generationState(req, updated)));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not start the 3D preview.";
+    await db.update(drinksTable).set({
+      generationStatus: "failed",
+      generationError: message,
+      updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId)));
+    req.log.error({ err: error }, "Could not start Meshy generation");
+    res.status(502).json({ error: message });
+  }
 });
 
 router.post("/drinks", async (req, res): Promise<void> => {
@@ -310,7 +713,7 @@ router.post("/drinks", async (req, res): Promise<void> => {
     ...parsed.data,
     sortOrder: (lastDrink?.sortOrder ?? 0) + 1,
   }).returning();
-  res.status(201).json(asDrink(drink));
+  res.status(201).json(asDrink(req, drink));
 });
 
 router.patch("/drinks/:id", async (req, res): Promise<void> => {
@@ -325,6 +728,16 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Check the drink details and try again." });
     return;
   }
+  const [existing] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Drink not found." });
+    return;
+  }
+  if (body.data.isPublished === true && !existing.modelGlbUrl) {
+    res.status(400).json({ error: "Generate a 3D preview before publishing this drink." });
+    return;
+  }
   const [drink] = await db.update(drinksTable)
     .set({ ...body.data, updatedAt: new Date() })
     .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
@@ -336,7 +749,7 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
   if (body.data.priceCents !== undefined || body.data.isPublished !== undefined || body.data.isAvailable !== undefined) {
     await bumpMenuVersion(barId);
   }
-  res.json(asDrink(drink));
+  res.json(asDrink(req, drink));
 });
 
 router.delete("/drinks/:id", async (req, res): Promise<void> => {
@@ -427,9 +840,9 @@ router.get("/v1/bars/:slug/menu", async (req, res): Promise<void> => {
       price: `$${(drink.priceCents / 100).toFixed(2)}`,
       priceCents: drink.priceCents,
       category: drink.category,
-      thumbnailUrl: drink.thumbnailUrl,
-      modelUsdzUrl: drink.modelUsdzUrl,
-      modelGlbUrl: drink.modelGlbUrl,
+      thumbnailUrl: publicAssetUrl(req, drink.thumbnailUrl),
+      modelUsdzUrl: publicAssetUrl(req, drink.modelUsdzUrl),
+      modelGlbUrl: publicAssetUrl(req, drink.modelGlbUrl),
       updatedAt: drink.updatedAt.toISOString(),
     })),
   }));

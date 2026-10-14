@@ -40,7 +40,6 @@ export const registerBodyPasswordMin = 12;
 export const registerBodyPasswordMax = 72;
 
 
-
 export const RegisterBody = zod.object({
   "name": zod.string().min(registerBodyNameMin).max(registerBodyNameMax),
   "barName": zod.string().min(registerBodyBarNameMin).max(registerBodyBarNameMax),
@@ -58,7 +57,6 @@ export const RegisterResponse = zod.object({
 
 export const loginBodyPasswordMin = 12;
 export const loginBodyPasswordMax = 72;
-
 
 
 export const LoginBody = zod.object({
@@ -90,6 +88,10 @@ export const ListDrinksResponseItem = zod.object({
   "sortOrder": zod.number().int(),
   "thumbnailUrl": zod.string().nullable(),
   "generationStatus": zod.string(),
+  "generationProgress": zod.number().int(),
+  "modelGlbUrl": zod.string().url().nullable(),
+  "modelUsdzUrl": zod.string().url().nullable(),
+  "generationError": zod.string().nullable(),
   "updatedAt": zod.coerce.date()
 })
 export const ListDrinksResponse = zod.array(ListDrinksResponseItem)
@@ -98,7 +100,6 @@ export const ListDrinksResponse = zod.array(ListDrinksResponseItem)
 export const createDrinkBodyNameMax = 80;
 
 export const createDrinkBodyPriceCentsMin = 0;
-
 
 
 export const CreateDrinkBody = zod.object({
@@ -119,6 +120,10 @@ export const CreateDrinkResponse = zod.object({
   "sortOrder": zod.number().int(),
   "thumbnailUrl": zod.string().nullable(),
   "generationStatus": zod.string(),
+  "generationProgress": zod.number().int(),
+  "modelGlbUrl": zod.string().url().nullable(),
+  "modelUsdzUrl": zod.string().url().nullable(),
+  "generationError": zod.string().nullable(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -130,7 +135,6 @@ export const UpdateDrinkParams = zod.object({
 export const updateDrinkBodyNameMax = 80;
 
 export const updateDrinkBodyPriceCentsMin = 0;
-
 
 
 export const UpdateDrinkBody = zod.object({
@@ -154,6 +158,10 @@ export const UpdateDrinkResponse = zod.object({
   "sortOrder": zod.number().int(),
   "thumbnailUrl": zod.string().nullable(),
   "generationStatus": zod.string(),
+  "generationProgress": zod.number().int(),
+  "modelGlbUrl": zod.string().url().nullable(),
+  "modelUsdzUrl": zod.string().url().nullable(),
+  "generationError": zod.string().nullable(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -166,7 +174,9 @@ export const DeleteDrinkResponse = zod.object({
   "message": zod.string()
 })
 
-
+export const GetDrinkGenerationParams = zod.object({
+  "id": zod.coerce.string()
+})
 export const GetInsightsResponse = zod.object({
   "viewsThisWeek": zod.number().int(),
   "mostViewedDrink": zod.string().nullable(),
@@ -187,7 +197,6 @@ export const requestUploadUrlBodyNameMax = 160;
 export const requestUploadUrlBodySizeMax = 10485760;
 
 
-
 export const RequestUploadUrlBody = zod.object({
   "name": zod.string().min(1).max(requestUploadUrlBodyNameMax),
   "size": zod.number().int().min(1).max(requestUploadUrlBodySizeMax),
@@ -197,7 +206,6 @@ export const RequestUploadUrlBody = zod.object({
 export const requestUploadUrlResponseMetadataNameMax = 160;
 
 export const requestUploadUrlResponseMetadataSizeMax = 10485760;
-
 
 
 export const RequestUploadUrlResponse = zod.object({
@@ -222,7 +230,6 @@ export const listTableCardsResponsePhysicalWidthCmExclusiveMin = 0;
 export const listTableCardsResponsePhysicalWidthCmMax = 100;
 
 
-
 export const ListTableCardsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -241,7 +248,6 @@ export const createTableCardBodyPhysicalWidthCmExclusiveMin = 0;
 export const createTableCardBodyPhysicalWidthCmMax = 100;
 
 
-
 export const CreateTableCardBody = zod.object({
   "name": zod.string().min(1).max(createTableCardBodyNameMax),
   "objectPath": zod.string().regex(createTableCardBodyObjectPathRegExp),
@@ -250,7 +256,6 @@ export const CreateTableCardBody = zod.object({
 
 export const createTableCardResponsePhysicalWidthCmExclusiveMin = 0;
 export const createTableCardResponsePhysicalWidthCmMax = 100;
-
 
 
 export const CreateTableCardResponse = zod.object({
@@ -339,7 +344,6 @@ export const CreatePublicEventHeader = zod.object({
 export const createPublicEventBodyDrinkIdMax = 120;
 
 
-
 export const CreatePublicEventBody = zod.object({
   "drinkId": zod.string().min(1).max(createPublicEventBodyDrinkIdMax),
   "eventType": zod.enum(['view', 'ar_open', 'ar_close'])
@@ -350,3 +354,59 @@ export const CreatePublicEventResponse = zod.object({
 })
 
 
+export const RequestDrinkPhotoUploadResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "objectPath": zod.string()
+})
+
+export const GetDrinkPhotoResponse = zod.unknown()
+
+export const GetDrinkPhotoParams = zod.object({
+  "id": zod.coerce.string(),
+  "kind": zod.enum(['source', 'cleaned'])
+})
+
+export const requestDrinkPhotoUploadBodyNameMax = 255;
+
+export const GetPublicDrinkAssetResponse = zod.unknown()
+
+export const StartDrinkGenerationResponse = zod.object({
+  "status": zod.enum(['none', 'uploaded', 'processing', 'ready', 'failed']),
+  "progress": zod.number().int().describe('Generation progress from 0 to 100.'),
+  "error": zod.string().nullable(),
+  "sourcePhotoUrl": zod.string().url().nullable(),
+  "cleanedPhotoUrl": zod.string().url().nullable(),
+  "modelGlbUrl": zod.string().url().nullable(),
+  "thumbnailUrl": zod.string().url().nullable()
+})
+
+export const StartDrinkGenerationBody = zod.object({
+  "sourcePhotoPath": zod.string().min(1),
+  "cleanedPhotoPath": zod.string().min(1)
+})
+
+export const RequestDrinkPhotoUploadBody = zod.object({
+  "drinkId": zod.string(),
+  "kind": zod.enum(['original', 'cleaned']),
+  "name": zod.string().min(1).max(requestDrinkPhotoUploadBodyNameMax),
+  "size": zod.number().int().min(1).describe('Image byte size; no greater than 15728640 (15 MB).'),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const GetPublicDrinkAssetParams = zod.object({
+  "filePath": zod.coerce.string()
+})
+
+export const GetDrinkGenerationResponse = zod.object({
+  "status": zod.enum(['none', 'uploaded', 'processing', 'ready', 'failed']),
+  "progress": zod.number().int().describe('Generation progress from 0 to 100.'),
+  "error": zod.string().nullable(),
+  "sourcePhotoUrl": zod.string().url().nullable(),
+  "cleanedPhotoUrl": zod.string().url().nullable(),
+  "modelGlbUrl": zod.string().url().nullable(),
+  "thumbnailUrl": zod.string().url().nullable()
+})
+
+export const StartDrinkGenerationParams = zod.object({
+  "id": zod.coerce.string()
+})

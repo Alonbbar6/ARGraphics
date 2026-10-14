@@ -33,6 +33,7 @@ export const drinksTable = pgTable("drinks", {
   modelUsdzUrl: text("model_usdz_url"),
   thumbnailUrl: text("thumbnail_url"),
   generationStatus: text("generation_status").notNull().default("none"),
+  generationProgress: integer("generation_progress").notNull().default(0),
   meshyTaskId: text("meshy_task_id"),
   generationError: text("generation_error"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
