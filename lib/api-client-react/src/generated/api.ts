@@ -39,6 +39,7 @@ import type {
   Session,
   TableCard,
   TableCardInput,
+  TableCardUpdate,
   UploadUrlRequest,
   UploadUrlResponse
 } from './api.schemas';
@@ -971,6 +972,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getCreateTableCardMutationOptions(options));
     }
 
+export const getUpdateTableCardUrl = (id: string,) => {
+
+
+  return `/api/table-cards/${id}`
+}
 export const getDeleteTableCardUrl = (id: string,) => {
 
 
@@ -1573,3 +1579,71 @@ export const getStartDrinkGenerationUrl = (id: string,) => {
 }
 
     export type StartDrinkGenerationMutationVariables = {id: string;data: BodyType<DrinkGenerationInput>}
+
+export const updateTableCard = async (id: string,
+    tableCardUpdate: TableCardUpdate, options?: Parameters<typeof customFetch>[1]): Promise<TableCard> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TableCard>(getUpdateTableCardUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(tableCardUpdate)
+  }
+);}
+
+    export const useUpdateTableCard = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTableCard>>, TError,UpdateTableCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTableCard>>,
+        TError,
+        UpdateTableCardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateTableCardMutationOptions(options));
+    }
+
+export const getUpdateTableCardMutationKey = () => ['updateTableCard'] as const;
+
+export const getUpdateTableCardMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTableCard>>, TError,UpdateTableCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTableCard>>, TError,UpdateTableCardMutationVariables, TContext> => {
+
+const mutationKey = getUpdateTableCardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTableCard>>, UpdateTableCardMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTableCard(id,data,requestOptions)
+        }
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTableCardMutationBody = BodyType<TableCardUpdate>
+
+    export type UpdateTableCardMutationError = ErrorType<void>
+
+    export type UpdateTableCardMutationVariables = {id: string;data: BodyType<TableCardUpdate>}
+
+    export type UpdateTableCardMutationResult = NonNullable<Awaited<ReturnType<typeof updateTableCard>>>

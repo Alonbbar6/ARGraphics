@@ -33,6 +33,7 @@ export * from './publicTableCard';
 export * from './session';
 export * from './tableCard';
 export * from './tableCardInput';
+export * from './tableCardUpdate';
 export * from './uploadUrlRequest';
 export * from './uploadUrlRequestContentType';
 export * from './uploadUrlResponse';

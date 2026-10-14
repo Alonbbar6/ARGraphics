@@ -267,7 +267,9 @@ export const CreateTableCardResponse = zod.object({
   "createdAt": zod.coerce.date()
 })
 
-
+export const UpdateTableCardParams = zod.object({
+  "id": zod.coerce.string().min(1)
+})
 export const DeleteTableCardParams = zod.object({
   "id": zod.coerce.string()
 })
@@ -410,3 +412,30 @@ export const GetDrinkGenerationResponse = zod.object({
 export const StartDrinkGenerationParams = zod.object({
   "id": zod.coerce.string()
 })
+
+export const updateTableCardBodyPhysicalWidthCmMax = 100;
+
+export const UpdateTableCardResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "referenceImageUrl": zod.string(),
+  "physicalWidthCm": zod.number().gt(updateTableCardResponsePhysicalWidthCmExclusiveMin).max(updateTableCardResponsePhysicalWidthCmMax),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+export const updateTableCardBodyNameMax = 80;
+
+export const updateTableCardBodyPhysicalWidthCmMin = 0.001;
+
+export const UpdateTableCardBody = zod.object({
+  "name": zod.string().min(1).max(updateTableCardBodyNameMax).regex(updateTableCardBodyNameRegExp).optional(),
+  "physicalWidthCm": zod.number().min(updateTableCardBodyPhysicalWidthCmMin).max(updateTableCardBodyPhysicalWidthCmMax).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const updateTableCardResponsePhysicalWidthCmExclusiveMin = 0;
+
+export const updateTableCardResponsePhysicalWidthCmMax = 100;
+
+export const updateTableCardBodyNameRegExp = new RegExp('\\S');

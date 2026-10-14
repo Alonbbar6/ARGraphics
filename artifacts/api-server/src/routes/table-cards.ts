@@ -6,6 +6,9 @@ import {
   DeleteTableCardParams,
   DeleteTableCardResponse,
   ListTableCardsResponse,
+  UpdateTableCardBody,
+  UpdateTableCardParams,
+  UpdateTableCardResponse,
 } from "@workspace/api-zod";
 import { db, menuVersionTable, tableCardsTable } from "@workspace/db";
 import { randomUUID } from "node:crypto";
@@ -57,7 +60,26 @@ router.get("/table-cards", async (req, res): Promise<void> => {
 router.post("/table-cards", async (req: Request, res: Response): Promise<void> => {
   const user = await owner(req, res);
   if (!user) return;
-  const parsed = CreateTableCardBody.safeParse(req.body);
+  const parsed = UpdateTableCardBody.strict()
+    .refine((data) => Object.keys(data).length > 0, "Enter card details to update.")
+    .safeParse(req.body);
+
+    const card = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(tableCardsTable).set({
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
+        ...(parsed.data.physicalWidthCm !== undefined
+          ? { physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5) } : {}),
+        ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+      }).where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
+        .returning();
+      if (!updated) return null;
+      await tx.insert(menuVersionTable).values({ barId: user.barId, version: 1 })
+        .onConflictDoUpdate({
+          target: menuVersionTable.barId,
+          set: { version: sql`${menuVersionTable.version} + 1` },
+        });
+      return updated;
+    });
   if (!parsed.success) {
     res.status(400).json({ error: "Enter a card name, uploaded artwork, and width from 0 to 100 cm." });
     return;
@@ -70,14 +92,9 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
       res.status(400).json({ error: "The uploaded file is not a supported image under 10 MB." });
       return;
     }
-    const [card] = await db.insert(tableCardsTable).values({
-      id: randomUUID(),
-      barId: user.barId,
-      name: parsed.data.name.trim(),
-      referenceImageUrl: parsed.data.objectPath,
-      physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5),
-      isActive: true,
-    }).returning();
+  const [card] = await db.delete(tableCardsTable)
+    .where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
+    .returning();
     await bumpMenuVersion(user.barId);
     res.status(201).json(CreateTableCardResponse.parse({
       id: card.id,
@@ -97,7 +114,7 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
   }
 });
 
-router.delete("/table-cards/:id", async (req: Request, res: Response): Promise<void> => {
+router.patch("/table-cards/:id", async (req: Request, res: Response): Promise<void> => {
   const user = await owner(req, res);
   if (!user) return;
   const params = DeleteTableCardParams.safeParse(req.params);

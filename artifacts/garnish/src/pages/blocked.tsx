@@ -2,7 +2,8 @@ import { getListTableCardsQueryKey, useCreateTableCard, useDeleteTableCard, useL
 import { useQueryClient } from '@tanstack/react-query';
 import { createTableCardPdf } from '../lib/table-card-pdf';
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertCircle, Check, Copy, Download, ExternalLink, KeyRound, LayoutGrid, Link2, LoaderCircle, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, Check, Copy, Download, ExternalLink, KeyRound, LayoutGrid, Link2, LoaderCircle, Pencil, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { TableCardEditor } from '@/components/table-card-editor';
 
 type ArtworkSelection = {
   file: File;
@@ -23,6 +24,7 @@ export function TableCardsPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => () => {
     if (artwork?.previewUrl) URL.revokeObjectURL(artwork.previewUrl);
@@ -214,10 +216,12 @@ export function TableCardsPage() {
               <article key={card.id} className="overflow-hidden rounded-2xl border border-border bg-background">
                 <img src={card.referenceImageUrl} alt={`${card.name} reference artwork`} className="h-40 w-full bg-muted object-contain p-3" />
                 <div className="flex items-center gap-3 p-4">
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{card.name}</p><p className="mt-1 text-xs text-muted-foreground">{card.physicalWidthCm} cm wide · PDF uses original aspect ratio</p></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{card.name}</p><p className="mt-1 text-xs text-muted-foreground">{card.physicalWidthCm} cm wide · PDF uses original aspect ratio</p><p className="mt-1 text-xs text-muted-foreground">{card.isActive ? 'Active in iOS menu' : 'Inactive in iOS menu'}</p></div>
+                  <button type="button" onClick={() => setEditingId(card.id)} disabled={editingId !== null || deleteCard.isPending} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50" aria-label={`Edit ${card.name}`} title="Edit card details"><Pencil size={17} /></button>
                   <button type="button" onClick={() => void downloadPdf(card)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80" aria-label={`Download print PDF for ${card.name}`} title="Download print-ready PDF"><Download size={17} /></button>
-                  <button type="button" onClick={() => void removeCard(card.id)} disabled={deleteCard.isPending} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50" aria-label={`Delete ${card.name}`} title="Delete card"><Trash2 size={17} /></button>
+                  <button type="button" onClick={() => void removeCard(card.id)} disabled={deleteCard.isPending || editingId !== null} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50" aria-label={`Delete ${card.name}`} title="Delete card"><Trash2 size={17} /></button>
                 </div>
+                {editingId === card.id && <TableCardEditor card={card} onClose={() => setEditingId(null)} />}
               </article>
             ))}</div> : <div className="mt-5 rounded-2xl border border-dashed border-border p-7 text-center">
               <LayoutGrid size={24} className="mx-auto text-muted-foreground" />

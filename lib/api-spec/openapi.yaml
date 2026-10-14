@@ -334,6 +334,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/TableCard"
   /table-cards/{id}:
+    patch:
+      operationId: updateTableCard
+      tags: [tableCards]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TableCardUpdate"
+      responses:
+        "200":
+          description: Table card updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableCard"
+        "400":
+          description: Invalid card details
+        "401":
+          description: Sign-in required
+        "404":
+          description: Table card not found for the signed-in bar
     delete:
       operationId: deleteTableCard
       tags: [tableCards]
@@ -663,6 +692,14 @@ components:
         objectPath: { type: string, pattern: "^/objects/uploads/[a-f0-9-]{36}$" }
         physicalWidthCm: { type: number, exclusiveMinimum: 0, maximum: 100 }
       required: [name, objectPath, physicalWidthCm]
+    TableCardUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80, pattern: "\\S" }
+        physicalWidthCm: { type: number, minimum: 0.001, maximum: 100 }
+        isActive: { type: boolean }
     PublicTableCard:
       type: object
       properties:

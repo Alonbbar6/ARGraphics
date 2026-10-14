@@ -225,6 +225,20 @@ export interface TableCardInput {
   physicalWidthCm: number;
 }
 
+export interface TableCardUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     * @pattern \S
+     */
+  name?: string;
+  /**
+     * @minimum 0.001
+     * @maximum 100
+     */
+  physicalWidthCm?: number;
+  isActive?: boolean;
+}
 export interface PublicTableCard {
   id: string;
   name: string;
