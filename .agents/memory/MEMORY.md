@@ -1,0 +1,2 @@
+- [Design and iOS scope](product-scope.md) — Owner dashboard uses uploaded screen references; old iOS app code is lost and a new app is being built.
+- [Tailwind token collisions](tailwind-tokens.md) — Named spacing tokens can override container-width utilities and collapse forms.

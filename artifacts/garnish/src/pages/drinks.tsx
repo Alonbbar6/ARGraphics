@@ -93,19 +93,19 @@ export function DrinksPage() {
   }
 
   return (
-    <div className="rise">
+    <div className="rise owner-drinks-page">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[.22em] text-primary">The menu</p>
-          <h1 className="serif text-4xl tracking-tight sm:text-5xl">Drinks, in good order.</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Keep the list tight. Prices right. Signatures looking their best.</p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[.19em] text-primary">Menu workspace <span className="mx-1 text-muted-foreground/50">/</span> Drinks</p>
+          <h1 className="serif text-4xl tracking-tight sm:text-[2.8rem]">A good night starts here.</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Keep the list sharp, the prices current, and the good stuff pouring.</p>
         </div>
         <button onClick={openCreate} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-lg shadow-primary/15" data-testid="button-add-drink">
           <CirclePlus size={18} /> Add a drink
         </button>
       </div>
-      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row sm:items-center">
-        <label className="flex min-h-11 flex-1 items-center gap-3 rounded-xl bg-muted/60 px-3">
+      <div className="owner-toolbar mb-5 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row sm:items-center">
+        <label className="owner-search flex min-h-11 flex-1 items-center gap-3 rounded-xl bg-muted/60 px-3">
           <Search size={17} className="text-muted-foreground" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder="Find a drink..." aria-label="Search drinks" data-testid="input-search-drinks" />
         </label>
@@ -128,12 +128,12 @@ export function DrinksPage() {
         <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center"><p className="font-medium">No drinks in that round.</p><button onClick={() => { setQuery(''); setCategory('all'); }} className="mt-3 min-h-11 px-4 text-sm text-primary underline underline-offset-4" data-testid="button-clear-filter">Clear filters</button></div>
       ) : (
         <div className="overflow-hidden rounded-3xl border border-border bg-card">
-          <div className="hidden grid-cols-[minmax(240px,1.6fr)_1fr_100px_130px_48px] gap-4 border-b border-border px-5 py-3 text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground sm:grid">
+          <div className="owner-drink-grid hidden gap-3 border-b border-border px-5 py-3 text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground sm:grid">
             <span>Drink</span><span>Style</span><span>Price</span><span>On the menu</span><span />
           </div>
           {drinks.map((drink) => (
-            <article key={drink.id} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-3 border-b border-border/70 px-4 py-4 last:border-0 sm:grid-cols-[minmax(240px,1.6fr)_1fr_100px_130px_48px] sm:items-center sm:gap-4 sm:px-5" data-testid={`row-drink-${drink.id}`}>
-              <div className="flex min-w-0 items-center gap-3">
+            <article key={drink.id} className="owner-drink-grid grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 border-b border-border/70 px-4 py-4 last:border-0 sm:items-center sm:px-5" data-testid={`row-drink-${drink.id}`}>
+              <div className="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
                 <div className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl ${drink.thumbnailUrl ? 'bg-cover bg-center' : 'last-call text-[#26151d]'}`} style={drink.thumbnailUrl ? { backgroundImage: `url(${drink.thumbnailUrl})` } : undefined}>
                   {!drink.thumbnailUrl && <GlassWater size={21} />}
                 </div>
@@ -145,10 +145,10 @@ export function DrinksPage() {
               <span className="hidden text-sm capitalize text-muted-foreground sm:block">{drink.category.replace('-', ' ')}</span>
               <span className="hidden font-semibold tabular-nums sm:block">{formatPrice(drink.priceCents)}</span>
               <div className="flex items-center gap-2">
-                <button onClick={() => toggleDrink(drink, 'isAvailable')} className={`relative h-7 w-12 rounded-full transition-colors ${drink.isAvailable ? 'bg-primary' : 'bg-muted'}`} aria-label={`${drink.isAvailable ? 'Mark unavailable' : 'Mark available'}: ${drink.name}`} data-testid={`toggle-available-${drink.id}`}>
-                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${drink.isAvailable ? 'translate-x-6' : 'translate-x-1'}`} />
+                <button onClick={() => toggleDrink(drink, 'isAvailable')} className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${drink.isAvailable ? 'bg-primary' : 'bg-muted'}`} role="switch" aria-checked={drink.isAvailable} aria-label={`${drink.isAvailable ? 'Mark unavailable' : 'Mark available'}: ${drink.name}`} data-testid={`toggle-available-${drink.id}`}>
+                  <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white transition-transform ${drink.isAvailable ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
-                <span className="text-xs text-muted-foreground sm:hidden">{formatPrice(drink.priceCents)}</span>
+                <span className="whitespace-nowrap text-xs text-muted-foreground sm:hidden">{formatPrice(drink.priceCents)}</span>
                 <span className="hidden text-xs text-muted-foreground sm:inline">{drink.isAvailable ? 'Pouring' : '86’d'}</span>
               </div>
               <div className="relative flex justify-end">

@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useGetSession, useHealthCheck, useLogout, getGetSessionQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, BarChart3, ChevronDown, CircleHelp, GlassWater, LayoutGrid, LogOut, Moon, Settings2, Sun } from 'lucide-react';
+import './owner.css';
 
 const links = [
   { href: '/drinks', label: 'Drinks', icon: GlassWater },
@@ -17,7 +18,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const health = useHealthCheck();
   const logout = useLogout();
   const queryClient = useQueryClient();
-  const theme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'daylight' ? 'daylight' : 'lastcall';
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'daylight' ? 'daylight' : 'lastcall');
+
+  useEffect(() => {
+    const onTheme = (event: Event) => setTheme((event as CustomEvent<string>).detail);
+    window.addEventListener('garnish-theme', onTheme);
+    return () => window.removeEventListener('garnish-theme', onTheme);
+  }, []);
 
   useEffect(() => {
     if (!isLoading && !session?.authenticated) setLocation('/login');
@@ -55,15 +62,15 @@ export function Shell({ children }: { children: ReactNode }) {
   if (!session?.authenticated) return null;
 
   return (
-    <div className="min-h-[100dvh] md:grid md:grid-cols-[250px_1fr]">
-      <aside className="hidden min-h-[100dvh] flex-col bg-sidebar px-5 py-7 text-sidebar-foreground md:flex">
+    <div className="garnish-owner-root min-h-[100dvh] md:grid md:grid-cols-[236px_minmax(0,1fr)]">
+      <aside className="owner-sidebar hidden min-h-[100dvh] flex-col bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
         <Link href="/drinks" className="mb-10 flex min-h-11 items-center gap-3 px-2 text-xl font-bold tracking-tight">
-          <span className="grid h-9 w-9 place-items-center rounded-xl last-call text-[#24131f]">
+          <span className="owner-mark grid h-9 w-9 place-items-center rounded-xl last-call text-[#24131f]">
             <GlassWater size={19} strokeWidth={2.4} />
           </span>
           garnish<span className="text-primary">.</span>
         </Link>
-        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-sidebar-foreground/45">Your bar</p>
+        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-sidebar-foreground/45">Workspace</p>
         <div className="mb-7 rounded-2xl border border-white/10 bg-white/[.04] p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -79,7 +86,7 @@ export function Shell({ children }: { children: ReactNode }) {
               href={href}
               key={href}
               data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`}
-              className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${location === href ? 'bg-white/10 text-white' : 'text-sidebar-foreground/65 hover:bg-white/[.06] hover:text-white'}`}
+              className={`owner-nav-link flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${location === href ? 'bg-white/10 text-white' : 'text-sidebar-foreground/65 hover:bg-white/[.06] hover:text-white'}`}
             >
               <Icon size={18} />
               {label}
@@ -107,7 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/90 px-4 backdrop-blur-lg md:px-8">
+        <header className="owner-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/90 px-4 backdrop-blur-lg md:px-8">
           <Link href="/drinks" className="flex min-h-11 items-center gap-2 text-lg font-bold md:hidden">
             <span className="grid h-8 w-8 place-items-center rounded-lg last-call text-[#24131f]"><GlassWater size={17} /></span>
             garnish<span className="text-primary">.</span>
@@ -122,11 +129,11 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 pt-7 md:px-8 md:pb-10 md:pt-10">
+        <main className="owner-main mx-auto w-full max-w-[1600px] min-w-0 px-4 pb-28 pt-7 md:px-7 md:pb-10 md:pt-8 xl:px-10">
           {children}
         </main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur-xl md:hidden" aria-label="Mobile navigation">
+      <nav className="owner-mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur-xl md:hidden" aria-label="Mobile navigation">
         {links.map(({ href, label, icon: Icon }) => (
           <Link href={href} key={href} className={`flex min-h-[60px] flex-col items-center justify-center gap-1 text-[10px] font-medium ${location === href ? 'text-primary' : 'text-muted-foreground'}`} data-testid={`mobile-nav-${label.toLowerCase().replaceAll(' ', '-')}`}>
             <Icon size={19} />
