@@ -16,7 +16,9 @@ const router: IRouter = Router();
 const storage = new ObjectStorageService();
 
 async function bumpMenuVersion(barId: string): Promise<void> {
-  await db.insert(menuVersionTable).values({ barId, version: 1 })
+  // The public API reports version 1 even before a row exists.
+  // A first mutation must therefore advance that observable version to 2.
+  await db.insert(menuVersionTable).values({ barId, version: 2 })
     .onConflictDoUpdate({
       target: menuVersionTable.barId,
       set: { version: sql`${menuVersionTable.version} + 1` },

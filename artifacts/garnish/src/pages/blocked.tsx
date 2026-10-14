@@ -1,6 +1,6 @@
 import { getListTableCardsQueryKey, useCreateTableCard, useDeleteTableCard, useListTableCards, useGetSession } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { jsPDF } from 'jspdf';
+import { createTableCardPdf } from '../lib/table-card-pdf';
 import { useEffect, useState, type FormEvent } from 'react';
 import { AlertCircle, Check, Copy, Download, ExternalLink, KeyRound, LayoutGrid, Link2, LoaderCircle, ShieldCheck, Trash2, Upload } from 'lucide-react';
 
@@ -136,15 +136,9 @@ export function TableCardsPage() {
       if (!context) throw new Error('Could not prepare the print file.');
       context.drawImage(bitmap, 0, 0);
       bitmap.close();
-      const widthMm = card.physicalWidthCm * 10;
-      const heightMm = widthMm * canvas.height / canvas.width;
-      const pdf = new jsPDF({
-        orientation: widthMm >= heightMm ? 'landscape' : 'portrait',
-        unit: 'mm',
-        format: [widthMm, heightMm],
-        compress: true,
-      });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, widthMm, heightMm);
+      const pdf = createTableCardPdf(
+        canvas.toDataURL('image/png'), card.physicalWidthCm, canvas.width, canvas.height,
+      );
       pdf.save(`${card.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-|-$/g, '') || 'table-card'}.pdf`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the print PDF.');
