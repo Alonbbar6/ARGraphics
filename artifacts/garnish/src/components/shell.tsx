@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useGetSession, useHealthCheck, useLogout, getGetSessionQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const logout = useLogout();
   const queryClient = useQueryClient();
   const theme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'daylight' ? 'daylight' : 'lastcall';
+
+  useEffect(() => {
+    if (!isLoading && !session?.authenticated) setLocation('/login');
+  }, [isLoading, session?.authenticated, setLocation]);
 
   const toggleTheme = () => {
     window.dispatchEvent(new CustomEvent('garnish-theme', { detail: theme === 'lastcall' ? 'daylight' : 'lastcall' }));
@@ -47,6 +51,8 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
     );
   }
+
+  if (!session?.authenticated) return null;
 
   return (
     <div className="min-h-[100dvh] md:grid md:grid-cols-[250px_1fr]">

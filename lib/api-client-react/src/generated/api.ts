@@ -738,7 +738,7 @@ export const getGetPublicMenuVersionUrl = (slug: string,) => {
 
 
 
-  return `/api/api/v1/bars/${slug}/menu-version`
+  return `/api/v1/bars/${slug}/menu-version`
 }
 
 export const getPublicMenuVersion = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<MenuVersion> => {
@@ -758,7 +758,7 @@ export const getPublicMenuVersion = async (slug: string, options?: Parameters<ty
 
 export const getGetPublicMenuVersionQueryKey = (slug: string,) => {
     return [
-    `/api/api/v1/bars/${slug}/menu-version`
+    `/api/v1/bars/${slug}/menu-version`
     ] as const;
     }
 
@@ -809,7 +809,7 @@ export const getGetPublicMenuUrl = (slug: string,) => {
 
 
 
-  return `/api/api/v1/bars/${slug}/menu`
+  return `/api/v1/bars/${slug}/menu`
 }
 
 export const getPublicMenu = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicMenu> => {
@@ -829,7 +829,7 @@ export const getPublicMenu = async (slug: string, options?: Parameters<typeof cu
 
 export const getGetPublicMenuQueryKey = (slug: string,) => {
     return [
-    `/api/api/v1/bars/${slug}/menu`
+    `/api/v1/bars/${slug}/menu`
     ] as const;
     }
 

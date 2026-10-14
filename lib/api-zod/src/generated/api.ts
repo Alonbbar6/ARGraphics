@@ -150,6 +150,10 @@ export const GetPublicMenuVersionParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+export const GetPublicMenuVersionHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
 export const GetPublicMenuVersionResponse = zod.object({
   "version": zod.number().int()
 })
@@ -157,6 +161,10 @@ export const GetPublicMenuVersionResponse = zod.object({
 
 export const GetPublicMenuParams = zod.object({
   "slug": zod.coerce.string()
+})
+
+export const GetPublicMenuHeader = zod.object({
+  "x-api-key": zod.string()
 })
 
 export const GetPublicMenuResponse = zod.object({

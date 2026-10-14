@@ -41,6 +41,11 @@ export function LoginPage() {
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[.22em] text-primary">Good to have you back</p>
           <h1 className="serif text-5xl leading-tight">Back behind<br />the bar.</h1>
           <p className="mt-3 text-sm text-muted-foreground">Sign in to give tonight’s menu a look.</p>
+          <p className="mt-5 rounded-xl border border-border bg-card/70 px-4 py-3 text-xs text-muted-foreground">
+            Demo bar: <span className="font-semibold text-foreground">demo@garnish.app</span>
+            <br />
+            Password: <span className="font-semibold text-foreground">Garnish-demo-2026!</span>
+          </p>
           <form onSubmit={submit} className="mt-8 space-y-4">
             <label className="block text-sm font-medium">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 min-h-12 w-full rounded-xl border border-input bg-card px-4 outline-none focus:border-primary" placeholder="you@yourbar.com" data-testid="input-login-email" /></label>
             <label className="block text-sm font-medium">Password<input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 min-h-12 w-full rounded-xl border border-input bg-card px-4 outline-none focus:border-primary" placeholder="Your password" data-testid="input-login-password" /></label>

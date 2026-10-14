@@ -150,13 +150,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Insights"
-  /api/v1/bars/{slug}/menu-version:
+  /v1/bars/{slug}/menu-version:
     get:
       operationId: getPublicMenuVersion
       tags: [ios]
       parameters:
         - in: path
           name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-api-key
           required: true
           schema:
             type: string
@@ -167,13 +172,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuVersion"
-  /api/v1/bars/{slug}/menu:
+  /v1/bars/{slug}/menu:
     get:
       operationId: getPublicMenu
       tags: [ios]
       parameters:
         - in: path
           name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-api-key
           required: true
           schema:
             type: string

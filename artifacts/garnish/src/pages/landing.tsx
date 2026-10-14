@@ -62,18 +62,18 @@ export function Landing() {
         </div>
       </header>
       <main>
-        <section className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 pb-24 pt-12 sm:px-8 md:grid-cols-[1fr_.95fr] md:pb-32 md:pt-20">
-          <div className="relative z-10 rise">
+        <section className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-24 pt-12 sm:px-8 md:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)] md:gap-14 md:pb-32 md:pt-20">
+          <div className="relative z-10 min-w-0 rise">
             <p className="mb-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.23em] text-primary"><span className="h-px w-7 bg-primary" /> A better first sip starts here</p>
-            <h1 className="serif max-w-2xl text-[clamp(3.8rem,8.8vw,7.4rem)] leading-[.91] tracking-[-.045em]">Nobody can<br /><em className="text-primary">taste</em> a menu.</h1>
-            <p className="mt-7 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">Your bartender spent three weeks on that cocktail. Your guests skimmed right past it. Garnish makes your drinks rise off the table in 3D, so guests see them, order them, and film them.</p>
+            <h1 className="serif max-w-none text-[clamp(3.2rem,7vw,6.5rem)] leading-[.91] tracking-[-.045em]">Nobody can<br /><em className="text-primary">taste</em> a menu.</h1>
+            <p className="mt-7 w-full text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8" style={{ maxWidth: '36rem' }}>Your bartender spent three weeks on that cocktail. Your guests skimmed right past it. Garnish makes your drinks rise off the table in 3D, so guests see them, order them, and film them.</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/login" className="flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-lg shadow-primary/20">Try it free for 30 days <ArrowRight size={17} /></Link>
               <a href="#how-it-works" className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-border px-5 text-sm font-semibold hover:bg-muted"><CirclePlay size={17} /> See how it works</a>
             </div>
             <div className="mt-8 flex items-center gap-4 text-xs text-muted-foreground"><span className="flex -space-x-2"><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-background bg-[#9b6c76] text-[10px] font-bold text-white">J</span><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-background bg-[#d29352] text-[10px] font-bold text-white">M</span><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-background bg-[#6f7e69] text-[10px] font-bold text-white">A</span></span><span>For the people behind the bar.</span></div>
           </div>
-          <div className="relative py-10 md:py-0"><MenuPreview /></div>
+          <div className="relative min-w-0 py-10 md:py-0"><MenuPreview /></div>
           <a href="#how-it-works" className="absolute bottom-8 left-8 hidden items-center gap-2 text-[10px] font-bold uppercase tracking-[.2em] text-muted-foreground md:flex"><ArrowDown size={15} /> Scroll for the good stuff</a>
         </section>
 
