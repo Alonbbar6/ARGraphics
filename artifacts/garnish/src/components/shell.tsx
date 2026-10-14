@@ -37,6 +37,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const signOut = () => {
     logout.mutate(undefined, {
       onSuccess: () => {
+        queryClient.clear();
         queryClient.setQueryData(getGetSessionQueryKey(), {
           authenticated: false,
           userName: null,

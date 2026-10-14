@@ -58,7 +58,7 @@ export function Landing() {
         </nav>
         <div className="flex items-center gap-2">
           <Link href="/login" className="hidden min-h-11 items-center px-4 text-sm font-medium sm:flex">Sign in</Link>
-          <Link href="/login" className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">Try it free <ArrowRight size={15} /></Link>
+          <Link href="/register" className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">Try it free <ArrowRight size={15} /></Link>
         </div>
       </header>
       <main>
@@ -68,7 +68,7 @@ export function Landing() {
             <h1 className="serif max-w-none text-[clamp(3.2rem,7vw,6.5rem)] leading-[.91] tracking-[-.045em]">Nobody can<br /><em className="text-primary">taste</em> a menu.</h1>
             <p className="mt-7 w-full text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8" style={{ maxWidth: '36rem' }}>Your bartender spent three weeks on that cocktail. Your guests skimmed right past it. Garnish makes your drinks rise off the table in 3D, so guests see them, order them, and film them.</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/login" className="flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-lg shadow-primary/20">Try it free for 30 days <ArrowRight size={17} /></Link>
+              <Link href="/register" className="flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-lg shadow-primary/20">Try it free for 30 days <ArrowRight size={17} /></Link>
               <a href="#how-it-works" className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-border px-5 text-sm font-semibold hover:bg-muted"><CirclePlay size={17} /> See how it works</a>
             </div>
             <div className="mt-8 flex items-center gap-4 text-xs text-muted-foreground"><span className="flex -space-x-2"><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-background bg-[#9b6c76] text-[10px] font-bold text-white">J</span><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-background bg-[#d29352] text-[10px] font-bold text-white">M</span><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-background bg-[#6f7e69] text-[10px] font-bold text-white">A</span></span><span>For the people behind the bar.</span></div>
@@ -142,7 +142,7 @@ export function Landing() {
         </section>
 
         <section className="mx-auto grid max-w-7xl gap-10 px-5 py-24 sm:px-8 md:grid-cols-[1fr_1fr] md:items-center md:py-32">
-          <div><p className="mb-4 text-[11px] font-bold uppercase tracking-[.22em] text-primary">05 / The little things add up</p><h2 className="serif text-5xl leading-[1.02] sm:text-6xl">Let the drinks<br />do the <em>talking.</em></h2><p className="mt-6 max-w-md leading-7 text-muted-foreground">Better discovery starts with a better look. A guest who notices your house amaro is a guest who might order it twice.</p><Link href="/login" className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground">Give your menu a lift <MoveUpRight size={16} /></Link></div>
+          <div><p className="mb-4 text-[11px] font-bold uppercase tracking-[.22em] text-primary">05 / The little things add up</p><h2 className="serif text-5xl leading-[1.02] sm:text-6xl">Let the drinks<br />do the <em>talking.</em></h2><p className="mt-6 max-w-md leading-7 text-muted-foreground">Better discovery starts with a better look. A guest who notices your house amaro is a guest who might order it twice.</p><Link href="/register" className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground">Give your menu a lift <MoveUpRight size={16} /></Link></div>
           <div className="grid grid-cols-[1.1fr_.9fr] gap-3">
             <div className="last-call flex min-h-[220px] flex-col justify-between rounded-[2rem] p-6 text-[#271722]"><span className="text-[10px] font-bold uppercase tracking-[.2em]">The bar, in focus</span><span><span className="serif text-5xl">Your<br />signature.</span><span className="mt-4 block text-xs">A reason to come back.</span></span></div>
             <div className="mt-9 flex min-h-[220px] flex-col justify-between rounded-[2rem] bg-secondary p-6 text-secondary-foreground"><ScanLine size={20} /><span><span className="serif text-3xl">Look closer.</span><span className="mt-2 block text-xs opacity-70">The next round starts here.</span></span></div>
@@ -154,7 +154,7 @@ export function Landing() {
             <span className="absolute -right-12 -top-24 h-64 w-64 rounded-full border border-[#35202b]/15" /><span className="absolute -bottom-36 -left-10 h-72 w-72 rounded-full border border-[#35202b]/15" />
             <p className="relative mb-5 text-[11px] font-bold uppercase tracking-[.22em]">Your next great menu is already in the making</p>
             <h2 className="serif relative mx-auto max-w-3xl text-5xl leading-[1.02] sm:text-7xl">Give them a reason to look twice.</h2>
-            <Link href="/login" className="relative mx-auto mt-8 flex min-h-14 w-fit items-center gap-3 rounded-2xl bg-[#2b1d2a] px-6 font-semibold text-[#f7e9d9]">Try it free for 30 days <ArrowRight size={17} /></Link>
+            <Link href="/register" className="relative mx-auto mt-8 flex min-h-14 w-fit items-center gap-3 rounded-2xl bg-[#2b1d2a] px-6 font-semibold text-[#f7e9d9]">Try it free for 30 days <ArrowRight size={17} /></Link>
             <p className="relative mt-4 text-xs text-[#422432]/75">No card on the table. Start with 30 days on us.</p>
           </div>
         </section>

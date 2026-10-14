@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, asc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { db, arEventsTable, barsTable, drinksTable, menuVersionTable, tableCardsTable, usersTable } from "@workspace/db";
@@ -21,6 +21,7 @@ import {
   LoginBody,
   LoginResponse,
   LogoutResponse,
+  RegisterBody,
   UpdateDrinkBody,
   UpdateDrinkParams,
 } from "@workspace/api-zod";
@@ -30,6 +31,14 @@ const router: IRouter = Router();
 const demoBarId = "garnish-demo-bar";
 const demoSlug = "demo-bar";
 const sessionCookie = "garnish_session";
+
+declare global {
+  namespace Express {
+    interface Request {
+      owner?: typeof usersTable.$inferSelect;
+    }
+  }
+}
 
 function signSession(payload: string): string {
   const secret = process.env.SESSION_SECRET;
@@ -61,11 +70,35 @@ export async function currentUser(req: Request) {
 }
 
 async function requireOwner(req: Request, res: Response, next: NextFunction): Promise<void> {
-  if (!(await currentUser(req))) {
+  const owner = await currentUser(req);
+  if (!owner) {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
+  req.owner = owner;
   next();
+}
+
+function setSessionCookie(res: Response, userId: string): void {
+  const payload = Buffer.from(JSON.stringify({
+    userId,
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  })).toString("base64url");
+  const signature = signSession(payload);
+  res.setHeader(
+    "Set-Cookie",
+    `${sessionCookie}=${payload}.${signature}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`,
+  );
+}
+
+function slugBase(barName: string): string {
+  const slug = barName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return slug || "bar";
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
 function requireIosKey(req: Request, res: Response): boolean {
@@ -108,6 +141,8 @@ function rateLimitIos(req: Request, res: Response, next: NextFunction): void {
 router.use("/v1/bars", rateLimitIos);
 
 router.get("/auth/session", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.removeHeader("ETag");
   const user = await currentUser(req);
   if (!user) {
     res.json(GetSessionResponse.parse({ authenticated: false, userName: null, barName: null, barSlug: null }));
@@ -119,6 +154,76 @@ router.get("/auth/session", async (req, res): Promise<void> => {
     userName: user.name,
     barName: bar?.name ?? null,
     barSlug: bar?.slug ?? null,
+  }));
+});
+
+router.post("/auth/register", async (req, res): Promise<void> => {
+  const parsed = RegisterBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter your name, bar name, a valid email, and a password of at least 12 characters." });
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+  const name = parsed.data.name.trim();
+  const barName = parsed.data.barName.trim();
+  if (!name || !barName || Buffer.byteLength(parsed.data.password, "utf8") > 72) {
+    res.status(400).json({ error: "Check your details and use a password no longer than 72 bytes." });
+    return;
+  }
+
+  const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.email, email)).limit(1);
+  if (existingUser) {
+    res.status(409).json({ error: "An account with that email already exists." });
+    return;
+  }
+
+  const userId = randomUUID();
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  let createdBar: typeof barsTable.$inferSelect | undefined;
+  try {
+    await db.transaction(async (tx) => {
+      const base = slugBase(barName);
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const slug = attempt === 0 ? base : `${base}-${randomUUID().slice(0, 6)}`;
+        const [bar] = await tx.insert(barsTable).values({
+          id: randomUUID(),
+          name: barName,
+          slug,
+        }).onConflictDoNothing({ target: barsTable.slug }).returning();
+        if (!bar) continue;
+
+        await tx.insert(usersTable).values({
+          id: userId,
+          barId: bar.id,
+          email,
+          passwordHash,
+          name,
+        });
+        await tx.insert(menuVersionTable).values({ barId: bar.id, version: 1 });
+        createdBar = bar;
+        return;
+      }
+      throw new Error("Could not reserve a unique menu address.");
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      res.status(409).json({ error: "An account with that email already exists." });
+      return;
+    }
+    throw error;
+  }
+
+  if (!createdBar) {
+    res.status(500).json({ error: "Could not create your bar account. Please try again." });
+    return;
+  }
+  setSessionCookie(res, userId);
+  res.status(201).json(LoginResponse.parse({
+    authenticated: true,
+    userName: name,
+    barName: createdBar.name,
+    barSlug: createdBar.slug,
   }));
 });
 
@@ -134,12 +239,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Email or password did not match." });
     return;
   }
-  const payload = Buffer.from(JSON.stringify({
-    userId: user.id,
-    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-  })).toString("base64url");
-  const signature = signSession(payload);
-  res.setHeader("Set-Cookie", `${sessionCookie}=${payload}.${signature}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+  setSessionCookie(res, user.id);
   const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, user.barId)).limit(1);
   res.json(LoginResponse.parse({
     authenticated: true,
@@ -150,7 +250,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/logout", (_req, res): void => {
-  res.setHeader("Set-Cookie", `${sessionCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+  res.setHeader("Set-Cookie", `${sessionCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
   res.json(LogoutResponse.parse({ message: "Signed out." }));
 });
 
@@ -172,36 +272,53 @@ function asDrink(drink: typeof drinksTable.$inferSelect) {
   };
 }
 
-async function bumpMenuVersion() {
-  await db.insert(menuVersionTable).values({ barId: demoBarId, version: 2 })
+async function bumpMenuVersion(barId: string) {
+  await db.insert(menuVersionTable).values({ barId, version: 2 })
     .onConflictDoUpdate({
       target: menuVersionTable.barId,
       set: { version: sql`${menuVersionTable.version} + 1` },
     });
 }
 
-router.get("/drinks", async (_req, res): Promise<void> => {
+router.get("/drinks", async (req, res): Promise<void> => {
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
   const drinks = await db.select().from(drinksTable)
-    .where(eq(drinksTable.barId, demoBarId)).orderBy(asc(drinksTable.sortOrder));
+    .where(eq(drinksTable.barId, barId)).orderBy(asc(drinksTable.sortOrder));
   res.json(ListDrinksResponse.parse(drinks.map(asDrink)));
 });
 
 router.post("/drinks", async (req, res): Promise<void> => {
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
   const parsed = CreateDrinkBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [lastDrink] = await db.select({ sortOrder: drinksTable.sortOrder }).from(drinksTable)
+    .where(eq(drinksTable.barId, barId)).orderBy(desc(drinksTable.sortOrder));
   const [drink] = await db.insert(drinksTable).values({
     id: randomUUID(),
-    barId: demoBarId,
+    barId,
     ...parsed.data,
-    sortOrder: Date.now(),
+    sortOrder: (lastDrink?.sortOrder ?? 0) + 1,
   }).returning();
   res.status(201).json(asDrink(drink));
 });
 
 router.patch("/drinks/:id", async (req, res): Promise<void> => {
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
   const params = UpdateDrinkParams.safeParse(req.params);
   const body = UpdateDrinkBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -210,41 +327,51 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
   }
   const [drink] = await db.update(drinksTable)
     .set({ ...body.data, updatedAt: new Date() })
-    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, demoBarId)))
+    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
     .returning();
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
   }
   if (body.data.priceCents !== undefined || body.data.isPublished !== undefined || body.data.isAvailable !== undefined) {
-    await bumpMenuVersion();
+    await bumpMenuVersion(barId);
   }
   res.json(asDrink(drink));
 });
 
 router.delete("/drinks/:id", async (req, res): Promise<void> => {
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
   const params = DeleteDrinkParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
   const [drink] = await db.delete(drinksTable)
-    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, demoBarId)))
+    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
     .returning();
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
   }
-  await bumpMenuVersion();
+  await bumpMenuVersion(barId);
   res.json({ message: "Drink deleted." });
 });
 
-router.get("/insights", async (_req, res): Promise<void> => {
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, demoBarId)).limit(1);
-  const drinks = await db.select().from(drinksTable).where(eq(drinksTable.barId, demoBarId));
+router.get("/insights", async (req, res): Promise<void> => {
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
+  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, barId)).limit(1);
+  const drinks = await db.select().from(drinksTable).where(eq(drinksTable.barId, barId));
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const events = await db.select().from(arEventsTable)
-    .where(and(eq(arEventsTable.barId, demoBarId), gte(arEventsTable.createdAt, weekAgo)));
+    .where(and(eq(arEventsTable.barId, barId), gte(arEventsTable.createdAt, weekAgo)));
   const viewsByDrink = drinks.map((drink) => ({
     drinkName: drink.name,
     views: events.filter((event) => event.drinkId === drink.id && event.eventType === "view").length,
@@ -266,7 +393,7 @@ router.get("/v1/bars/:slug/menu-version", async (req, res): Promise<void> => {
     return;
   }
   const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
-    .where(eq(barsTable.slug, params.data.slug));
+    .where(eq(barsTable.slug, params.data.slug)).limit(1);
   if (!bar) {
     res.status(404).json({ error: "Bar not found." });
     return;
@@ -282,7 +409,7 @@ router.get("/v1/bars/:slug/menu", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Bar not found." });
     return;
   }
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.slug, params.data.slug));
+  const [bar] = await db.select().from(barsTable).where(eq(barsTable.slug, params.data.slug)).limit(1);
   if (!bar) {
     res.status(404).json({ error: "Bar not found." });
     return;
@@ -391,8 +518,10 @@ async function seedDemoBar() {
   await db.insert(menuVersionTable).values({ barId: demoBarId, version: 1 }).onConflictDoNothing();
 }
 
-void seedDemoBar().catch((error: unknown) => {
-  process.stderr.write(`Garnish demo seed failed: ${String(error)}\n`);
-});
+if (process.env.NODE_ENV === "development") {
+  void seedDemoBar().catch((error: unknown) => {
+    process.stderr.write(`Garnish demo seed failed: ${String(error)}\n`);
+  });
+}
 
 export default router;

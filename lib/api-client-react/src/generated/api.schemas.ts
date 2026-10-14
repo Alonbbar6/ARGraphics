@@ -25,7 +25,30 @@ export interface Session {
 
 export interface LoginInput {
   email: string;
-  /** @minLength 1 */
+  /**
+     * @minLength 12
+     * @maxLength 72
+     */
+  password: string;
+}
+
+export interface OwnerRegistrationInput {
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  barName: string;
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 12
+     * @maxLength 72
+     */
   password: string;
 }
 

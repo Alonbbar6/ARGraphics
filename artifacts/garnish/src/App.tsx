@@ -9,7 +9,7 @@ import { Landing } from '@/pages/landing';
 import { DrinksPage } from '@/pages/drinks';
 import { InsightsPage } from '@/pages/insights';
 import { TableCardsPage, SettingsPage } from '@/pages/blocked';
-import { LoginPage } from '@/pages/login';
+import { LoginPage, RegisterPage } from '@/pages/login';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -25,6 +25,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
         <Route path="/drinks">{() => <Shell><DrinksPage /></Shell>}</Route>
         <Route path="/table-cards">{() => <Shell><TableCardsPage /></Shell>}</Route>
         <Route path="/insights">{() => <Shell><InsightsPage /></Shell>}</Route>

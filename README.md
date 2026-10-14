@@ -1,7 +1,6 @@
 # Garnish
 
-Garnish is a mobile-first menu dashboard for independent cocktail bars. The current first release includes a public marketing page, bar-owner sign-in, persistent drink and price management, availability controls, menu versioning, an insights page, and table-card artwork management with print-size PDF export.
-
+Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners can create a private bar account, manage drinks and prices, view menu insights, and manage table-card artwork with print-size PDF export.
 ## Run the app
 
 - Start the web app with `pnpm --filter @workspace/garnish run dev`.
@@ -9,17 +8,19 @@ Garnish is a mobile-first menu dashboard for independent cocktail bars. The curr
 - Run workspace checks with `pnpm run typecheck`.
 - Apply development schema changes with `pnpm --filter @workspace/db run push`.
 
-## Demo sign-in
+
+## Development demo sign-in
 
 - Email: `demo@garnish.app`
 - Password: `Garnish-demo-2026!`
+- This seeded account is created only when the API runs with `NODE_ENV=development`. It is not created in production.
 
 ## Secrets
 
 Set secrets in Replit Secrets. Never put secret values in source files.
 
 - `SESSION_SECRET` signs the HTTP-only owner session cookie.
-- `MESHY_API_KEY` is stored for the planned photo-to-3D flow. The generation route and storage flow are not implemented in this first release yet.
+- `MESHY_API_KEY` is reserved for the planned photo-to-3D generation flow, which is not implemented yet.
 - `IOS_API_KEY` must be set before the iOS menu API will respond. Requests without it receive HTTP 503; requests with an invalid key receive HTTP 401.
 
 ## Current API endpoints
@@ -28,19 +29,21 @@ All routes below are served under `/api`.
 
 - `GET /healthz` returns `{"status":"ok"}`.
 - `GET /auth/session` returns `{"authenticated":false,"userName":null,"barName":null,"barSlug":null}` when signed out.
-- `POST /auth/login` accepts `{"email":"demo@garnish.app","password":"Garnish-demo-2026!"}` and sets an HTTP-only session cookie.
+- `POST /auth/register` accepts `name`, `barName`, `email`, and a password of at least 12 characters; it creates a private bar account and starts a session.
+- `POST /auth/login` accepts an email and password and sets an HTTP-only session cookie.
 - `POST /auth/logout` clears the session cookie.
-- `GET /drinks` lists the signed-in bar's drinks.
+- `GET /drinks` lists the signed-in owner's drinks.
 - `POST /drinks` accepts `{"name":"Garden Gimlet","description":"Cucumber, basil, lime","priceCents":1500,"category":"signature"}`.
 - `PATCH /drinks/{id}` accepts any subset of the drink fields, such as `{"priceCents":1600,"isAvailable":false}`.
 - `DELETE /drinks/{id}` removes a drink.
 - `GET /insights` returns view totals and per-drink counts.
-- `GET /v1/bars/{slug}/menu-version` returns the current menu version number. Requires the `x-api-key` header.
-- `GET /v1/bars/{slug}/menu` returns the published and available menu. Requires the `x-api-key` header.
-- `GET /v1/bars/{slug}/table-cards` returns active artwork and its physical width in centimeters. Requires the `x-api-key` header.
+- `GET /table-cards`, `POST /table-cards`, and `DELETE /table-cards/{id}` manage the signed-in owner's table cards.
+- `POST /storage/uploads/request-url` creates an upload URL for signed-in owners. Upload image bytes directly to that URL.
+- Drink, table-card, and storage operations are scoped to the signed-in owner's bar.
+- `GET /v1/bars/{slug}/menu-version` returns that bar's menu version. Requires the `x-api-key` header.
+- `GET /v1/bars/{slug}/menu` returns that bar's published and available drinks. Requires the `x-api-key` header.
+- `GET /v1/bars/{slug}/table-cards` returns active artwork and physical widths in centimeters. Requires the `x-api-key` header.
 - `POST /v1/bars/{slug}/events` records a `view`, `ar_open`, or `ar_close` event for a drink. Requires the `x-api-key` header and is rate limited to 120 requests per IP per minute.
-- `GET /table-cards`, `POST /table-cards`, and `DELETE /table-cards/{id}` manage a signed-in bar's table cards.
-- `POST /storage/uploads/request-url` creates a short-lived upload URL for authenticated owners. Upload the image bytes directly to that URL.
 
 Example iOS request:
 
@@ -49,7 +52,7 @@ curl -H "x-api-key: $IOS_API_KEY" \
   http://localhost:80/api/v1/bars/demo-bar/menu
 ```
 
-Fetch table cards and record an AR opening:
+Fetch a bar's table cards and record an AR opening:
 
 ```sh
 curl -H "x-api-key: $IOS_API_KEY" \
@@ -91,4 +94,4 @@ The current menu response shape is:
 
 ## Next implementation stages
 
-The photo cleanup and Meshy task polling flow, interactive 3D review and publishing, and owner self-service registration still need their UI and API work before those parts of the original product brief are complete.
+Photo cleanup, Meshy task polling, and interactive 3D review and publishing remain to be implemented.

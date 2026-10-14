@@ -47,6 +47,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Session"
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a bar owner and create a private bar menu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OwnerRegistrationInput"
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
   /auth/login:
     post:
       operationId: login
@@ -386,8 +404,16 @@ components:
       type: object
       properties:
         email: { type: string, format: email }
-        password: { type: string, minLength: 1 }
+        password: { type: string, minLength: 12, maxLength: 72 }
       required: [email, password]
+    OwnerRegistrationInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        barName: { type: string, minLength: 2, maxLength: 80 }
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 72 }
+      required: [name, barName, email, password]
     Drink:
       type: object
       properties:
@@ -514,4 +540,3 @@ components:
         drinkId: { type: string, minLength: 1, maxLength: 120 }
         eventType: { type: string, enum: [view, ar_open, ar_close] }
       required: [drinkId, eventType]
-

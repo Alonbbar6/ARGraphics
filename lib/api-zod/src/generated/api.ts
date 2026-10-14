@@ -25,12 +25,45 @@ export const GetSessionResponse = zod.object({
 })
 
 
+/**
+ * @summary Register a bar owner and create a private bar menu
+ */
+export const registerBodyNameMin = 2;
+export const registerBodyNameMax = 80;
+
+export const registerBodyBarNameMin = 2;
+export const registerBodyBarNameMax = 80;
+
+export const registerBodyEmailMax = 254;
+
+export const registerBodyPasswordMin = 12;
+export const registerBodyPasswordMax = 72;
+
+
+
+export const RegisterBody = zod.object({
+  "name": zod.string().min(registerBodyNameMin).max(registerBodyNameMax),
+  "barName": zod.string().min(registerBodyBarNameMin).max(registerBodyBarNameMax),
+  "email": zod.string().email().max(registerBodyEmailMax),
+  "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax)
+})
+
+export const RegisterResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "userName": zod.string().nullable(),
+  "barName": zod.string().nullable(),
+  "barSlug": zod.string().nullable()
+})
+
+
+export const loginBodyPasswordMin = 12;
+export const loginBodyPasswordMax = 72;
 
 
 
 export const LoginBody = zod.object({
   "email": zod.string().email(),
-  "password": zod.string().min(1)
+  "password": zod.string().min(loginBodyPasswordMin).max(loginBodyPasswordMax)
 })
 
 export const LoginResponse = zod.object({
