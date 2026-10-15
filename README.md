@@ -6,7 +6,25 @@ Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners c
 - Start the web app with `pnpm --filter @workspace/garnish run dev`.
 - Start the API with `pnpm --filter @workspace/api-server run dev`.
 - Run workspace checks with `pnpm run typecheck`.
+- Check committed API output freshness with `pnpm run check:api-codegen`.
 - Apply development schema changes with `pnpm --filter @workspace/db run push`.
+
+
+## Generated API checks
+
+`lib/api-spec/openapi.yaml` and `lib/api-spec/orval.config.ts` are the source of
+truth for both generated API libraries. The **Generated API freshness** CI job
+installs locked dependencies in a clean checkout, runs
+`pnpm --filter @workspace/api-spec run codegen`, and fails if either
+`lib/api-zod/src/generated` or `lib/api-client-react/src/generated` differs from
+the committed output, including added and deleted files.
+
+For local checks, `pnpm run check:api-codegen` regenerates files in the current
+checkout and compares them against `HEAD`; it does not discard local changes.
+After changing the API contract or generator configuration, run codegen and
+commit both generated directories together with those changes. Type checking
+alone cannot detect stale but compiling output. This check is separate from
+service startup. Run `pnpm run test:api-codegen-check` for its regression tests.
 
 
 ## Development demo sign-in

@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check:api-codegen": "node ./src/check-api-codegen.mjs",
+    "test:api-codegen-check": "node --test ./tests/check-api-codegen.test.mjs",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

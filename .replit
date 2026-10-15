@@ -31,6 +31,17 @@ args = "pnpm test && pnpm --filter @workspace/api-server typecheck:tests"
 [workflows.workflow.metadata]
 isValidation = true
 
+[[workflows.workflow]]
+name = "api-codegen-freshness"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run test:api-codegen-check && pnpm run check:api-codegen"
+
+[workflows.workflow.metadata]
+isValidation = true
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true

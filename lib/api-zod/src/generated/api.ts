@@ -40,6 +40,7 @@ export const registerBodyPasswordMin = 12;
 export const registerBodyPasswordMax = 72;
 
 
+
 export const RegisterBody = zod.object({
   "name": zod.string().min(registerBodyNameMin).max(registerBodyNameMax),
   "barName": zod.string().min(registerBodyBarNameMin).max(registerBodyBarNameMax),
@@ -57,6 +58,7 @@ export const RegisterResponse = zod.object({
 
 export const loginBodyPasswordMin = 12;
 export const loginBodyPasswordMax = 72;
+
 
 
 export const LoginBody = zod.object({
@@ -78,6 +80,7 @@ export const LoginResponse = zod.object({
 export const requestPasswordResetBodyEmailMax = 254;
 
 
+
 export const RequestPasswordResetBody = zod.object({
   "email": zod.string().email().max(requestPasswordResetBodyEmailMax)
 })
@@ -97,6 +100,7 @@ export const confirmPasswordResetBodyTokenMax = 43;
 export const confirmPasswordResetBodyTokenRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 export const confirmPasswordResetBodyPasswordMin = 12;
 export const confirmPasswordResetBodyPasswordMax = 72;
+
 
 
 export const ConfirmPasswordResetBody = zod.object({
@@ -139,6 +143,7 @@ export const createDrinkBodyNameMax = 80;
 export const createDrinkBodyPriceCentsMin = 0;
 
 
+
 export const CreateDrinkBody = zod.object({
   "name": zod.string().min(1).max(createDrinkBodyNameMax),
   "description": zod.string(),
@@ -172,6 +177,7 @@ export const UpdateDrinkParams = zod.object({
 export const updateDrinkBodyNameMax = 80;
 
 export const updateDrinkBodyPriceCentsMin = 0;
+
 
 
 export const UpdateDrinkBody = zod.object({
@@ -232,6 +238,9 @@ export const StartDrinkGenerationParams = zod.object({
 })
 
 
+
+
+
 export const StartDrinkGenerationBody = zod.object({
   "sourcePhotoPath": zod.string().min(1),
   "cleanedPhotoPath": zod.string().min(1)
@@ -264,6 +273,8 @@ export const GetPublicDrinkAssetResponse = zod.unknown()
 
 
 export const requestDrinkPhotoUploadBodyNameMax = 255;
+
+
 
 
 export const RequestDrinkPhotoUploadBody = zod.object({
@@ -300,6 +311,7 @@ export const requestUploadUrlBodyNameMax = 160;
 export const requestUploadUrlBodySizeMax = 10485760;
 
 
+
 export const RequestUploadUrlBody = zod.object({
   "name": zod.string().min(1).max(requestUploadUrlBodyNameMax),
   "size": zod.number().int().min(1).max(requestUploadUrlBodySizeMax),
@@ -309,6 +321,7 @@ export const RequestUploadUrlBody = zod.object({
 export const requestUploadUrlResponseMetadataNameMax = 160;
 
 export const requestUploadUrlResponseMetadataSizeMax = 10485760;
+
 
 
 export const RequestUploadUrlResponse = zod.object({
@@ -333,6 +346,7 @@ export const listTableCardsResponsePhysicalWidthCmExclusiveMin = 0;
 export const listTableCardsResponsePhysicalWidthCmMax = 100;
 
 
+
 export const ListTableCardsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -351,6 +365,7 @@ export const createTableCardBodyPhysicalWidthCmExclusiveMin = 0;
 export const createTableCardBodyPhysicalWidthCmMax = 100;
 
 
+
 export const CreateTableCardBody = zod.object({
   "name": zod.string().min(1).max(createTableCardBodyNameMax),
   "objectPath": zod.string().regex(createTableCardBodyObjectPathRegExp),
@@ -361,6 +376,7 @@ export const createTableCardResponsePhysicalWidthCmExclusiveMin = 0;
 export const createTableCardResponsePhysicalWidthCmMax = 100;
 
 
+
 export const CreateTableCardResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -369,6 +385,9 @@ export const CreateTableCardResponse = zod.object({
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
+
+
+
 
 
 export const UpdateTableCardParams = zod.object({
@@ -383,6 +402,7 @@ export const updateTableCardBodyPhysicalWidthCmMin = 0.001;
 export const updateTableCardBodyPhysicalWidthCmMax = 100;
 
 
+
 export const UpdateTableCardBody = zod.object({
   "name": zod.string().min(1).max(updateTableCardBodyNameMax).regex(updateTableCardBodyNameRegExp).optional(),
   "physicalWidthCm": zod.number().min(updateTableCardBodyPhysicalWidthCmMin).max(updateTableCardBodyPhysicalWidthCmMax).optional(),
@@ -391,6 +411,7 @@ export const UpdateTableCardBody = zod.object({
 
 export const updateTableCardResponsePhysicalWidthCmExclusiveMin = 0;
 export const updateTableCardResponsePhysicalWidthCmMax = 100;
+
 
 
 export const UpdateTableCardResponse = zod.object({
@@ -479,6 +500,7 @@ export const CreatePublicEventHeader = zod.object({
 export const createPublicEventBodyDrinkIdMax = 120;
 
 
+
 export const CreatePublicEventBody = zod.object({
   "drinkId": zod.string().min(1).max(createPublicEventBodyDrinkIdMax),
   "eventType": zod.enum(['view', 'ar_open', 'ar_close'])
@@ -487,4 +509,5 @@ export const CreatePublicEventBody = zod.object({
 export const CreatePublicEventResponse = zod.object({
   "message": zod.string()
 })
+
 
