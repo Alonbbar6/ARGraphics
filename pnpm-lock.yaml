@@ -648,7 +648,7 @@ importers:
   lib/api-spec:
     devDependencies:
       orval:
-        specifier: ^8.30.0
+        specifier: 8.30.0
         version: 8.30.0(prettier@3.9.6)(typescript@5.9.3)
 
   lib/api-zod:

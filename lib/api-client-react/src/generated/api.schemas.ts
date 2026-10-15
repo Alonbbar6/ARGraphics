@@ -354,4 +354,3 @@ export interface ArEventInput {
   drinkId: string;
   eventType: ArEventInputEventType;
 }
-

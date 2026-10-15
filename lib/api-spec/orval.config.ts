@@ -5,6 +5,11 @@ const root = path.resolve(__dirname, "..", "..");
 const apiClientReactSrc = path.resolve(root, "lib", "api-client-react", "src");
 const apiZodSrc = path.resolve(root, "lib", "api-zod", "src");
 
+// Keep Orval pinned in package.json: 8.30.0 emits validation constants before
+// the saved-card schemas that use them. Validate any generator upgrade by
+// running codegen (which also checks the generated libraries), never by
+// manually reordering declarations in generated/api.ts.
+
 // Our exports make assumptions about the title of the API being "Api" (i.e. generated output is `api.ts`).
 const titleTransformer: InputTransformerFn = (config) => {
   config.info ??= {};
