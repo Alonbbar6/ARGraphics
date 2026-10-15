@@ -358,8 +358,9 @@ function generationState(req: Request, drink: typeof drinksTable.$inferSelect) {
   });
 }
 
-async function bumpMenuVersion(barId: string) {
-  await db.insert(menuVersionTable).values({ barId, version: 2 })
+type DrinkTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function bumpMenuVersion(tx: DrinkTransaction, barId: string) {
+  await tx.insert(menuVersionTable).values({ barId, version: 2 })
     .onConflictDoUpdate({
       target: menuVersionTable.barId,
       set: { version: sql`${menuVersionTable.version} + 1` },
@@ -674,15 +675,26 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
       res.status(502).json({ error: message });
       return;
     }
-    const [updated] = await db.update(drinksTable).set({
-      meshyTaskId: result.result,
-      generationStatus: "processing",
-      generationProgress: 0,
-      generationError: null,
-      ...(drink.isPublished ? { isPublished: false } : {}),
-      updatedAt: new Date(),
-    }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId))).returning();
-    if (drink.isPublished) await bumpMenuVersion(drink.barId);
+    const updated = await db.transaction(async (tx) => {
+      const [current] = await tx.select().from(drinksTable)
+        .where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId)))
+        .limit(1).for("update");
+      if (!current) return undefined;
+      const [saved] = await tx.update(drinksTable).set({
+        meshyTaskId: result.result,
+        generationStatus: "processing",
+        generationProgress: 0,
+        generationError: null,
+        isPublished: false,
+        updatedAt: new Date(),
+      }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId))).returning();
+      if (current.isPublished) await bumpMenuVersion(tx, drink.barId);
+      return saved;
+    });
+    if (!updated) {
+      res.status(404).json({ error: "Drink not found." });
+      return;
+    }
     startBackgroundPolling(drink.id, drink.barId, result.result);
     res.json(StartDrinkGenerationResponse.parse(generationState(req, updated)));
   } catch (error) {
@@ -741,16 +753,20 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Generate a 3D preview before publishing this drink." });
     return;
   }
-  const [drink] = await db.update(drinksTable)
-    .set({ ...body.data, updatedAt: new Date() })
-    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
-    .returning();
+  const drink = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(drinksTable)
+      .set({ ...body.data, updatedAt: new Date() })
+      .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
+      .returning();
+    if (updated && (updated.isPublished || body.data.priceCents !== undefined ||
+        body.data.isPublished !== undefined || body.data.isAvailable !== undefined)) {
+      await bumpMenuVersion(tx, barId);
+    }
+    return updated;
+  });
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
-  }
-  if (body.data.priceCents !== undefined || body.data.isPublished !== undefined || body.data.isAvailable !== undefined) {
-    await bumpMenuVersion(barId);
   }
   res.json(asDrink(req, drink));
 });
@@ -766,14 +782,17 @@ router.delete("/drinks/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [drink] = await db.delete(drinksTable)
-    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
-    .returning();
+  const drink = await db.transaction(async (tx) => {
+    const [deleted] = await tx.delete(drinksTable)
+      .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
+      .returning();
+    if (deleted) await bumpMenuVersion(tx, barId);
+    return deleted;
+  });
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
   }
-  await bumpMenuVersion(barId);
   res.json({ message: "Drink deleted." });
 });
 

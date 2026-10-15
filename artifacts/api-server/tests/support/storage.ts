@@ -26,6 +26,10 @@ export const storage = {
     if (!objects.has(path)) throw new ObjectNotFoundError();
     return `https://storage.example.test/signed-download?object=${encodeURIComponent(path)}`;
   }),
+  getObjectEntityReadURL: vi.fn(async (path: string) => {
+    if (!objects.has(path)) throw new ObjectNotFoundError();
+    return `https://storage.example.test/signed-read?object=${encodeURIComponent(path)}`;
+  }),
   deleteObjectEntity: vi.fn(async (path: string) => { objects.delete(path); }),
 };
 
@@ -34,6 +38,7 @@ export class ObjectStorageService {
   normalizeObjectEntityPath = storage.normalizeObjectEntityPath;
   getObjectEntityFile = storage.getObjectEntityFile;
   getObjectEntityDownloadURL = storage.getObjectEntityDownloadURL;
+  getObjectEntityReadURL = storage.getObjectEntityReadURL;
   deleteObjectEntity = storage.deleteObjectEntity;
 }
 

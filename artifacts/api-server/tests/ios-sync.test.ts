@@ -5,6 +5,36 @@ import { app } from "./support/setup";
 import { client, db, schema } from "./support/database";
 import { cardBody, createCard, iosGet, iosKey, signIn } from "./support/requests";
 import { artworkPath, objects, storage, uploadArtwork } from "./support/storage";
+import { setTimeout as delay } from "node:timers/promises";
+import { randomUUID } from "node:crypto";
+
+// Keep background Meshy polling paused without live timers or HTTP requests.
+vi.mock("node:timers/promises", () => ({
+  setTimeout: vi.fn(() => new Promise(() => {})),
+}));
+
+const drinkEdits = [
+  { name: "Updated drink" }, { description: "Updated description" },
+  { category: "seasonal" }, { sortOrder: 5 }, { priceCents: 1500 },
+  { isAvailable: false }, { isPublished: false }, { isPublished: true },
+];
+
+async function prepareGeneration() {
+  const taskId = randomUUID();
+  const cleanedPhotoPath = "/objects/uploads/22222222-2222-4222-8222-222222222222";
+  uploadArtwork();
+  uploadArtwork(cleanedPhotoPath);
+  await db.update(schema.drinksTable).set({
+    sourcePhotoUrl: artworkPath, cleanedPhotoUrl: cleanedPhotoPath,
+    modelGlbUrl: "/objects/models/previous.glb", modelUsdzUrl: "/objects/models/previous.usdz",
+    generationStatus: "ready",
+  }).where(eq(schema.drinksTable.id, "fixture-drink"));
+  vi.stubEnv("MESHY_API_KEY", "meshy-regression-fixture-key");
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+    new Response(JSON.stringify({ result: taskId }), { status: 200 }),
+  );
+  return { body: { sourcePhotoPath: artworkPath, cleanedPhotoPath }, fetchMock, taskId };
+}
 
 const endpoints = ["menu-version", "menu", "table-cards", "events"] as const;
 function iosRequest(endpoint: typeof endpoints[number], key?: string) {
@@ -162,6 +192,129 @@ describe("iOS key protection and sync", () => {
     await iosGet("demo-bar/table-cards").expect(200, []);
     await iosGet("demo-bar/menu-version").expect(200, { version: 3 });
     expect(objects.has(artworkPath)).toBe(true);
+  });
+
+  it.each(drinkEdits)("commits published drink edit %j with only its owner's version", async (body) => {
+    const cookie = await signIn();
+    await db.update(schema.drinksTable).set({ modelGlbUrl: "/objects/models/previous.glb" })
+      .where(eq(schema.drinksTable.id, "fixture-drink"));
+    await request(app).patch("/api/drinks/fixture-drink").set("Cookie", cookie).send(body).expect(200);
+    expect((await db.select().from(schema.drinksTable)
+      .where(eq(schema.drinksTable.id, "fixture-drink")))[0]).toMatchObject(body);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+    await iosGet("other-bar/menu-version").expect(200, { version: 1 });
+  });
+
+  it.each([false, true])("rolls back all published drink edits on version failure (missing row: %s)", async (missingRow) => {
+    const cookie = await signIn();
+    await db.update(schema.drinksTable).set({ modelGlbUrl: "/objects/models/previous.glb" })
+      .where(eq(schema.drinksTable.id, "fixture-drink"));
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const before = await db.select().from(schema.drinksTable);
+    const menuBefore = (await iosGet("demo-bar/menu").set("Host", "fixture.example.test").expect(200)).body;
+    await rejectVersionWrites();
+    try {
+      for (const body of drinkEdits) {
+        await request(app).patch("/api/drinks/fixture-drink").set("Cookie", cookie).send(body).expect(500);
+        expect(await db.select().from(schema.drinksTable)).toEqual(before);
+      }
+    } finally {
+      await allowVersionWrites();
+    }
+    expect((await iosGet("demo-bar/menu").set("Host", "fixture.example.test").expect(200)).body).toEqual(menuBefore);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
+    await iosGet("other-bar/menu-version").expect(200, { version: 1 });
+    await request(app).patch("/api/drinks/fixture-drink").set("Cookie", cookie)
+      .send({ name: "Retry saved" }).expect(200);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+  });
+
+  it.each([false, true])("rolls back drink deletion on version failure and allows retry (missing row: %s)", async (missingRow) => {
+    const cookie = await signIn();
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const before = await db.select().from(schema.drinksTable);
+    await rejectVersionWrites();
+    try {
+      await request(app).delete("/api/drinks/fixture-drink").set("Cookie", cookie).expect(500);
+    } finally {
+      await allowVersionWrites();
+    }
+    expect(await db.select().from(schema.drinksTable)).toEqual(before);
+    expect((await iosGet("demo-bar/menu").expect(200)).body.drinks.map((drink: { id: string }) => drink.id))
+      .toEqual(["fixture-drink"]);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
+    await request(app).delete("/api/drinks/fixture-drink").set("Cookie", cookie)
+      .expect(200, { message: "Drink deleted." });
+    await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+    expect((await iosGet("demo-bar/menu").expect(200)).body.drinks).toEqual([]);
+    await iosGet("other-bar/menu-version").expect(200, { version: 1 });
+  });
+
+  it.each([false, true])("keeps a published drink visible when regeneration's version write fails (missing row: %s)", async (missingRow) => {
+    const cookie = await signIn();
+    const { body, fetchMock, taskId } = await prepareGeneration();
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    await rejectVersionWrites();
+    try {
+      const response = await request(app).post("/api/drinks/fixture-drink/generation")
+        .set("Cookie", cookie).send(body).expect(502);
+      expect(response.body.error).toContain("menu_version");
+    } finally {
+      await allowVersionWrites();
+    }
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(delay).not.toHaveBeenCalled();
+    expect((await db.select().from(schema.drinksTable)
+      .where(eq(schema.drinksTable.id, "fixture-drink")))[0]).toMatchObject({
+      isPublished: true, meshyTaskId: null, generationStatus: "failed",
+      modelGlbUrl: "/objects/models/previous.glb", modelUsdzUrl: "/objects/models/previous.usdz",
+    });
+    const menu = (await iosGet("demo-bar/menu").expect(200)).body;
+    expect(menu.drinks).toHaveLength(1);
+    expect(menu.drinks[0].id).toBe("fixture-drink");
+    await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
+    await request(app).post("/api/drinks/fixture-drink/generation").set("Cookie", cookie).send(body).expect(200);
+    expect(delay).toHaveBeenCalledOnce();
+    expect((await db.select().from(schema.drinksTable)
+      .where(eq(schema.drinksTable.id, "fixture-drink")))[0]).toMatchObject({
+      isPublished: false, meshyTaskId: taskId, generationStatus: "processing",
+    });
+    expect((await iosGet("demo-bar/menu").expect(200)).body.drinks).toEqual([]);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+    await iosGet("other-bar/menu-version").expect(200, { version: 1 });
+  });
+
+  it("preserves missing and foreign drink responses without changing versions", async () => {
+    const cookie = await signIn();
+    for (const id of ["missing-drink", "other-drink"]) {
+      await request(app).patch(`/api/drinks/${id}`).set("Cookie", cookie)
+        .send({ name: "Not allowed" }).expect(404, { error: "Drink not found." });
+      await request(app).delete(`/api/drinks/${id}`).set("Cookie", cookie)
+        .expect(404, { error: "Drink not found." });
+      await request(app).post(`/api/drinks/${id}/generation`).set("Cookie", cookie)
+        .send({ sourcePhotoPath: artworkPath, cleanedPhotoPath: artworkPath })
+        .expect(404, { error: "Drink not found." });
+    }
+    await request(app).patch("/api/drinks/fixture-drink").set("Cookie", cookie)
+      .send({ isPublished: true }).expect(400, { error: "Generate a 3D preview before publishing this drink." });
+    await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
+    await iosGet("other-bar/menu-version").expect(200, { version: 1 });
+  });
+
+  it("does not require a version write for editing or regenerating an unpublished draft", async () => {
+    const cookie = await signIn();
+    const { body } = await prepareGeneration();
+    await db.update(schema.drinksTable).set({ isPublished: false })
+      .where(eq(schema.drinksTable.id, "fixture-drink"));
+    await rejectVersionWrites();
+    try {
+      await request(app).patch("/api/drinks/fixture-drink").set("Cookie", cookie)
+        .send({ name: "Draft edit" }).expect(200);
+      await request(app).post("/api/drinks/fixture-drink/generation").set("Cookie", cookie).send(body).expect(200);
+    } finally {
+      await allowVersionWrites();
+    }
+    await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
   });
 
   it.each(["view", "ar_open", "ar_close"])("records a valid %s event under the selected bar", async (eventType) => {
