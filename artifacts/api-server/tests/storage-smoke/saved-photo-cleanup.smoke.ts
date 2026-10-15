@@ -23,6 +23,91 @@ vi.mock("openai", () => {
 const endpoint = "/api/drinks/fixture-drink/photo-cleanup";
 type Draft = { id: string; sourcePhotoPath: string; cleanedPhotoPath: string; status: string };
 
+it.each(["owner", "other-owner"] as const)(
+  "rejects different retry bytes from %s without replacing a real saved cutout or its private owner",
+  async (retryOwner) => {
+    const storage = new ObjectStorageService();
+    const original = await sharp({ create: { width: 12, height: 10, channels: 4, background: { r: 120, g: 30, b: 10, alpha: 0.5 } } })
+      .png().toBuffer();
+    const conflicting = await sharp({ create: { width: 12, height: 10, channels: 4, background: { r: 10, g: 30, b: 120, alpha: 0.5 } } })
+      .png().toBuffer();
+    expect(conflicting.equals(original)).toBe(false);
+    // Setup records this generated path before the real write, even on failure.
+    const path = await storage.savePrivateImage(original, "owner");
+    manifest.assertOwned(path);
+    const target = await storage.getObjectEntityFile(path).catch(() => {
+      throw new Error("Disposable conflicting-retry image could not be resolved.");
+    });
+    async function snapshot() {
+      try {
+        const [metadata] = await target.getMetadata();
+        const [bytes] = await target.download();
+        return {
+          generation: metadata.generation,
+          metageneration: metadata.metageneration,
+          contentType: metadata.contentType,
+          cacheControl: metadata.cacheControl,
+          size: metadata.size,
+          customMetadata: metadata.metadata,
+          bytes,
+          acl: await getObjectAclPolicy(target),
+        };
+      } catch {
+        throw new Error("Disposable conflicting-retry image could not be inspected.");
+      }
+    }
+    const before = await snapshot();
+    expect(before.generation).toBeDefined();
+    expect(before.metageneration).toBeDefined();
+    expect(before.bytes).toEqual(original);
+    expect(before.contentType).toBe("image/png");
+    expect(before.cacheControl).toBe("private, no-store");
+    expect(Number(before.size)).toBe(original.length);
+    expect(before.acl).toEqual({ owner: "owner", visibility: "private" });
+
+    const realSave: (this: File, data: SaveData, options?: SaveOptions) => Promise<void> = File.prototype.save;
+    const realSetMetadata: (this: File, metadata: FileMetadata) => Promise<unknown> = File.prototype.setMetadata;
+    let writeAttempts = 0;
+    let rejectedOverwrites = 0;
+    let metadataAttempts = 0;
+    const isTarget = (file: File) => file.name === target.name && file.bucket.name === target.bucket.name;
+    const save = vi.spyOn(File.prototype, "save").mockImplementation(async function(this: File, bytes, options) {
+      if (!isTarget(this)) return realSave.call(this, bytes, options);
+      manifest.assertOwned(path);
+      expect(bytes).toEqual(conflicting);
+      expect(options?.preconditionOpts?.ifGenerationMatch).toBe(0);
+      writeAttempts++;
+      try {
+        await realSave.call(this, bytes, options);
+      } catch (error) {
+        // Observe a real rejection, not a synthetic failure or storage mock.
+        // Redact provider details before the service/setup sees the error.
+        expect((error as { code?: number }).code).toBe(412);
+        rejectedOverwrites++;
+        throw new Error("Disposable conflicting retry rejected by provider.");
+      }
+    });
+    const metadata = vi.spyOn(File.prototype, "setMetadata").mockImplementation(async function(this: File, value) {
+      if (isTarget(this)) metadataAttempts++;
+      return realSetMetadata.call(this, value);
+    });
+    try {
+      await expect(storage.savePrivateImage(conflicting, retryOwner, path))
+        .rejects.toThrow("Disposable private-image storage write failed (provider details redacted).");
+      expect(writeAttempts).toBe(1);
+      expect(rejectedOverwrites).toBe(1);
+      expect(metadataAttempts).toBe(0);
+      // Includes generation, exact bytes, raw owner metadata and metageneration.
+      // A different owner must not be accepted after the failed provider write.
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      metadata.mockRestore();
+      save.mockRestore();
+      // The setup manifest performs exact-object cleanup, including failures.
+    }
+  },
+);
+
 async function signIn(email = "demo@garnish.app") {
   const response = await request(app).post("/api/auth/login")
     .send({ email, password: "fixture-password" }).expect(200);
