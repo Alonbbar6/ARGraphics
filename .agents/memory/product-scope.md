@@ -20,3 +20,9 @@ Use the user's own OpenAI connection for drink photo cleanup rather than retryin
 **Why:** Built-in setup required phone verification; the user explicitly chose their own API key instead.
 
 **How to apply:** Keep credentials server-side in Secrets. Do not retry built-in provider provisioning unless the user requests that change. AI cleanup and Meshy generation are separately billed steps, with cutout review before generation.
+
+Saving a paid cutout for later review must not change the currently published drink.
+
+**Why:** Owners can review a replacement photo while their existing menu stays live; saving AI output is not approval to rebuild or publish.
+
+**How to apply:** Keep review drafts separate from menu-visible drink state until the owner explicitly starts generation.

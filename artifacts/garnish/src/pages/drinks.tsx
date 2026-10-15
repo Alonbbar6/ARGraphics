@@ -1,9 +1,10 @@
 import { createElement, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useListDrinks, useRequestDrinkPhotoUpload, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
-import type { Drink, DrinkInput, DrinkPhotoUploadInput } from '@workspace/api-client-react';
+import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
+import type { Drink, DrinkInput, SavedPhotoCleanup } from '@workspace/api-client-react';
 import { AlertCircle, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
-import { removePhotoBackground } from '@/lib/photo-cleanup';
+import { removePhotoBackground, savedCleanupImageUrl } from '@/lib/photo-cleanup';
 import heic2any from 'heic2any';
 import modelViewerUrl from '@google/model-viewer/dist/model-viewer.min.js?url';
 
@@ -236,7 +237,6 @@ function ensureModelViewer() {
 
 function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClose: () => void; onPublished: () => void }) {
   const queryClient = useQueryClient();
-  const requestUpload = useRequestDrinkPhotoUpload();
   const startGeneration = useStartDrinkGeneration();
   const updateDrink = useUpdateDrink();
   const generationQuery = useGetDrinkGeneration(drink.id, {
@@ -250,7 +250,17 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     },
   });
   const [sourceFile, setSourceFile] = useState<File | null>(null);
-  const [cleanedBlob, setCleanedBlob] = useState<Blob | null>(null);
+  const [savedDraft, setSavedDraft] = useState<SavedPhotoCleanup | null>(null);
+  const [choosingNewPhoto, setChoosingNewPhoto] = useState(false);
+  const cleanupQuery = useGetSavedPhotoCleanup(drink.id, {
+    query: {
+      queryKey: getGetSavedPhotoCleanupQueryKey(drink.id),
+      staleTime: 0,
+      refetchOnMount: 'always',
+      refetchInterval: (query) => query.state.data?.draft?.status === 'processing' ? 2000 : false,
+    },
+  });
+  const hasPhoto = !!sourceFile || !!savedDraft;
   const [originalPreview, setOriginalPreview] = useState('');
   const [cleanedPreview, setCleanedPreview] = useState('');
   const [busyMessage, setBusyMessage] = useState('');
@@ -259,10 +269,28 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
   const [notice, setNotice] = useState('');
   const [viewerError, setViewerError] = useState('');
 
+  useEffect(() => {
+    const latest = cleanupQuery.data?.draft;
+    const draft = latest?.status === 'failed' ? cleanupQuery.data?.previousReadyDraft || latest : latest;
+    if (!draft || choosingNewPhoto || busyMessage) return;
+    setSavedDraft(draft);
+    setOriginalPreview(savedCleanupImageUrl(draft, 'source'));
+    setCleanedPreview(draft.status === 'ready' ? savedCleanupImageUrl(draft, 'cleaned') : '');
+    setApproved(false);
+    if (draft.status === 'ready') setNotice('Your paid cutout is saved. Review and approve it before building; no new cleanup is needed.');
+    if (latest?.status === 'failed') {
+      setError(draft.status === 'ready'
+        ? 'The replacement cleanup failed. Your earlier paid cutout is still saved below; you can review and build from it without another cleanup.'
+        : latest.error || 'The cleanup was interrupted.');
+    }
+  }, [cleanupQuery.data, choosingNewPhoto, busyMessage]);
+
   useEffect(() => () => {
-    if (originalPreview) URL.revokeObjectURL(originalPreview);
-    if (cleanedPreview) URL.revokeObjectURL(cleanedPreview);
-  }, [originalPreview, cleanedPreview]);
+    if (originalPreview.startsWith('blob:')) URL.revokeObjectURL(originalPreview);
+  }, [originalPreview]);
+  useEffect(() => () => {
+    if (cleanedPreview.startsWith('blob:')) URL.revokeObjectURL(cleanedPreview);
+  }, [cleanedPreview]);
 
   const generation = generationQuery.data;
   const modelUrl = generation?.modelGlbUrl || drink.modelGlbUrl;
@@ -312,7 +340,8 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     }
     setBusyMessage(looksHeic ? 'Converting HEIC photo to JPEG…' : 'Preparing your photo…');
     setSourceFile(null);
-    setCleanedBlob(null);
+    setSavedDraft(null);
+    setChoosingNewPhoto(true);
     setOriginalPreview('');
     setCleanedPreview('');
     setApproved(false);
@@ -331,38 +360,29 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
       setSourceFile(normalized);
       const sourceUrl = URL.createObjectURL(normalized);
       setOriginalPreview(sourceUrl);
-      const result = await removePhotoBackground(normalized, setBusyMessage);
-      if (result.size > MAX_PHOTO_SIZE) throw new Error('The cleaned image is over 15 MB. Try a smaller source photo.');
-      setCleanedBlob(result);
-      setCleanedPreview(URL.createObjectURL(result));
+      const result = await removePhotoBackground(drink.id, normalized, setBusyMessage);
+      queryClient.setQueryData(getGetSavedPhotoCleanupQueryKey(drink.id), { draft: result, previousReadyDraft: null });
+      setSavedDraft(result);
+      setCleanedPreview(savedCleanupImageUrl(result, 'cleaned'));
+      setChoosingNewPhoto(false);
+      void cleanupQuery.refetch();
       setBusyMessage('');
     } catch (cause) {
       setBusyMessage('');
       setError(messageFrom(cause, 'Could not prepare that photo. Try another.'));
+      setChoosingNewPhoto(false);
+      void cleanupQuery.refetch();
     }
   };
 
-  const uploadFile = async (file: Blob, name: string, kind: DrinkPhotoUploadInput['kind'], contentType: DrinkPhotoUploadInput['contentType']) => {
-    const upload = await requestUpload.mutateAsync({
-      data: { drinkId: drink.id, kind, name: name.slice(0, 255), size: file.size, contentType },
-    });
-    const response = await fetch(upload.uploadURL, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
-    if (!response.ok) throw new Error(`The ${kind} photo upload did not finish. Try again.`);
-    return upload.objectPath;
-  };
-
   const generate = async () => {
-    if (!sourceFile || !cleanedBlob || !approved) return;
+    if (!savedDraft?.cleanedPhotoPath || savedDraft.status !== 'ready' || !approved) return;
     setError('');
     setNotice('');
-    setBusyMessage('Uploading both reviewed photos…');
+    setBusyMessage('Starting the 3D build from your saved cutout…');
     try {
-      const originalType = sourceFile.type as DrinkPhotoUploadInput['contentType'];
-      const originalName = sourceFile.name || `${drink.name}-original.jpg`;
-      const cleanedName = `${drink.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-cutout.png`;
-      const sourcePhotoPath = await uploadFile(sourceFile, originalName, 'original', originalType);
-      const cleanedPhotoPath = await uploadFile(cleanedBlob, cleanedName, 'cleaned', 'image/png');
-      setBusyMessage('Starting the 3D build…');
+      const sourcePhotoPath = savedDraft.sourcePhotoPath;
+      const cleanedPhotoPath = savedDraft.cleanedPhotoPath;
       const result = await startGeneration.mutateAsync({ id: drink.id, data: { sourcePhotoPath, cleanedPhotoPath } });
       queryClient.setQueryData(getGetDrinkGenerationQueryKey(drink.id), result);
       queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
@@ -391,7 +411,8 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
 
   const reshoot = () => {
     setSourceFile(null);
-    setCleanedBlob(null);
+    setSavedDraft(null);
+    setChoosingNewPhoto(true);
     setOriginalPreview('');
     setCleanedPreview('');
     setApproved(false);
@@ -399,15 +420,18 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     setNotice('');
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="studio-title" className="max-h-[94dvh] w-full max-w-3xl overflow-y-auto rounded-t-[2rem] border border-border bg-card shadow-2xl sm:rounded-[2rem]">
+      <section role="dialog" aria-modal="true" aria-labelledby="studio-title" className="max-h-[94dvh] w-full max-w-[48rem] overflow-y-auto rounded-t-[2rem] border border-border bg-card shadow-2xl sm:rounded-[2rem]">
         <header className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-card/95 px-5 py-4 backdrop-blur sm:px-7">
           <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">Photo to 3D · {drink.category}</p><h2 id="studio-title" className="serif mt-1 text-3xl">Make {drink.name} menu-ready.</h2><p className="mt-1 text-sm text-muted-foreground">A clean cutout makes a better model. You approve it before we build.</p></div>
           <button onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl hover:bg-muted" aria-label="Close 3D studio" data-testid="button-close-3d-studio"><X size={19} /></button>
         </header>
         <div className="space-y-5 p-5 sm:p-7">
-          {!sourceFile && !active && !modelUrl && (
+          {cleanupQuery.isLoading && <p role="status">Checking for a saved cutout…</p>}
+          {cleanupQuery.isError && <div role="alert">Could not check your saved cutout. <button onClick={() => void cleanupQuery.refetch()} className="underline">Try again</button></div>}
+          {savedDraft?.status === 'processing' && <p role="status" data-testid="status-saved-cleanup">Your photo cleanup is still running. You can close the studio; the cutout will be saved here when ready.</p>}
+          {!hasPhoto && !active && !modelUrl && !cleanupQuery.isLoading && !cleanupQuery.isError && (
             <label className="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-primary/40 bg-secondary/35 px-5 text-center transition-colors hover:bg-secondary/60">
               <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-sm"><ImagePlus size={25} /></span>
               <span className="mt-4 font-semibold">Choose a drink photo</span>
@@ -418,8 +442,8 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
             </label>
           )}
           {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
-          {sourceFile && !cleanedPreview && !busyMessage && <button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button>}
-          {sourceFile && cleanedPreview && (
+          {hasPhoto && !cleanedPreview && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button>}
+          {hasPhoto && cleanedPreview && (
             <div>
               <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={reshoot} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -433,7 +457,6 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
                <button onClick={() => void generate()} disabled={!approved || !!busyMessage || active || startGeneration.isPending} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-generation"><Sparkles size={17} /> Build the 3D preview</button>
             </div>
           )}
-          {sourceFile && !cleanedBlob && !busyMessage && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup"><RefreshCw size={15} /> Choose or retake photo</button>}
           {generationQuery.isLoading && !sourceFile && !modelUrl && <div className="space-y-3"><div className="h-8 w-44 animate-pulse rounded-lg bg-muted" /><div className="h-48 animate-pulse rounded-2xl bg-muted" /></div>}
           {active && (
             <div className="rounded-[1.5rem] border border-border bg-background p-5" data-testid="status-generation-progress">
@@ -444,7 +467,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
           )}
           {generation?.status === 'failed' && (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4" role="alert" data-testid="status-generation-error"><p className="font-semibold text-destructive">The model needs another go.</p><p className="mt-1 text-sm text-muted-foreground">{generation.error || drink.generationError || 'The 3D build did not finish.'}</p>
-              <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => sourceFile && cleanedBlob ? void generate() : reshoot()} disabled={!!busyMessage} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-retry-generation"><RefreshCw size={15} /> Retry build</button><button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-reshoot-after-error">Reshoot photo</button></div>
+              <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => savedDraft?.status === 'ready' ? void generate() : reshoot()} disabled={!!busyMessage || (savedDraft?.status === 'ready' && !approved)} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-retry-generation"><RefreshCw size={15} /> Retry build</button><button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-reshoot-after-error">Reshoot photo</button></div>
             </div>
           )}
           {generationQuery.isError && !active && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive" role="alert">Couldn’t load the latest generation status. <button onClick={() => generationQuery.refetch()} className="font-semibold underline underline-offset-2">Try again</button></div>}
@@ -455,14 +478,15 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
               <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
             </div>
           )}
-          {modelUrl && !sourceFile && <div><p className="mb-2 text-xs text-muted-foreground">A new photo starts paid OpenAI cleanup. Generating a new model uses Meshy credits separately.</p><label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a new photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div>}
+          {modelUrl && !hasPhoto && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo starts paid OpenAI cleanup. Generating a new model uses Meshy credits separately.</p><label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a new photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div>}
           {notice && <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm" role="status" data-testid="status-studio-notice">{notice}</p>}
           {error && <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert" data-testid="status-studio-error"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div>}
-          {(generation?.status === 'ready' || modelUrl) && sourceFile && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
-          {!sourceFile && !active && !modelUrl && generation?.status === 'failed' && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold"><Upload size={15} /> Choose a new photo</button>}
+          {(generation?.status === 'ready' || modelUrl) && hasPhoto && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
+          {!hasPhoto && !active && !modelUrl && generation?.status === 'failed' && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold"><Upload size={15} /> Choose a new photo</button>}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

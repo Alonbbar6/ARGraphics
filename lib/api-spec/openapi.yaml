@@ -207,6 +207,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /drinks/{id}/photo-cleanup:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getSavedPhotoCleanup
+      tags: [drinks]
+      summary: Resume the owner's most recent saved photo cleanup
+      responses:
+        "200":
+          description: Saved draft, or null when no cleanup has been started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [draft, previousReadyDraft]
+                properties:
+                  draft:
+                    anyOf:
+                      - { $ref: "#/components/schemas/SavedPhotoCleanup" }
+                      - { type: "null" }
+                  previousReadyDraft:
+                    description: Earlier saved cutout available when the newest attempt failed
+                    anyOf:
+                      - { $ref: "#/components/schemas/SavedPhotoCleanup" }
+                      - { type: "null" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: savePhotoCleanup
+      tags: [drinks]
+      summary: Clean a photo and save both private images before approval
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+          image/webp:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Saved cutout awaiting explicit approval; does not start Meshy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [draft]
+                properties:
+                  draft: { $ref: "#/components/schemas/SavedPhotoCleanup" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/BadRequest" }
+        "413": { $ref: "#/components/responses/BadRequest" }
+        "415": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/BadRequest" }
+        "502": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/BadRequest" }
+    # Both images are served through the owner session, never public storage.
+  /drinks/{id}/photo-cleanup/{draftId}/{kind}:
+    get:
+      operationId: getSavedPhotoCleanupImage
+      tags: [drinks]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: draftId, in: path, required: true, schema: { type: string } }
+        - { name: kind, in: path, required: true, schema: { type: string, enum: [source, cleaned] } }
+      responses:
+        "200":
+          description: Private saved PNG
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/BadRequest" }
   /drinks/photo-cleanup:
     post:
       operationId: cleanupDrinkPhoto
@@ -585,7 +662,39 @@ paths:
         "429":
           description: Rate limit exceeded
 components:
+  responses:
+    Unauthorized:
+      description: Owner sign-in required
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found for this owner
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: The request could not be completed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    SavedPhotoCleanup:
+      type: object
+      required: [id, drinkId, status, sourcePhotoPath, cleanedPhotoPath, error, createdAt]
+      properties:
+        id: { type: string }
+        drinkId: { type: string }
+        status: { type: string, enum: [processing, ready, failed, discarded] }
+        sourcePhotoPath: { type: string }
+        cleanedPhotoPath: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
     HealthStatus:
       type: object
       properties:

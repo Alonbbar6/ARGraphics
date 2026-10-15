@@ -15,6 +15,10 @@ export const objects = new Map<string, StoredArtwork>();
 export class ObjectNotFoundError extends Error {}
 
 export const storage = {
+  savePrivateImage: vi.fn(async (bytes: Buffer, _ownerId: string, path = `/objects/uploads/${randomUUID()}`) => {
+    objects.set(path, { bytes, contentType: "image/png", size: bytes.length });
+    return path;
+  }),
   getObjectEntityUploadURL: vi.fn(async () => "https://storage.example.test/signed-upload"),
   normalizeObjectEntityPath: vi.fn(() => artworkPath),
   getObjectEntityFile: vi.fn(async (path: string) => {
@@ -45,6 +49,7 @@ export const storage = {
 };
 
 export class ObjectStorageService {
+  savePrivateImage = storage.savePrivateImage;
   getObjectEntityUploadURL = storage.getObjectEntityUploadURL;
   normalizeObjectEntityPath = storage.normalizeObjectEntityPath;
   getObjectEntityFile = storage.getObjectEntityFile;

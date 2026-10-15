@@ -1,8 +1,14 @@
-/** AI cleanup runs on the authenticated server. Keys never leave the server. */
-export async function removePhotoBackground(file: Blob, onProgress?: (message: string) => void): Promise<Blob> {
-  onProgress?.('OpenAI is removing the background… This can take a minute or two.');
-  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-  const response = await fetch(`${base}/api/drinks/photo-cleanup`, {
+import type { SavedPhotoCleanup } from '@workspace/api-client-react';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+export function savedCleanupImageUrl(draft: SavedPhotoCleanup, kind: 'source' | 'cleaned') {
+  return `${base}/api/drinks/${encodeURIComponent(draft.drinkId)}/photo-cleanup/${encodeURIComponent(draft.id)}/${kind}`;
+}
+
+/** AI cleanup runs on the authenticated server and saves before responding. */
+export async function removePhotoBackground(drinkId: string, file: Blob, onProgress?: (message: string) => void): Promise<SavedPhotoCleanup> {
+  onProgress?.('OpenAI is removing the background… This can take a minute or two. You can close the studio; the result will be saved here.');
+  const response = await fetch(`${base}/api/drinks/${encodeURIComponent(drinkId)}/photo-cleanup`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': file.type },
@@ -13,9 +19,8 @@ export async function removePhotoBackground(file: Blob, onProgress?: (message: s
     const result = await response.json().catch(() => null) as { error?: string } | null;
     throw new Error(result?.error || `Photo cleanup failed (HTTP ${response.status}). Try again.`);
   }
-  if (!response.headers.get('content-type')?.includes('image/png')) {
-    throw new Error('The cleanup did not return a photo. Try again.');
-  }
-  onProgress?.('Cutout ready. Check the glass and garnish before generating your model.');
-  return response.blob();
+  const result = await response.json() as { draft: SavedPhotoCleanup };
+  if (result.draft?.status !== 'ready' || !result.draft.cleanedPhotoPath) throw new Error('The cutout is not ready yet. Reopen the studio to check its saved status.');
+  onProgress?.('Cutout saved. Check the glass and garnish before generating your model.');
+  return result.draft;
 }

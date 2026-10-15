@@ -29,7 +29,7 @@ async function rejectArtwork(message: RegExp) {
 
 describe("table-card artwork content validation (offline)", () => {
   it.each(["png", "jpeg", "webp"] as const)("accepts fully decodable %s artwork", async (format) => {
-    const bytes = await image(format);
+    const bytes = await image(format, 32, 32);
     upload(bytes, `image/${format}`);
     const cookie = await signIn();
     const saved = await request(app).post("/api/table-cards").set("Cookie", cookie)
@@ -51,7 +51,7 @@ describe("table-card artwork content validation (offline)", () => {
   });
 
   it.each(["png", "jpeg", "webp"] as const)("rejects truncated %s even with truthful size", async (format) => {
-    const bytes = await image(format);
+    const bytes = await image(format, 32, 32);
     upload(bytes.subarray(0, bytes.length - 4), `image/${format}`);
     await rejectArtwork(/complete, valid/);
   });

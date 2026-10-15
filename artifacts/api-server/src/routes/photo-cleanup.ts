@@ -1,13 +1,17 @@
 import { Router, raw, type IRouter } from "express";
 import OpenAI from "openai";
 import { cleanupDrinkPhoto, PhotoCleanupError } from "../lib/photo-cleanup";
+import { savePhotoCleanup } from "../lib/saved-photo-cleanup";
+import savedPhotoCleanupRouter from "./saved-photo-cleanup";
+import { SavePhotoCleanupResponse } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 const active = new Set<string>();
 const attempts = new Map<string, { count: number; expires: number }>();
 
 // Mounted after requireOwner. Limit before reading the image or spending credits.
-router.post("/drinks/photo-cleanup", (req, res, next): void => {
+router.use(savedPhotoCleanupRouter);
+router.post(["/drinks/photo-cleanup", "/drinks/:id/photo-cleanup"], (req, res, next): void => {
   const owner = req.owner;
   if (!owner) { res.status(401).json({ error: "Sign in to clean up a drink photo." }); return; }
   if (!["image/jpeg", "image/png", "image/webp"].includes(req.get("content-type")?.split(";")[0] ?? "")) {
@@ -22,11 +26,16 @@ router.post("/drinks/photo-cleanup", (req, res, next): void => {
   }
   active.add(owner.id);
   attempts.set(owner.id, { count: (entry?.count ?? 0) + 1, expires: entry?.expires ?? now + 600_000 });
-  res.on("finish", () => active.delete(owner.id));
   next();
 }, raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "15mb" }), async (req, res): Promise<void> => {
   const ownerId = req.owner!.id;
   try {
+    if (req.params.id) {
+      const draft = await savePhotoCleanup(ownerId, req.owner!.barId, String(req.params.id),
+        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
+      res.set("Cache-Control", "no-store").json(SavePhotoCleanupResponse.parse({ draft }));
+      return;
+    }
     const output = await cleanupDrinkPhoto(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
     res.set("Cache-Control", "no-store").type("png").send(output);
   } catch (error) {
@@ -53,7 +62,7 @@ router.post("/drinks/photo-cleanup", (req, res, next): void => {
 });
 
 router.use((error: { type?: string }, req: import("express").Request, res: import("express").Response, next: import("express").NextFunction): void => {
-  if (req.owner) active.delete(req.owner.id);
+  if (req.owner && req.method === "POST") active.delete(req.owner.id);
   if (error.type === "entity.too.large") {
     res.status(413).json({ error: "Choose a photo no larger than 15 MB." }); return;
   }

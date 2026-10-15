@@ -5,6 +5,32 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface Error {
+  error: string;
+}
+
+export type SavedPhotoCleanupStatus = typeof SavedPhotoCleanupStatus[keyof typeof SavedPhotoCleanupStatus];
+
+
+export const SavedPhotoCleanupStatus = {
+  processing: 'processing',
+  ready: 'ready',
+  failed: 'failed',
+  discarded: 'discarded',
+} as const;
+
+export interface SavedPhotoCleanup {
+  id: string;
+  drinkId: string;
+  status: SavedPhotoCleanupStatus;
+  sourcePhotoPath: string;
+  /** @nullable */
+  cleanedPhotoPath: string | null;
+  /** @nullable */
+  error: string | null;
+  createdAt: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -354,4 +380,29 @@ export interface ArEventInput {
   drinkId: string;
   eventType: ArEventInputEventType;
 }
+
+/**
+ * Owner sign-in required
+ */
+export type UnauthorizedResponse = Error;
+
+/**
+ * Resource not found for this owner
+ */
+export type NotFoundResponse = Error;
+
+/**
+ * The request could not be completed
+ */
+export type BadRequestResponse = Error;
+
+export type GetSavedPhotoCleanup200 = {
+  draft: SavedPhotoCleanup | null;
+  /** Earlier saved cutout available when the newest attempt failed */
+  previousReadyDraft: SavedPhotoCleanup | null;
+};
+
+export type SavePhotoCleanup200 = {
+  draft: SavedPhotoCleanup;
+};
 
