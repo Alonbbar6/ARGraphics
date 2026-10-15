@@ -7,7 +7,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas, run generated-validator runtime contracts and their typecheck, then check library types
+- `pnpm --filter @workspace/api-zod test` — isolated generated table-card validator contracts; no database, storage, or credentials needed (also included in root `pnpm test`)
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server test -- tests/password-recovery.test.ts` — password-recovery regressions against isolated in-memory PostgreSQL; mocks email delivery and never opens the workspace database
 - Required env: `DATABASE_URL` — Postgres connection string

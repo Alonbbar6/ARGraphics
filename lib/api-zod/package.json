@@ -3,10 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.4"
   }
 }

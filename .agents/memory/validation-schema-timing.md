@@ -9,4 +9,4 @@ Completion validation can include concurrently merged changes whose dependency i
 
 Missing-package import failures also occurred when merged native-image validation reached completion before its locked dependencies were installed.
 
-**How to apply:** When completion validation fails after a concurrent merge, check that installed dependencies match the current lockfile and compare current schema definitions with development database metadata. Run a frozen-lockfile install for missing dependencies or apply an existing, non-destructive development schema update when needed; do not change production or weaken the failing tests.
+**How to apply:** When completion validation fails after a concurrent merge, check the failing dependency against the current manifest and lockfile; install declared dependencies with pnpm install --frozen-lockfile when needed. For database failures, compare current schema definitions with development database metadata and apply an existing, non-destructive development schema update when needed. Do not change production or weaken the failing tests.

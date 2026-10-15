@@ -5,7 +5,7 @@
   "scripts": {
     "check:api-codegen": "pnpm --filter @workspace/scripts run check:api-codegen",
     "test:api-codegen-check": "pnpm --filter @workspace/scripts run test:api-codegen-check",
-    "test": "pnpm --filter @workspace/api-server test && pnpm --filter @workspace/garnish test",
+    "test": "pnpm --filter @workspace/api-zod test && pnpm --filter @workspace/api-server test && pnpm --filter @workspace/garnish test",
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "codegen": "orval --config ./orval.config.ts && pnpm -w run typecheck:libs"
+    "codegen": "orval --config ./orval.config.ts && pnpm --filter @workspace/api-zod test && pnpm --filter @workspace/api-zod typecheck:tests && pnpm -w run typecheck:libs"
   },
   "devDependencies": {
     "orval": "8.30.0"
