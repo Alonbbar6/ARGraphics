@@ -15,11 +15,13 @@ export function cleanupDraftResponse(draft: PhotoCleanup) {
 }
 
 /** Reserve before the paid call; never tie its lifetime to the HTTP connection. */
-export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: string, input: Buffer) {
+export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: string, input: Buffer, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const [ownedDrink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).limit(1);
   if (!ownedDrink) throw new PhotoCleanupError("Drink not found.", 404);
   const source = await prepareCleanupPhoto(input);
+  signal?.throwIfAborted();
   const id = randomUUID();
   const cleanedPhotoPath = `/objects/uploads/${randomUUID()}`;
   const sourcePhotoPath = await storage.savePrivateImage(source, ownerId);
@@ -36,7 +38,7 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
       await tx.insert(photoCleanupsTable).values({ id, ownerId, drinkId, sourcePhotoPath, cleanedPhotoPath, sourceSize: source.length });
     });
     reserved = true;
-    const output = await cleanupDrinkPhoto(source);
+    const output = await cleanupDrinkPhoto(source, signal);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         await storage.savePrivateImage(output, ownerId, cleanedPhotoPath);

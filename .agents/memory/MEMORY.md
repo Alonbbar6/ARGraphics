@@ -15,3 +15,4 @@
 - [Browser smoke runtime](browser-smoke-runtime.md) — Playwright's installed package does not imply its managed browser exists; verify the provisioned executable first.
 - [Artwork acceptance](artwork-acceptance.md) — signed uploads remain writable; acceptance must isolate validated artwork from the upload capability.
 - [Merge integrity](merge-integrity.md) — automatic merges can rewrite unreported handwritten files; unexpected diff growth requires reconstruction and type checks.
+- [PGlite clock isolation](pglite-clock-isolation.md) — In-process SQL clocks can follow JavaScript clock mocks; verify server-clock independence against real PostgreSQL.

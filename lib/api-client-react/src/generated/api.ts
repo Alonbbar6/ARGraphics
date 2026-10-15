@@ -29,6 +29,7 @@ import type {
   DrinkPhotoUpload,
   DrinkPhotoUploadInput,
   DrinkUpdate,
+  Error,
   GetSavedPhotoCleanup200,
   HealthStatus,
   Insights,
@@ -1031,6 +1032,7 @@ export const getSavePhotoCleanupUrl = (id: string,) => {
 }
 
 /**
+ * Shares the durable four-attempts-per-ten-minute owner limit and one-cleanup lease with the unsaved cleanup endpoint. Failed admitted attempts count. The uploaded cleanup continues if the client disconnects, but has a four-minute server deadline; abandoned leases expire after five minutes.
  * @summary Clean a photo and save both private images before approval
  */
 export const savePhotoCleanup = async (id: string,
@@ -1065,7 +1067,7 @@ return customFetch<SavePhotoCleanup200>(getSavePhotoCleanupUrl(id),
 
 export const getSavePhotoCleanupMutationKey = () => ['savePhotoCleanup'] as const;
 
-export const getSavePhotoCleanupMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse>,
+export const getSavePhotoCleanupMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePhotoCleanup>>, TError,SavePhotoCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof savePhotoCleanup>>, TError,SavePhotoCleanupMutationVariables, TContext> => {
 
@@ -1094,13 +1096,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SavePhotoCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof savePhotoCleanup>>>
     export type SavePhotoCleanupMutationBody = BodyType<Blob>
-    export type SavePhotoCleanupMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse>
+    export type SavePhotoCleanupMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | void>
     export type SavePhotoCleanupMutationVariables = {id: string;data: BodyType<Blob>}
 
     /**
  * @summary Clean a photo and save both private images before approval
  */
-export const useSavePhotoCleanup = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse>,
+export const useSavePhotoCleanup = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePhotoCleanup>>, TError,SavePhotoCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof savePhotoCleanup>>,
@@ -1201,7 +1203,7 @@ export const getCleanupDrinkPhotoUrl = () => {
 }
 
 /**
- * Requires an owner session. Accepts a still image up to 15 MB. Limited to four requests per owner per ten minutes and one simultaneous cleanup.
+ * Requires an owner session. Accepts a still image up to 15 MB. Limited to four admitted attempts per owner per ten-minute window and one simultaneous cleanup, shared across server instances and restarts. Failed attempts also count. Abandoned cleanup leases expire after five minutes; requests have a four-minute deadline.
  * @summary Remove a drink photo background using the owner's OpenAI connection
  */
 export const cleanupDrinkPhoto = async (cleanupDrinkPhotoBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {

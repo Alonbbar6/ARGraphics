@@ -11,6 +11,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-zod test` — isolated generated table-card validator contracts; no database, storage, or credentials needed (also included in root `pnpm test`)
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server test -- tests/password-recovery.test.ts` — password-recovery regressions against isolated in-memory PostgreSQL; mocks email delivery and never opens the workspace database
+- `pnpm --filter @workspace/api-server exec vitest run tests/photo-cleanup.test.ts` — shared cleanup admission, timeout, disconnect, and provider regressions; mocks OpenAI and never spends credits
+- `pnpm --filter @workspace/api-server run test:isolation` — isolated real-PostgreSQL checks, including simultaneous cleanup admissions across connections and retained quotas after reconnects; no paid provider calls
 - Required env: `DATABASE_URL` — Postgres connection string
 - Password recovery uses the connected Resend integration. `PASSWORD_RESET_FROM` must be a sender on a verified Resend domain. Set `PASSWORD_RESET_APP_URL` to the trusted HTTPS Garnish URL (including a base path if mounted below `/`) before running in production. Development falls back to the workspace preview domain only. Missing configuration returns 503 for all recovery requests; links are never built from request headers.
 

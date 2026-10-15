@@ -3,9 +3,10 @@ import { after, before, test } from "node:test";
 import { randomUUID } from "node:crypto";
 import type { Server } from "node:http";
 import { once } from "node:events";
-import { eq } from "drizzle-orm";
-import { pool, db, barsTable, drinksTable, arEventsTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import { pool, db, barsTable, drinksTable, arEventsTable, usersTable, photoCleanupLimitsTable } from "@workspace/db";
 import type { Drink, Insights, PublicMenu, Session } from "@workspace/api-zod";
+import { acquireCleanupLease, releaseCleanupLease } from "../src/lib/photo-cleanup-limits";
 
 type Owner = { cookie: string; slug: string; barId: string; drinks: string[] };
 const schema = `isolation_test_${randomUUID().replaceAll("-", "")}`;
@@ -47,7 +48,7 @@ before(async () => {
   try {
     await admin.query(`CREATE SCHEMA "${schema}"`);
     schemaCreated = true;
-    for (const table of ["bars", "users", "drinks", "menu_version", "ar_events", "table_cards"]) {
+    for (const table of ["bars", "users", "drinks", "menu_version", "ar_events", "table_cards", "photo_cleanup_limits"]) {
       await admin.query(`CREATE TABLE "${schema}"."${table}" (LIKE public."${table}" INCLUDING ALL)`);
     }
     // LIKE does not copy foreign keys. Keep their behavior inside the test schema.
@@ -57,6 +58,8 @@ before(async () => {
     }
     await admin.query(`ALTER TABLE "${schema}".ar_events ADD FOREIGN KEY (drink_id)
       REFERENCES "${schema}".drinks(id) ON DELETE CASCADE`);
+    await admin.query(`ALTER TABLE "${schema}".photo_cleanup_limits ADD FOREIGN KEY (owner_id)
+      REFERENCES "${schema}".users(id) ON DELETE CASCADE`);
   } finally {
     admin.release(true);
   }
@@ -151,6 +154,50 @@ after(async () => {
       await pool.end();
     }
   }
+});
+
+test("shared cleanup admission serializes PostgreSQL connections and survives reconnects without paid calls", async () => {
+  const [owner] = await db.select().from(usersTable).where(eq(usersTable.barId, owners[0].barId));
+  const [otherOwner] = await db.select().from(usersTable).where(eq(usersTable.barId, owners[1].barId));
+  const originalNow = Date.now;
+  // Actual PostgreSQL clock is independent of every application server's clock.
+  Date.now = () => 0;
+  try {
+    const admissions = await Promise.all(Array.from({ length: 24 }, () => acquireCleanupLease(owner.id)));
+    const winners = admissions.filter(result => result.allowed);
+    assert.equal(winners.length, 1);
+    const winner = winners[0];
+    assert(winner.allowed);
+    const [entry] = await db.select().from(photoCleanupLimitsTable).where(eq(photoCleanupLimitsTable.ownerId, owner.id));
+    assert.equal(entry.count, 1);
+    await db.update(photoCleanupLimitsTable).set({ leaseExpiresAt: new Date(0) })
+      .where(eq(photoCleanupLimitsTable.ownerId, owner.id));
+    const replacement = await acquireCleanupLease(owner.id);
+    assert(replacement.allowed);
+    await releaseCleanupLease(owner.id, winner.token);
+    assert.equal((await acquireCleanupLease(owner.id)).allowed, false);
+    const independent = await acquireCleanupLease(otherOwner.id);
+    assert(independent.allowed);
+    await releaseCleanupLease(otherOwner.id, independent.token);
+    await releaseCleanupLease(owner.id, replacement.token);
+    // Dispose actual database connections, simulating a server restart.
+    const connections = await Promise.all(Array.from({ length: 10 }, () => pool.connect()));
+    connections.forEach(connection => connection.release(true));
+    for (let i = 0; i < 2; i++) {
+      const admitted = await acquireCleanupLease(owner.id);
+      assert(admitted.allowed);
+      await releaseCleanupLease(owner.id, admitted.token);
+    }
+    const denied = await acquireCleanupLease(owner.id);
+    assert(!denied.allowed);
+    assert(denied.retryAfterSeconds > 590 && denied.retryAfterSeconds <= 600);
+    await db.update(photoCleanupLimitsTable).set({
+      windowExpiresAt: sql`clock_timestamp() - interval '1 second'`,
+    }).where(eq(photoCleanupLimitsTable.ownerId, owner.id));
+    const reset = await acquireCleanupLease(owner.id);
+    assert(reset.allowed);
+    await releaseCleanupLease(owner.id, reset.token);
+  } finally { Date.now = originalNow; }
 });
 
 test("each independent owner lists only their own drinks and session", async () => {

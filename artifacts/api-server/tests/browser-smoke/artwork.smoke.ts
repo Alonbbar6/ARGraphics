@@ -110,7 +110,8 @@ it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
       phase = `${extension} browser storage PUT (HTTP ${put.status()})`;
       expect(put.status()).toBe(200);
       const saved = await savePromise;
-      if (!saved) throw new Error("Table-card save did not complete.");
+      if (!saved) throw new Error("Table card save did not complete.");
+      phase = `${extension} card save (HTTP ${saved.status()})`;
       expect(saved.status()).toBe(201);
       const savedCard = await saved.json() as { referenceImageUrl: string };
       const acceptedPath = savedCard.referenceImageUrl.slice("/api/storage".length);

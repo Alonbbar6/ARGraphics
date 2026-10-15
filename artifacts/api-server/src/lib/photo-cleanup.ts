@@ -26,23 +26,27 @@ export async function prepareCleanupPhoto(bytes: Buffer): Promise<Buffer> {
   }
 }
 
-export async function cleanupDrinkPhoto(bytes: Buffer): Promise<Buffer> {
+export async function cleanupDrinkPhoto(bytes: Buffer, signal?: AbortSignal): Promise<Buffer> {
+  signal?.throwIfAborted();
   const input = await prepareCleanupPhoto(bytes);
+  signal?.throwIfAborted();
   if (!process.env.OPENAI_API_KEY) {
     throw new PhotoCleanupError("AI photo cleanup is not configured. Add OPENAI_API_KEY in Secrets.", 503);
   }
   // Use the owner's key directly. Never use browser credentials or log provider payloads.
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 180_000, maxRetries: 0 });
+  const image = await toFile(input, "drink.png", { type: "image/png" });
+  signal?.throwIfAborted();
   const result = await openai.images.edit({
     model: "gpt-image-1",
-    image: await toFile(input, "drink.png", { type: "image/png" }),
+    image,
     prompt: "Remove only the background of this drink photograph. Return a transparent PNG cutout of the complete original drink, including the glass, stem, base, ice, liquid, garnish and straw. Preserve the exact shape, proportions, colors and photographic details. Do not redesign, add objects, crop the drink, add a backdrop, or add a ground shadow. Preserve translucent glass edges.",
     background: "transparent",
     output_format: "png",
     size: "1024x1024",
     quality: "medium",
     n: 1,
-  });
+  }, { signal });
   const encoded = result.data?.[0]?.b64_json;
   if (!encoded) throw new PhotoCleanupError("OpenAI returned no cleaned photo. Try again.", 502);
   const output = Buffer.from(encoded, "base64");

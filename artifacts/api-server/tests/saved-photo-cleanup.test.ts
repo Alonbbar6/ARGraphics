@@ -6,6 +6,7 @@ import { app } from "./support/setup";
 import { db, schema } from "./support/database";
 import { signIn } from "./support/requests";
 import { objects, storage } from "./support/storage";
+import { cleanupRequestTimeoutMs } from "../src/lib/photo-cleanup-limits";
 
 const mocks = vi.hoisted(() => ({ edit: vi.fn() }));
 vi.mock("openai", () => {
@@ -85,11 +86,15 @@ describe("saved paid cutout lifecycle", () => {
     const resumed = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
     expect(resumed.body.draft.status).toBe("processing");
     pending.abort();
+    await request(app).post("/api/drinks/photo-cleanup").set("Cookie", cookie).type("png").send(output).expect(429);
+    await request(app).post(endpoint).set("Cookie", cookie).type("png").send(output).expect(429);
     finish({ data: [{ b64_json: output.toString("base64") }] });
     await completed;
     await vi.waitFor(async () => {
       const saved = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
       expect(saved.body.draft.status).toBe("ready");
+      const [lease] = await db.select().from(schema.photoCleanupLimitsTable);
+      expect(lease.leaseToken).toBeNull();
     });
     expect(mocks.edit).toHaveBeenCalledTimes(1);
   });
@@ -119,9 +124,13 @@ describe("saved paid cutout lifecycle", () => {
 
   it("recovers the paid cutout after all final metadata writes fail", async () => {
     const cookie = await signIn();
-    const update = vi.spyOn(db, "update").mockImplementation(() => { throw new Error("temporary database outage"); });
+    const originalUpdate = db.update.bind(db);
+    const update = vi.spyOn(db, "update").mockImplementation((table) => {
+      if (table === schema.photoCleanupsTable) throw new Error("temporary database outage");
+      return originalUpdate(table);
+    });
     await request(app).post(endpoint).set("Cookie", cookie).type("png").send(await png()).expect(503);
-    expect(update).toHaveBeenCalledTimes(3);
+    expect(update.mock.calls.filter(([table]) => table === schema.photoCleanupsTable)).toHaveLength(3);
     update.mockRestore();
     const result = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
     expect(result.body.draft.status).toBe("ready");
@@ -178,5 +187,51 @@ describe("saved paid cutout lifecycle", () => {
     const other = await signIn("other@example.test");
     await request(app).get(endpoint).set("Cookie", other).expect(404);
     expect(mocks.edit).toHaveBeenCalledTimes(2);
+  });
+  it("shares its four-attempt quota with legacy cleanups, not one quota per route or drink", async () => {
+    const cookie = await signIn();
+    const output = await png();
+    for (let i = 0; i < 4; i++) {
+      const path = i % 2 === 0 ? endpoint : "/api/drinks/photo-cleanup";
+      await request(app).post(path).set("Cookie", cookie).type("png").send(output).expect(200);
+    }
+    for (const path of [endpoint, "/api/drinks/photo-cleanup"]) {
+      const denied = await request(app).post(path).set("Cookie", cookie).type("png").send(output).expect(429);
+      expect(Number(denied.headers["retry-after"])).toBeGreaterThan(590);
+      expect(Number(denied.headers["retry-after"])).toBeLessThanOrEqual(600);
+    }
+    expect(mocks.edit).toHaveBeenCalledTimes(4);
+    const other = await signIn("other@example.test");
+    await request(app).post("/api/drinks/other-drink/photo-cleanup").set("Cookie", other).type("png").send(output).expect(200);
+    expect(mocks.edit).toHaveBeenCalledTimes(5);
+  });
+  it("keeps a server deadline for saved cleanups and releases only after cancellation settles", async () => {
+    const cookie = await signIn();
+    let deadline!: () => void;
+    const originalSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: () => void, ms?: number, ...args: unknown[]) => {
+      if (ms === cleanupRequestTimeoutMs) deadline = callback;
+      return Reflect.apply(originalSetTimeout, globalThis, [callback, ms, ...args]);
+    }) as typeof setTimeout);
+    let started!: () => void;
+    const pending = new Promise<void>(resolve => { started = resolve; });
+    let settle!: () => void;
+    mocks.edit.mockImplementationOnce((_input, { signal }: { signal: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => { settle = () => reject(signal.reason); }, { once: true });
+        started();
+      }));
+    const output = await png();
+    const first = request(app).post(endpoint).set("Cookie", cookie).type("png").send(output).then(response => response);
+    await pending;
+    deadline();
+    await request(app).post("/api/drinks/photo-cleanup").set("Cookie", cookie).type("png").send(output).expect(429);
+    settle();
+    expect((await first).status).toBe(504);
+    const saved = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
+    expect(saved.body.draft.status).toBe("failed");
+    const [lease] = await db.select().from(schema.photoCleanupLimitsTable);
+    expect(lease.count).toBe(1);
+    expect(lease.leaseToken).toBeNull();
   });
 });

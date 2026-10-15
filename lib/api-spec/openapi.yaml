@@ -238,6 +238,7 @@ paths:
       operationId: savePhotoCleanup
       tags: [drinks]
       summary: Clean a photo and save both private images before approval
+      description: Shares the durable four-attempts-per-ten-minute owner limit and one-cleanup lease with the unsaved cleanup endpoint. Failed admitted attempts count. The uploaded cleanup continues if the client disconnects, but has a four-minute server deadline; abandoned leases expire after five minutes.
       requestBody:
         required: true
         content:
@@ -263,9 +264,19 @@ paths:
         "409": { $ref: "#/components/responses/BadRequest" }
         "413": { $ref: "#/components/responses/BadRequest" }
         "415": { $ref: "#/components/responses/BadRequest" }
-        "429": { $ref: "#/components/responses/BadRequest" }
+        "429":
+          description: Cleanup already running or request limit reached
+          headers:
+            Retry-After:
+              description: Seconds until both the owner's current lease and attempt limit permit another cleanup
+              schema: { type: integer, minimum: 1 }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "502": { $ref: "#/components/responses/BadRequest" }
         "503": { $ref: "#/components/responses/BadRequest" }
+        "504":
+          description: Cleanup exceeded the server deadline
     # Both images are served through the owner session, never public storage.
   /drinks/{id}/photo-cleanup/{draftId}/{kind}:
     get:
@@ -289,7 +300,7 @@ paths:
       operationId: cleanupDrinkPhoto
       tags: [drinks]
       summary: Remove a drink photo background using the owner's OpenAI connection
-      description: Requires an owner session. Accepts a still image up to 15 MB. Limited to four requests per owner per ten minutes and one simultaneous cleanup.
+      description: Requires an owner session. Accepts a still image up to 15 MB. Limited to four admitted attempts per owner per ten-minute window and one simultaneous cleanup, shared across server instances and restarts. Failed attempts also count. Abandoned cleanup leases expire after five minutes; requests have a four-minute deadline.
       requestBody:
         required: true
         content:
@@ -315,10 +326,18 @@ paths:
           description: Unsupported photo content type
         "429":
           description: Cleanup already running or request limit reached
+          headers:
+            Retry-After:
+              description: Seconds until both the owner's current lease and attempt limit permit another cleanup
+              schema:
+                type: integer
+                minimum: 1
         "502":
           description: OpenAI rejected or failed the cleanup
         "503":
-          description: OpenAI key not configured
+          description: OpenAI key not configured or shared admission storage unavailable
+        "504":
+          description: Cleanup exceeded the request deadline
   /drinks/{id}/generation:
     parameters:
       - in: path
