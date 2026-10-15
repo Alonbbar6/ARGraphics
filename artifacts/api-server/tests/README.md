@@ -126,6 +126,12 @@ HTTP bytes, private ACL/cache metadata, unsigned cloud denial, anonymous/cross-o
 denial, and fresh-login resumption without additional OpenAI calls. It interrupts
 all three final metadata-save attempts after the cutout write, then confirms
 reopening recovers persisted ready metadata and both images without another cleanup.
+It also injects transient failures after a real provider write, before the private
+owner ACL metadata write, and after that metadata write completes. Each case checks
+that retries use create-only writes, keep the same object generation and exact
+bytes, persist private owner metadata, and resume without another OpenAI call.
+Scoped manifest cleanup removes only the two case-owned images and leaves a
+separate run-owned image intact for the final cleanup.
 The drink and live menu remain unchanged. Generated image paths are recorded
 before each real write, including retries/partial failures, and share the exact-object
 cleanup described below. PostgreSQL remains the disposable PGlite fixture.
