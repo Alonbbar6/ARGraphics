@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import request from "supertest";
 import sharp from "sharp";
 import { File, type FileMetadata, type SaveData, type SaveOptions } from "@google-cloud/storage";
@@ -158,7 +159,7 @@ async function checkImages(draft: Draft, source: Buffer, cleaned: Buffer, owner:
   }
 }
 
-it("stores real private cutouts, resumes exact bytes, and recovers interrupted metadata without another paid call", async () => {
+it("stores real private cutouts, recovers interrupted metadata, and finishes disconnected saves without another paid call", async () => {
   const owner = await signIn();
   const other = await signIn("other@example.test");
   const input = await sharp({ create: { width: 12, height: 10, channels: 3, background: "#a43010" } })
@@ -223,6 +224,71 @@ it("stores real private cutouts, resumes exact bytes, and recovers interrupted m
   const reopened = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
   expect(reopened.body.draft).toEqual(recovered.body.draft);
   expect(mocks.edit).toHaveBeenCalledTimes(2); // One per explicit POST, none on recovery.
+
+  // Use a real HTTP socket and observe the server-side close before allowing
+  // OpenAI to finish. A client-side abort alone can race with the provider reply.
+  let releaseCutout!: (value: { data: { b64_json: string }[] }) => void;
+  const cutout = new Promise<{ data: { b64_json: string }[] }>(resolve => { releaseCutout = resolve; });
+  mocks.edit.mockImplementationOnce(() => cutout);
+  let serverDisconnected = false;
+  const server = createServer((req, res) => {
+    if (req.method === "POST" && req.url === endpoint) {
+      res.once("close", () => {
+        if (!res.writableFinished) serverDisconnected = true;
+      });
+    }
+    app(req, res);
+  });
+  await new Promise<void>(resolve => { server.listen(0, "127.0.0.1", resolve); });
+  const pending = request(server).post(endpoint).set("Cookie", owner).type("jpeg").send(input);
+  // Attach the rejection handler before aborting so it cannot go unhandled.
+  const completed = pending.then(
+    () => "response",
+    (error: { code?: string }) => error.code,
+  );
+  try {
+    await vi.waitFor(() => expect(mocks.edit).toHaveBeenCalledTimes(3), { timeout: 60_000 });
+    const processing = await request(app).get(endpoint).set("Cookie", owner).expect(200);
+    expect(processing.body.draft.status).toBe("processing");
+    expect(processing.body.draft.id).not.toBe(recovered.body.draft.id);
+    manifest.assertOwned(processing.body.draft.sourcePhotoPath);
+    pending.abort();
+    await vi.waitFor(() => expect(serverDisconnected).toBe(true), { timeout: 10_000 });
+    expect(await completed).toBe("ABORTED");
+    // No owner GET/recovery is allowed to repair metadata after this point:
+    // the disconnected POST itself must finish the real write and ready update.
+    releaseCutout({ data: [{ b64_json: cleaned.toString("base64") }] });
+    await vi.waitFor(async () => {
+      const [savedAfterClose] = await db.select().from(schema.photoCleanupsTable)
+        .where(eq(schema.photoCleanupsTable.id, processing.body.draft.id));
+      expect(savedAfterClose.status).toBe("ready");
+      expect(savedAfterClose.ownerId).toBe("owner");
+      expect(savedAfterClose.sourceSize).toBe(source.length);
+      expect(savedAfterClose.cleanedSize).toBe(cleaned.length);
+      expect(savedAfterClose.error).toBeNull();
+      const [lease] = await db.select().from(schema.photoCleanupLimitsTable)
+        .where(eq(schema.photoCleanupLimitsTable.ownerId, "owner"));
+      expect(lease.leaseToken).toBeNull();
+    }, { timeout: 90_000, interval: 250 });
+    const freshOwner = await signIn();
+    const resumed = await request(app).get(endpoint).set("Cookie", freshOwner).expect(200);
+    expect(resumed.body.draft).toEqual({ ...processing.body.draft, status: "ready" });
+    expect(resumed.headers["cache-control"]).toBe("private, no-store");
+    await checkImages(resumed.body.draft, source, cleaned, freshOwner, other);
+    expect(mocks.edit).toHaveBeenCalledTimes(3);
+  } finally {
+    // Drain any in-flight handler even when an assertion fails; manifest cleanup
+    // must not race a late provider result writing another disposable object.
+    pending.abort();
+    releaseCutout({ data: [{ b64_json: cleaned.toString("base64") }] });
+    await completed;
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await vi.waitFor(async () => {
+      const [lease] = await db.select().from(schema.photoCleanupLimitsTable)
+        .where(eq(schema.photoCleanupLimitsTable.ownerId, "owner"));
+      expect(lease.leaseToken).toBeNull();
+    }, { timeout: 90_000, interval: 250 });
+  }
   // Private drafts must not publish anything or start a 3D generation.
   const [drinkAfter] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
   const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));

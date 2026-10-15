@@ -126,6 +126,10 @@ HTTP bytes, private ACL/cache metadata, unsigned cloud denial, anonymous/cross-o
 denial, and fresh-login resumption without additional OpenAI calls. It interrupts
 all three final metadata-save attempts after the cutout write, then confirms
 reopening recovers persisted ready metadata and both images without another cleanup.
+It also pauses mocked OpenAI, aborts a real owner POST socket, waits for the server
+to observe the disconnect, and then releases the cutout. The disconnected handler
+must persist ready metadata and release its lease before a fresh owner login resumes
+the same draft and exact private source/cutout bytes, without another OpenAI call.
 It also injects transient failures after a real provider write, before the private
 owner ACL metadata write, and after that metadata write completes. Each case checks
 that retries use create-only writes, keep the same object generation and exact
