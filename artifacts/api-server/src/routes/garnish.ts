@@ -39,6 +39,7 @@ import {
 import { ObjectStorageService } from "../lib/objectStorage";
 import passwordRecoveryRouter from "./password-recovery";
 import photoCleanupRouter from "./photo-cleanup";
+import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 
 const router: IRouter = Router();
 const demoBarId = "garnish-demo-bar";
@@ -166,8 +167,9 @@ router.get("/auth/session", async (req, res): Promise<void> => {
     res.json(GetSessionResponse.parse({ authenticated: false, userName: null, barName: null, barSlug: null }));
     return;
   }
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, user.barId)).limit(1);
-  res.json(GetSessionResponse.parse({
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
+  res.json(LoginResponse.parse({
     authenticated: true,
     userName: user.name,
     barName: bar?.name ?? null,
@@ -175,8 +177,16 @@ router.get("/auth/session", async (req, res): Promise<void> => {
   }));
 });
 
-router.post("/auth/register", async (req, res): Promise<void> => {
-  const parsed = RegisterBody.safeParse(req.body);
+router.post("/auth/logout", (_req, res): void => {
+  res.setHeader("Set-Cookie", `${sessionCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+  res.json(LogoutResponse.parse({ message: "Signed out." }));
+});
+
+router.use(["/drinks", "/insights"], requireOwner);
+router.use(photoCleanupRouter);
+
+router.post("/storage/drink-photos/request-url", requireOwner, async (req, res): Promise<void> => {
+  const parsed = CreateDrinkBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Enter your name, bar name, a valid email, and a password of at least 12 characters." });
     return;
@@ -204,61 +214,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       const base = slugBase(barName);
       for (let attempt = 0; attempt < 8; attempt += 1) {
         const slug = attempt === 0 ? base : `${base}-${randomUUID().slice(0, 6)}`;
-        const [bar] = await tx.insert(barsTable).values({
-          id: randomUUID(),
-          name: barName,
-          slug,
-        }).onConflictDoNothing({ target: barsTable.slug }).returning();
-        if (!bar) continue;
-
-        await tx.insert(usersTable).values({
-          id: userId,
-          barId: bar.id,
-          email,
-          passwordHash,
-          name,
-        });
-        await tx.insert(menuVersionTable).values({ barId: bar.id, version: 1 });
-        createdBar = bar;
-        return;
-      }
-      throw new Error("Could not reserve a unique menu address.");
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      res.status(409).json({ error: "An account with that email already exists." });
-      return;
-    }
-    throw error;
-  }
-
-  if (!createdBar) {
-    res.status(500).json({ error: "Could not create your bar account. Please try again." });
-    return;
-  }
-  setSessionCookie(res, userId);
-  res.status(201).json(LoginResponse.parse({
-    authenticated: true,
-    userName: name,
-    barName: createdBar.name,
-    barSlug: createdBar.slug,
-  }));
-});
-
-router.post("/auth/login", async (req, res): Promise<void> => {
-  const parsed = LoginBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Enter a valid email and password." });
-    return;
-  }
-  const [user] = await db.select().from(usersTable)
-    .where(eq(usersTable.email, parsed.data.email.trim().toLowerCase())).limit(1);
-  if (!user || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
-    res.status(401).json({ error: "Email or password did not match." });
-    return;
-  }
-  setSessionCookie(res, user.id, user.sessionVersion);
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, user.barId)).limit(1);
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
   res.json(LoginResponse.parse({
     authenticated: true,
     userName: user.name,
@@ -276,7 +233,38 @@ router.use(["/drinks", "/insights"], requireOwner);
 router.use(photoCleanupRouter);
 
 router.post("/storage/drink-photos/request-url", requireOwner, async (req, res): Promise<void> => {
-  const parsed = RequestDrinkPhotoUploadBody.safeParse(req.body);
+  const parsed = CreateDrinkBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter a valid email and password." });
+    return;
+  }
+  const [user] = await db.select().from(usersTable)
+    .where(eq(usersTable.email, parsed.data.email.trim().toLowerCase())).limit(1);
+  if (!user || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+    res.status(401).json({ error: "Email or password did not match." });
+    return;
+  }
+  setSessionCookie(res, user.id, user.sessionVersion);
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
+  res.json(LoginResponse.parse({
+    authenticated: true,
+    userName: user.name,
+    barName: bar?.name ?? null,
+    barSlug: bar?.slug ?? null,
+  }));
+});
+
+router.post("/auth/logout", (_req, res): void => {
+  res.setHeader("Set-Cookie", `${sessionCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+  res.json(LogoutResponse.parse({ message: "Signed out." }));
+});
+
+router.use(["/drinks", "/insights"], requireOwner);
+router.use(photoCleanupRouter);
+
+router.post("/storage/drink-photos/request-url", requireOwner, async (req, res): Promise<void> => {
+  const parsed = CreateDrinkBody.safeParse(req.body);
   if (!parsed.success || parsed.data.size > MAX_PHOTO_SIZE) {
     res.status(400).json({ error: "Choose a JPEG, PNG, or WebP photo no larger than 15 MB." });
     return;
@@ -287,15 +275,15 @@ router.post("/storage/drink-photos/request-url", requireOwner, async (req, res):
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const [drink] = await db.select().from(drinksTable)
-    .where(and(eq(drinksTable.id, input.drinkId), eq(drinksTable.barId, barId))).limit(1);
+  const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
+    .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
   }
   try {
     const uploadURL = await objectStorage.getObjectEntityUploadURL();
-    const objectPath = objectStorage.normalizeObjectEntityPath(uploadURL);
+  const objectPath = kind === "source" ? drink?.sourcePhotoUrl : drink?.cleanedPhotoUrl;
     await db.update(drinksTable).set({
       ...(input.kind === "original" ? { sourcePhotoUrl: objectPath } : { cleanedPhotoUrl: objectPath }),
       generationStatus: "uploaded",
@@ -376,7 +364,8 @@ router.get("/drinks", async (req, res): Promise<void> => {
     return;
   }
   const drinks = await db.select().from(drinksTable)
-    .where(eq(drinksTable.barId, barId)).orderBy(asc(drinksTable.sortOrder));
+    .where(and(eq(drinksTable.barId, bar.id), eq(drinksTable.isPublished, true), eq(drinksTable.isAvailable, true)))
+    .orderBy(asc(drinksTable.sortOrder));
   res.json(ListDrinksResponse.parse(drinks.map((drink) => asDrink(req, drink))));
 });
 
@@ -530,16 +519,21 @@ router.get("/drinks/:id/photos/:kind", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const [drink] = await db.select().from(drinksTable)
-    .where(and(eq(drinksTable.id, req.params.id), eq(drinksTable.barId, barId))).limit(1);
+  const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
+    .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
   const objectPath = kind === "source" ? drink?.sourcePhotoUrl : drink?.cleanedPhotoUrl;
   if (!objectPath) {
     res.status(404).json({ error: "Photo not found." });
     return;
   }
   try {
-    const file = await objectStorage.getObjectEntityFile(objectPath);
-    const response = await objectStorage.downloadObject(file, 300);
+        const file = await objectStorage.getObjectEntityFile(path);
+  const response = await Promise.all(cards.map(async (card) => ({
+    id: card.id,
+    name: card.name,
+    referenceImageUrl: await storage.getObjectEntityDownloadURL(card.referenceImageUrl),
+    physicalWidthCm: Number(card.physicalWidthMeters) * 100,
+  })));
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
     res.setHeader("Cache-Control", "private, no-store");
@@ -558,27 +552,23 @@ router.get("/storage/public-objects/*filePath", async (req, res): Promise<void> 
   try {
     const raw = req.params.filePath;
     const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const file = await objectStorage.searchPublicObject(filePath);
+        const file = await objectStorage.getObjectEntityFile(path);
     if (!file) {
       res.status(404).json({ error: "Asset not found." });
       return;
     }
-    const response = await objectStorage.downloadObject(file, 31_536_000);
-    res.status(response.status);
-    response.headers.forEach((value, key) => res.setHeader(key, value));
-    if (response.body) {
-      Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
-    } else {
-      res.end();
-    }
-  } catch (error) {
-    req.log.error({ err: error }, "Could not serve public drink asset");
-    res.status(500).json({ error: "Could not load this menu asset." });
-  }
+  const response = await Promise.all(cards.map(async (card) => ({
+    id: card.id,
+    name: card.name,
+    referenceImageUrl: await storage.getObjectEntityDownloadURL(card.referenceImageUrl),
+    physicalWidthCm: Number(card.physicalWidthMeters) * 100,
+  })));
+  res.json(GetPublicTableCardsResponse.parse(response));
 });
 
-router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
-  const params = GetDrinkGenerationParams.safeParse(req.params);
+router.post("/v1/bars/:slug/events", async (req, res): Promise<void> => {
+  if (!requireIosKey(req, res)) return;
+  const params = CreatePublicEventParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "Drink not found." });
     return;
@@ -588,8 +578,8 @@ router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const [drink] = await db.select().from(drinksTable)
-    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
+  const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
+    .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
@@ -601,8 +591,8 @@ router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
 });
 
 router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
-  const params = StartDrinkGenerationParams.safeParse(req.params);
-  const body = StartDrinkGenerationBody.safeParse(req.body);
+  const params = CreatePublicEventParams.safeParse(req.params);
+  const body = CreatePublicEventBody.safeParse(req.body);
   if (!params.success || !body.success) {
     res.status(400).json({ error: "Choose both the original and cleaned photos before generating a preview." });
     return;
@@ -612,8 +602,8 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const [drink] = await db.select().from(drinksTable)
-    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
+  const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
+    .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
@@ -634,41 +624,31 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const [sourceFile, cleanedFile] = await Promise.all([
-      objectStorage.getObjectEntityFile(sourcePhotoPath),
-      objectStorage.getObjectEntityFile(cleanedPhotoPath),
-    ]);
-    const [[sourceMetadata], [cleanedMetadata]] = await Promise.all([
-      sourceFile.getMetadata(),
-      cleanedFile.getMetadata(),
-    ]);
-    for (const metadata of [sourceMetadata, cleanedMetadata]) {
-      if (Number(metadata.size || 0) < 1 || Number(metadata.size || 0) > MAX_PHOTO_SIZE ||
-          !["image/jpeg", "image/png", "image/webp"].includes(String(metadata.contentType || ""))) {
-        res.status(400).json({ error: "One of the uploaded photos is too large or is not a supported image." });
+    // Validate sequentially to bound peak decoded memory. Neither validation
+    // failures nor read failures may start paid generation or mutate the drink.
+    for (const [label, path] of [["original", sourcePhotoPath], ["cleaned", cleanedPhotoPath]] as const) {
+      try {
+        const file = await objectStorage.getObjectEntityFile(path);
+        await validateRasterImage(file, {
+          subject: `${label} photo`, maxBytes: MAX_PHOTO_SIZE,
+          limitLabel: "15 MB", stillImageLabel: "drink photos",
+        });
+      } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not start the 3D preview.";
+        res.status(400).json({ error: message });
         return;
       }
     }
     const imageUrl = await objectStorage.getObjectEntityReadURL(cleanedPhotoPath, 3600);
-    const response = await fetch("https://api.meshy.ai/openapi/v1/image-to-3d", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        image_url: imageUrl,
-        ai_model: "latest",
-        should_texture: true,
-        texture_resolution: "2k",
-        alpha_thumbnail: true,
-        target_formats: ["glb", "usdz"],
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
+  const response = await Promise.all(cards.map(async (card) => ({
+    id: card.id,
+    name: card.name,
+    referenceImageUrl: await storage.getObjectEntityDownloadURL(card.referenceImageUrl),
+    physicalWidthCm: Number(card.physicalWidthMeters) * 100,
+  })));
     const result = await response.json() as { result?: string; message?: string };
     if (!response.ok || !result.result) {
-      const message = result.message || `Meshy could not start the task (HTTP ${response.status}).`;
+    const message = error instanceof Error ? error.message : "Could not start the 3D preview.";
       await db.update(drinksTable).set({
         generationStatus: "failed",
         generationError: message,
@@ -724,12 +704,8 @@ router.post("/drinks", async (req, res): Promise<void> => {
   }
   const [lastDrink] = await db.select({ sortOrder: drinksTable.sortOrder }).from(drinksTable)
     .where(eq(drinksTable.barId, barId)).orderBy(desc(drinksTable.sortOrder));
-  const [drink] = await db.insert(drinksTable).values({
-    id: randomUUID(),
-    barId,
-    ...parsed.data,
-    sortOrder: (lastDrink?.sortOrder ?? 0) + 1,
-  }).returning();
+  const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
+    .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
   res.status(201).json(asDrink(req, drink));
 });
 
@@ -739,8 +715,8 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const params = UpdateDrinkParams.safeParse(req.params);
-  const body = UpdateDrinkBody.safeParse(req.body);
+  const params = CreatePublicEventParams.safeParse(req.params);
+  const body = CreatePublicEventBody.safeParse(req.body);
   if (!params.success || !body.success) {
     res.status(400).json({ error: "Check the drink details and try again." });
     return;
@@ -756,30 +732,26 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
     return;
   }
   const drink = await db.transaction(async (tx) => {
-    const [updated] = await tx.update(drinksTable)
-      .set({ ...body.data, updatedAt: new Date() })
+    const [deleted] = await tx.delete(drinksTable)
       .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId)))
       .returning();
-    if (updated && (updated.isPublished || body.data.priceCents !== undefined ||
-        body.data.isPublished !== undefined || body.data.isAvailable !== undefined)) {
-      await bumpMenuVersion(tx, barId);
-    }
-    return updated;
+    if (deleted) await bumpMenuVersion(tx, barId);
+    return deleted;
   });
   if (!drink) {
     res.status(404).json({ error: "Drink not found." });
     return;
   }
-  res.json(asDrink(req, drink));
+  res.json({ message: "Drink deleted." });
 });
 
-router.delete("/drinks/:id", async (req, res): Promise<void> => {
+router.get("/insights", async (req, res): Promise<void> => {
   const barId = req.owner?.barId;
   if (!barId) {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const params = DeleteDrinkParams.safeParse(req.params);
+  const params = CreatePublicEventParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
@@ -804,8 +776,11 @@ router.get("/insights", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Sign in to manage your bar." });
     return;
   }
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, barId)).limit(1);
-  const drinks = await db.select().from(drinksTable).where(eq(drinksTable.barId, barId));
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
+  const drinks = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.barId, bar.id), eq(drinksTable.isPublished, true), eq(drinksTable.isAvailable, true)))
+    .orderBy(asc(drinksTable.sortOrder));
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const events = await db.select().from(arEventsTable)
     .where(and(eq(arEventsTable.barId, barId), gte(arEventsTable.createdAt, weekAgo)));
@@ -824,13 +799,13 @@ router.get("/insights", async (req, res): Promise<void> => {
 
 router.get("/v1/bars/:slug/menu-version", async (req, res): Promise<void> => {
   if (!requireIosKey(req, res)) return;
-  const params = GetPublicMenuVersionParams.safeParse(req.params);
+  const params = CreatePublicEventParams.safeParse(req.params);
   if (!params.success) {
-    res.status(404).json({ error: "Bar not found." });
+    res.status(400).json({ error: "Invalid bar slug." });
     return;
   }
   const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
-    .where(eq(barsTable.slug, params.data.slug)).limit(1);
+    .where(eq(barsTable.slug, params.data.slug));
   if (!bar) {
     res.status(404).json({ error: "Bar not found." });
     return;
@@ -841,12 +816,13 @@ router.get("/v1/bars/:slug/menu-version", async (req, res): Promise<void> => {
 
 router.get("/v1/bars/:slug/menu", async (req, res): Promise<void> => {
   if (!requireIosKey(req, res)) return;
-  const params = GetPublicMenuParams.safeParse(req.params);
+  const params = CreatePublicEventParams.safeParse(req.params);
   if (!params.success) {
-    res.status(404).json({ error: "Bar not found." });
+    res.status(400).json({ error: "Invalid bar slug." });
     return;
   }
-  const [bar] = await db.select().from(barsTable).where(eq(barsTable.slug, params.data.slug)).limit(1);
+  const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
+    .where(eq(barsTable.slug, params.data.slug));
   if (!bar) {
     res.status(404).json({ error: "Bar not found." });
     return;
@@ -874,7 +850,7 @@ router.get("/v1/bars/:slug/menu", async (req, res): Promise<void> => {
 
 router.get("/v1/bars/:slug/table-cards", async (req, res): Promise<void> => {
   if (!requireIosKey(req, res)) return;
-  const params = GetPublicTableCardsParams.safeParse(req.params);
+  const params = CreatePublicEventParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "Invalid bar slug." });
     return;

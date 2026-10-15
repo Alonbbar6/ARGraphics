@@ -11,3 +11,4 @@
 - [Browser smoke type boundaries](browser-test-types.md) — Keep browser-only DOM globals out of the shared Node API test compiler.
 - [Cross-engine smoke constraints](browser-engine-smoke.md) — Separate WebP decoding from fixture encoding; successful PUT body cancellations require stored-byte checks.
 - [Sync test isolation](sync-test-isolation.md) — Keep request origins stable when comparing menus across independent HTTP requests.
+- [Route merge integrity](route-merge-integrity.md) — After syncing concurrent changes, confirm narrow route edits remain narrow against the latest main version.
