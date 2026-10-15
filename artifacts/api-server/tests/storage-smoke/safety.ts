@@ -43,6 +43,14 @@ export class SmokeManifest {
     if (!this.objects.has(path)) throw new Error("Refusing to touch an object not created by this smoke run.");
   }
 
+  /** Register server-generated writes before the provider can create any bytes. */
+  recordGenerated(objectPath: string) {
+    if (!/^\/objects\/uploads\/[a-f0-9-]{36}$/i.test(objectPath)) {
+      throw new Error("Smoke generated image returned an unexpected object path.");
+    }
+    this.objects.add(objectPath);
+  }
+
   recordAccepted(uploadPath: string, acceptedPath: string) {
     this.assertOwned(uploadPath);
     if (!/^\/objects\/uploads\/[a-f0-9-]{36}$/i.test(uploadPath)

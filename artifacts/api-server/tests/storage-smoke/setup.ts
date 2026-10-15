@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, vi } from "vitest";
+import { randomUUID } from "node:crypto";
 import type { Express } from "express";
 import { client, initializeDatabase } from "../support/database";
 import { SmokeManifest, smokeScope } from "./safety";
@@ -17,6 +18,7 @@ beforeAll(async () => {
   if (process.env.NODE_ENV !== "development" || process.env.STORAGE_SMOKE !== "1"
     || process.env.DATABASE_URL || process.env.MESHY_API_KEY
     || process.env.IOS_API_KEY !== "ios-storage-smoke-fixture-key"
+    || process.env.OPENAI_API_KEY !== "openai-storage-smoke-fixture-key"
     || process.env.SESSION_SECRET !== "session-storage-smoke-fixture-secret") {
     throw new Error("Unsafe smoke-check environment; refusing external calls.");
   }
@@ -51,6 +53,16 @@ beforeAll(async () => {
   // Track before validation/DB writes so failed saves and lost responses still
   // clean up every created snapshot. No provider operation is mocked.
   const { ObjectStorageService } = await import("../../src/lib/objectStorage");
+  const savePrivateImage = ObjectStorageService.prototype.savePrivateImage;
+  vi.spyOn(ObjectStorageService.prototype, "savePrivateImage")
+    .mockImplementation(async function(this: InstanceType<typeof ObjectStorageService>, bytes, ownerId, objectPath = `/objects/uploads/${randomUUID()}`) {
+      manifest.recordGenerated(objectPath);
+      try {
+        return await savePrivateImage.call(this, bytes, ownerId, objectPath);
+      } catch {
+        throw new Error("Disposable private-image storage write failed (provider details redacted).");
+      }
+    });
   const createSnapshot = ObjectStorageService.prototype.createObjectEntitySnapshot;
   vi.spyOn(ObjectStorageService.prototype, "createObjectEntitySnapshot")
     .mockImplementation(async function(this: InstanceType<typeof ObjectStorageService>, objectPath) {

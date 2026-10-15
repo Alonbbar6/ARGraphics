@@ -108,6 +108,27 @@ fixtures, and mocks only the database module with the existing in-memory PGlite
 PostgreSQL fixtures. No workspace or production database connection is opened.
 The Express app is exercised in-process; no running API or browser login is
 needed. Meshy and all unrelated fetch destinations are explicitly blocked.
+The OpenAI key is also replaced with a public fixture. The saved-cutout smoke
+file mocks the OpenAI SDK, so no paid image cleanup or Meshy calls are made.
+
+To run just the saved photo-cleanup lifecycle (without artwork/CORS/expiry checks):
+
+```sh
+NODE_ENV=development STORAGE_SMOKE=1 \
+  STORAGE_SMOKE_ORIGIN="https://${REPLIT_DEV_DOMAIN}" \
+  pnpm --filter @workspace/api-server test:storage-smoke tests/storage-smoke/saved-photo-cleanup.smoke.ts
+```
+
+`storage-smoke/saved-photo-cleanup.smoke.ts` sends a tiny synthetic JPEG through
+the real cleanup routes and writes the prepared source PNG and mocked transparent
+cutout through the real storage service. It checks exact provider and authenticated
+HTTP bytes, private ACL/cache metadata, unsigned cloud denial, anonymous/cross-owner
+denial, and fresh-login resumption without additional OpenAI calls. It interrupts
+all three final metadata-save attempts after the cutout write, then confirms
+reopening recovers persisted ready metadata and both images without another cleanup.
+The drink and live menu remain unchanged. Generated image paths are recorded
+before each real write, including retries/partial failures, and share the exact-object
+cleanup described below. PostgreSQL remains the disposable PGlite fixture.
 
 The smoke check uploads tiny disposable PNG, JPEG, and WebP images through the
 real sidecar-signed PUT URLs; checks stored MIME type/size and exact download

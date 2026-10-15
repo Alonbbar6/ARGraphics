@@ -18,6 +18,7 @@ export default defineConfig({
       IOS_API_KEY: "ios-storage-smoke-fixture-key",
       SESSION_SECRET: "session-storage-smoke-fixture-secret",
       MESHY_API_KEY: "",
+      OPENAI_API_KEY: "openai-storage-smoke-fixture-key",
       LOG_LEVEL: "silent",
     },
   },

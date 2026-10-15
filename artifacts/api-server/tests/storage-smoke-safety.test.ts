@@ -76,3 +76,17 @@ it("cleans only manifest objects and continues after individual cleanup failures
   await manifest.cleanup(async (path) => { retried.push(path); });
   expect(retried).toEqual([first]);
 });
+
+it("tracks generated images before writes, including partial failures, and rejects unsafe paths", async () => {
+  const manifest = new SmokeManifest("/fixture/private/storage-smoke/run");
+  const path = "/objects/uploads/33333333-3333-4333-8333-333333333333";
+  for (const unsafe of ["/objects/uploads/../secret", "/objects/accepted-artwork/33333333-3333-4333-8333-333333333333", "/objects/uploads/not-a-uuid"]) {
+    expect(() => manifest.recordGenerated(unsafe)).toThrow();
+  }
+  manifest.recordGenerated(path); // Before a potentially partial provider write.
+  manifest.recordGenerated(path); // Idempotent retry must remain one cleanup entry.
+  const removed: string[] = [];
+  await manifest.cleanup(async (entry) => { removed.push(entry); });
+  expect(removed).toEqual([path]);
+  expect(() => manifest.assertOwned(path)).toThrow();
+});
