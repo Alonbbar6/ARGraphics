@@ -32,6 +32,15 @@ the production database URL and Meshy key. No real credential is needed. Global
 fetch is blocked so accidental Meshy or storage-sidecar calls fail explicitly.
 Never load workspace secrets into test fixtures.
 
+Public-menu/version and public/owner table-card responses are checked against
+both the JSON response schema selected by operation/status in
+`lib/api-spec/openapi.yaml` and the generated `@workspace/api-zod` validators.
+The OpenAPI check uses JSON Schema 2020-12 without coercion and validates formats,
+so serialized dates must be strings and public download URLs must be absolute.
+Existing HTTP fixtures cover populated and empty responses; assertion-sensitivity
+tests deliberately remove required fields and change types/formats to confirm
+these checks fail when wire contracts regress.
+
 The print suite calls the same PDF builder as the owner's download button. It
 checks actual PDF MediaBox dimensions (points converted back to millimeters),
 page count, image embedding, and aspect ratio for portrait, landscape, square,

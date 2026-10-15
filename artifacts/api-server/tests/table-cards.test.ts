@@ -4,6 +4,7 @@ import { app } from "./support/setup";
 import { db, schema } from "./support/database";
 import { cardBody, createCard, signIn } from "./support/requests";
 import { artworkBytes, artworkPath, objects, storage, uploadArtwork } from "./support/storage";
+import { expectResponseContract } from "./support/response-contracts";
 
 const privateUrl = `/api/storage/objects/${artworkPath.replace("/objects/", "")}`;
 const uploadBody = { name: "card.png", size: artworkBytes.length, contentType: "image/png" };
@@ -16,6 +17,7 @@ describe("signed-in owner table-card lifecycle", () => {
       .filter(row => row.barId === "garnish-demo-bar");
     const updated = await request(app).patch(`/api/table-cards/${saved.body.id}`)
       .set("Cookie", cookie).send({ name: "  Edited card  ", physicalWidthCm: 20, isActive: false }).expect(200);
+    expectResponseContract("updateTableCard", 200, updated.body);
     expect(updated.body).toMatchObject({
       id: saved.body.id, name: "Edited card", physicalWidthCm: 20,
       isActive: false, referenceImageUrl: saved.body.referenceImageUrl,
@@ -58,6 +60,7 @@ describe("signed-in owner table-card lifecycle", () => {
     uploadArtwork(upload.body.objectPath);
     const saved = await request(app).post("/api/table-cards").set("Cookie", cookie)
       .send({ ...cardBody, name: "  Front table  " }).expect(201);
+    expectResponseContract("createTableCard", 201, saved.body);
     expect(saved.body).toMatchObject({
       name: "Front table", referenceImageUrl: privateUrl,
       physicalWidthCm: 12.5, isActive: true,
@@ -69,17 +72,20 @@ describe("signed-in owner table-card lifecycle", () => {
     expect(Number(persisted.physicalWidthMeters)).toBe(0.125);
 
     const list = await request(app).get("/api/table-cards").set("Cookie", cookie).expect(200);
+    expectResponseContract("listTableCards", 200, list.body);
     expect(list.body).toEqual([saved.body]);
     const image = await request(app).get(privateUrl).set("Cookie", cookie).expect(200);
     expect(image.headers["content-type"]).toBe("image/png");
     expect(image.headers["cache-control"]).toBe("private, max-age=300");
     expect(image.body).toEqual(artworkBytes);
 
-    await request(app).delete(`/api/table-cards/${saved.body.id}`)
+    const deleted = await request(app).delete(`/api/table-cards/${saved.body.id}`)
       .set("Cookie", cookie).expect(200, { message: "Table card deleted." });
+    expectResponseContract("deleteTableCard", 200, deleted.body);
     expect(storage.deleteObjectEntity).toHaveBeenCalledWith(artworkPath);
     expect(objects.has(artworkPath)).toBe(false);
-    await request(app).get("/api/table-cards").set("Cookie", cookie).expect(200, []);
+    const empty = await request(app).get("/api/table-cards").set("Cookie", cookie).expect(200, []);
+    expectResponseContract("listTableCards", 200, empty.body);
     await request(app).get(privateUrl).set("Cookie", cookie).expect(404);
     await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(404);
   });

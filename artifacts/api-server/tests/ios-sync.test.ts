@@ -7,6 +7,7 @@ import { cardBody, createCard, iosGet, iosKey, signIn } from "./support/requests
 import { artworkPath, objects, storage, uploadArtwork } from "./support/storage";
 import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
+import { expectResponseContract } from "./support/response-contracts";
 
 // Keep background Meshy polling paused without live timers or HTTP requests.
 vi.mock("node:timers/promises", () => ({
@@ -75,7 +76,47 @@ describe("iOS key protection and sync", () => {
   });
 
   it.each(endpoints)("accepts the fixture key for %s", async (endpoint) => {
-    await iosRequest(endpoint, iosKey).expect(endpoint === "events" ? 201 : 200);
+    const response = await iosRequest(endpoint, iosKey).expect(endpoint === "events" ? 201 : 200);
+    if (endpoint === "menu-version") expectResponseContract("getPublicMenuVersion", 200, response.body);
+    if (endpoint === "menu") expectResponseContract("getPublicMenu", 200, response.body);
+    if (endpoint === "table-cards") expectResponseContract("getPublicTableCards", 200, response.body);
+  });
+
+  it("returns the documented populated menu with numeric cents, string prices, dates, and nullable assets", async () => {
+    await db.update(schema.barsTable).set({ logoUrl: "https://assets.example.test/logo.png" })
+      .where(eq(schema.barsTable.id, "garnish-demo-bar"));
+    await db.update(schema.drinksTable).set({
+      description: "Fixture description", priceCents: 1250, category: "seasonal",
+      thumbnailUrl: "/public-objects/drink.png",
+      modelUsdzUrl: "/objects/models/drink.usdz", modelGlbUrl: "/objects/models/drink.glb",
+      updatedAt: new Date("2026-10-14T12:00:00.000Z"),
+    }).where(eq(schema.drinksTable.id, "fixture-drink"));
+    await db.insert(schema.drinksTable).values({
+      id: "nullable-assets", barId: "garnish-demo-bar", name: "No assets", isPublished: true,
+    });
+    const response = await iosGet("demo-bar/menu").set("Host", "fixture.example.test").expect(200);
+    expectResponseContract("getPublicMenu", 200, response.body);
+    expect(response.body.logoUrl).toBe("https://assets.example.test/logo.png");
+    expect(response.body.drinks).toHaveLength(2);
+    expect(response.body.drinks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "fixture-drink", description: "Fixture description", price: "$12.50", priceCents: 1250,
+        category: "seasonal", thumbnailUrl: "http://fixture.example.test/api/storage/public-objects/drink.png",
+        modelUsdzUrl: "http://fixture.example.test/api/storage/public-objects/objects/models/drink.usdz",
+        modelGlbUrl: "http://fixture.example.test/api/storage/public-objects/objects/models/drink.glb",
+        updatedAt: "2026-10-14T12:00:00.000Z",
+      }),
+      expect.objectContaining({
+        id: "nullable-assets", thumbnailUrl: null, modelUsdzUrl: null, modelGlbUrl: null,
+      }),
+    ]));
+  });
+
+  it("returns the documented empty menu with an explicit null logo", async () => {
+    await db.delete(schema.drinksTable).where(eq(schema.drinksTable.barId, "garnish-demo-bar"));
+    const response = await iosGet("demo-bar/menu").expect(200);
+    expectResponseContract("getPublicMenu", 200, response.body);
+    expect(response.body).toEqual({ barName: "Fixture Bar", logoUrl: null, drinks: [] });
   });
 
   it("exposes signed download URLs only for active cards in the requested bar", async () => {
@@ -86,6 +127,7 @@ describe("iOS key protection and sync", () => {
       { id: "other-card", barId: "other-bar", name: "Other", referenceImageUrl: artworkPath },
     ]);
     const response = await iosGet("demo-bar/table-cards").expect(200);
+    expectResponseContract("getPublicTableCards", 200, response.body);
     expect(response.body).toEqual([{
       id: saved.body.id, name: cardBody.name, physicalWidthCm: 12.5,
       referenceImageUrl: `https://storage.example.test/signed-download?object=${encodeURIComponent(artworkPath)}`,

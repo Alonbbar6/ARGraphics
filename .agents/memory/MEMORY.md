@@ -4,7 +4,7 @@
 - [App Storage signed URLs](app-storage-signed-urls.md) — use Replit's sidecar signer for private object URLs instead of GCS `File.getSignedUrl`.
 - [Generated validator merges](generated-validator-merges.md) — bundled startup can hide initialization-order errors; regenerate merged API outputs and check their ESM consumers.
 - [Drizzle test driver peers](drizzle-test-peers.md) — Align optional driver peers across shared-schema consumers to avoid incompatible private SQL type identities.
-- [Generated request validation](generated-validation.md) — OpenAPI object constraints may need explicit runtime enforcement after code generation.
+- [Generated contract validation](generated-validation.md) — Generated validators may omit object constraints or coerce wire types; validate documented response formats independently.
 - [Menu version consistency](menu-version-consistency.md) — iOS polling requires menu-visible changes and version increments to commit together.
 - [Validation setup timing](validation-schema-timing.md) — Concurrent merges can reach completion checks before dependencies or development database updates.
 - [Native image decoder test builds](native-image-decoders.md) — preserve native runtime loading in standalone test bundles, not only application builds.
