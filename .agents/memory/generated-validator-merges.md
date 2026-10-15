@@ -5,6 +5,6 @@ description: Why API code generation must be verified in a native ESM test runti
 
 After concurrent API-contract changes are merged, regenerate the API outputs from the OpenAPI source and verify them in a native ESM test runtime as well as checking types.
 
-**Why:** A generated validator merge placed numeric-limit and regex constants after the schemas that used them. The bundled API still started because its build lowered declarations, while Vitest failed during module initialization. A healthy bundled server alone did not establish that the generated source was valid.
+**Why:** Bundling can change declaration and initialization behavior, hiding errors that appear when a native ESM consumer imports the generated source. A healthy bundled server alone does not establish that the generated source is valid.
 
-**How to apply:** When an API test fails before running with a “before initialization” error in generated validators, regenerate rather than manually rearranging generated code. Preserve all suites in the combined test command and run the generated-source consumer checks.
+**How to apply:** Validate regenerated API outputs in their native ESM consumers as well as the bundled server. Preserve all suites in the combined test command.

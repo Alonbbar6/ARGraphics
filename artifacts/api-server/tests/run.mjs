@@ -18,7 +18,8 @@ try {
     platform: "node",
     format: "cjs",
     sourcemap: "inline",
-    external: ["pg-native", "@google-cloud/storage", "pino", "pino-http"],
+    // Native image decoders must load their own runtime files, as in the server build.
+    external: ["pg-native", "@google-cloud/storage", "pino", "pino-http", "sharp"],
     logLevel: "warning",
   });
   const child = spawn(process.execPath, ["--test", outfile], {

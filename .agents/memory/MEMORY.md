@@ -6,3 +6,4 @@
 - [Generated request validation](generated-validation.md) — OpenAPI object constraints may need explicit runtime enforcement after code generation.
 - [Menu version consistency](menu-version-consistency.md) — iOS polling requires menu-visible changes and version increments to commit together.
 - [Validation schema timing](validation-schema-timing.md) — Concurrent merges can reach completion checks before their development database updates.
+- [Native image decoder test builds](native-image-decoders.md) — preserve native runtime loading in standalone test bundles, not only application builds.

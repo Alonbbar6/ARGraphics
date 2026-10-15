@@ -13,6 +13,7 @@ import {
 import { db, menuVersionTable, tableCardsTable } from "@workspace/db";
 import { randomUUID } from "node:crypto";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
+import { InvalidArtworkError, validateTableCardArtwork } from "../lib/tableCardArtwork";
 import { currentUser } from "./garnish";
 
 const router: IRouter = Router();
@@ -69,12 +70,7 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
   }
   try {
     const file = await storage.getObjectEntityFile(parsed.data.objectPath);
-    const [metadata] = await file.getMetadata();
-    if (!["image/jpeg", "image/png", "image/webp"].includes(metadata.contentType ?? "") ||
-        Number(metadata.size ?? 0) > 10 * 1024 * 1024) {
-      res.status(400).json({ error: "The uploaded file is not a supported image under 10 MB." });
-      return;
-    }
+    await validateTableCardArtwork(file);
     const card = await db.transaction(async (tx) => {
       const [created] = await tx.insert(tableCardsTable).values({
         id: randomUUID(),
@@ -96,6 +92,10 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
       createdAt: card.createdAt,
     }));
   } catch (error) {
+    if (error instanceof InvalidArtworkError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     if (error instanceof ObjectNotFoundError) {
       res.status(400).json({ error: "Upload the artwork before saving the table card." });
       return;
@@ -125,8 +125,7 @@ router.patch("/table-cards/:id", async (req: Request, res: Response): Promise<vo
         ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
       }).where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
         .returning();
-      if (!updated) return null;
-      await bumpMenuVersion(tx, user.barId);
+      if (updated) await bumpMenuVersion(tx, user.barId);
       return updated;
     });
     if (!card) {

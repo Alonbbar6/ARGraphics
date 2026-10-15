@@ -37,7 +37,7 @@ export class ObjectStorageService {
   deleteObjectEntity = storage.deleteObjectEntity;
 }
 
-// Simulates the external signed PUT; the API routes still verify stored metadata.
+// Simulates the external signed PUT; routes verify both metadata and contents.
 export function uploadArtwork(
   path = artworkPath,
   contentType = "image/png",
