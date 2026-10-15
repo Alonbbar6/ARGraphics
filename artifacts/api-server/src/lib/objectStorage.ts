@@ -38,6 +38,14 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
+/** The immutable bytes exist, but private owner metadata still needs repair. */
+export class PrivateImageStoredError extends Error {
+  constructor() {
+    super("Private image bytes are stored; owner metadata is temporarily unavailable.");
+    this.name = "PrivateImageStoredError";
+  }
+}
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -59,7 +67,11 @@ export class ObjectStorageService {
       const [saved] = await file.download();
       if (!saved.equals(bytes)) throw error;
     }
-    await setObjectAclPolicy(file, { owner: ownerId, visibility: "private" });
+    try {
+      await setObjectAclPolicy(file, { owner: ownerId, visibility: "private" });
+    } catch {
+      throw new PrivateImageStoredError();
+    }
     return `/objects/${entityId}`;
   }
 

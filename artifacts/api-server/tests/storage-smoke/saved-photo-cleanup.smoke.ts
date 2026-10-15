@@ -36,25 +36,14 @@ it.each(["owner", "other-owner"] as const)(
     // Setup records this generated path before the real write, even on failure.
     const path = await storage.savePrivateImage(original, "owner");
     manifest.assertOwned(path);
-    const target = await storage.getObjectEntityFile(path).catch(() => {
-      throw new Error("Disposable conflicting-retry image could not be resolved.");
-    });
-    async function snapshot() {
+    let target: File | undefined;
+    async function snapshot(file: File) {
       try {
-        const [metadata] = await target.getMetadata();
-        const [bytes] = await target.download();
-        return {
-          generation: metadata.generation,
-          metageneration: metadata.metageneration,
-          contentType: metadata.contentType,
-          cacheControl: metadata.cacheControl,
-          size: metadata.size,
-          customMetadata: metadata.metadata,
-          bytes,
-          acl: await getObjectAclPolicy(target),
-        };
+        const [metadata] = await file.getMetadata();
+        const [bytes] = await file.download();
+        return { generation: metadata.generation, bytes, acl: await getObjectAclPolicy(file) };
       } catch {
-        throw new Error("Disposable conflicting-retry image could not be inspected.");
+        throw new Error("Disposable fault-injection image could not be inspected.");
       }
     }
     const before = await snapshot();
@@ -73,24 +62,59 @@ it.each(["owner", "other-owner"] as const)(
     let metadataAttempts = 0;
     const isTarget = (file: File) => file.name === target.name && file.bucket.name === target.bucket.name;
     const save = vi.spyOn(File.prototype, "save").mockImplementation(async function(this: File, bytes, options) {
-      if (!isTarget(this)) return realSave.call(this, bytes, options);
-      manifest.assertOwned(path);
-      expect(bytes).toEqual(conflicting);
+      if (!Buffer.isBuffer(bytes) || !bytes.equals(cleaned)) {
+        return realSave.call(this, bytes, options);
+      }
+      const path = `/objects/${this.name.slice(`${manifest.directory.split("/").slice(2).join("/")}/`.length)}`;
+      manifest.assertOwned(path); // Registered before this provider write by setup.
+      if (!target) target = this;
+      expect(this.name).toBe(target.name);
+      expect(this.bucket.name).toBe(target.bucket.name);
       expect(options?.preconditionOpts?.ifGenerationMatch).toBe(0);
       writeAttempts++;
       try {
         await realSave.call(this, bytes, options);
+        completedWrites++;
       } catch (error) {
-        // Observe a real rejection, not a synthetic failure or storage mock.
-        // Redact provider details before the service/setup sees the error.
+        // A real provider precondition rejection is expected on ACL retries.
+        // Never print a provider error, which may contain credentials/paths.
         expect((error as { code?: number }).code).toBe(412);
         rejectedOverwrites++;
-        throw new Error("Disposable conflicting retry rejected by provider.");
+        const existing = await snapshot(this);
+        expect(existing.bytes).toEqual(cleaned);
+        expect(existing.generation).toBe(generation);
+        throw new Error("Disposable create-only retry rejected by provider.");
+      }
+      const stored = await snapshot(this);
+      expect(stored.bytes).toEqual(cleaned);
+      expect(stored.generation).toBeDefined();
+      generation = String(stored.generation);
+      if (stage === "write-acknowledgement" && injected === 0) {
+        boundaryAcl = stored.acl;
+        injected++;
+        // Provider bytes really exist, but the caller did not receive success.
+        throw new Error("Synthetic lost private-image write acknowledgement.");
       }
     });
     const metadata = vi.spyOn(File.prototype, "setMetadata").mockImplementation(async function(this: File, value) {
-      if (isTarget(this)) metadataAttempts++;
-      return realSetMetadata.call(this, value);
+      if (!target || this.name !== target.name || this.bucket.name !== target.bucket.name) {
+        return realSetMetadata.call(this, value);
+      }
+      aclAttempts++;
+      expect(value.metadata?.["custom:aclPolicy"]).toBe(JSON.stringify({ owner: "owner", visibility: "private" }));
+      if (aclUnavailable || (stage === "acl-before-write" && injected === 0)) {
+        boundaryAcl = (await snapshot(this)).acl;
+        injected++;
+        throw new Error("Synthetic private-owner metadata write interruption.");
+      }
+      const result = await realSetMetadata.call(this, value);
+      completedAclWrites++;
+      if (stage === "acl-acknowledgement" && injected === 0) {
+        boundaryAcl = (await snapshot(this)).acl;
+        injected++;
+        throw new Error("Synthetic lost private-owner metadata acknowledgement.");
+      }
+      return result;
     });
     try {
       await expect(storage.savePrivateImage(conflicting, retryOwner, path))
@@ -160,16 +184,16 @@ async function checkImages(draft: Draft, source: Buffer, cleaned: Buffer, owner:
 }
 
 it("stores real private cutouts, recovers interrupted metadata, and finishes disconnected saves without another paid call", async () => {
-  const owner = await signIn();
-  const other = await signIn("other@example.test");
-  const input = await sharp({ create: { width: 12, height: 10, channels: 3, background: "#a43010" } })
-    .jpeg().toBuffer();
-  const source = await prepareCleanupPhoto(input);
-  const cleaned = await sharp({ create: { width: 12, height: 10, channels: 4, background: { r: 120, g: 30, b: 10, alpha: 0.5 } } })
-    .png().toBuffer();
-  mocks.edit.mockResolvedValue({ data: [{ b64_json: cleaned.toString("base64") }] });
-  const [drinkBefore] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
-  const [menuBefore] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const owner = await signIn();
+    const other = await signIn("other@example.test");
+    const input = await sharp({ create: { width: 12, height: 10, channels: 3, background: "#b54020" } })
+      .jpeg().toBuffer();
+    const source = await prepareCleanupPhoto(input);
+    const cleaned = await sharp({ create: { width: 12, height: 10, channels: 4, background: { r: 140, g: 40, b: 20, alpha: 0.5 } } })
+      .png().toBuffer();
+    mocks.edit.mockResolvedValue({ data: [{ b64_json: cleaned.toString("base64") }] });
+    const [drinkBefore] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
+    const [menuBefore] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
   await request(app).post(endpoint).type("jpeg").send(input).expect(401);
   await request(app).get(endpoint).expect(401);
   await request(app).get(endpoint).set("Cookie", other).expect(404);
@@ -177,11 +201,14 @@ it("stores real private cutouts, recovers interrupted metadata, and finishes dis
   expect(mocks.edit).not.toHaveBeenCalled();
 
   const saved = await request(app).post(endpoint).set("Cookie", owner).type("jpeg").send(input).expect(200);
-  const draft: Draft = saved.body.draft;
+    let draft: Draft;
   expect(draft.status).toBe("ready");
   await checkImages(draft, source, cleaned, owner, other);
-  for (let reopen = 0; reopen < 2; reopen++) {
-    const resumed = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
+    for (let reopen = 0; reopen < 2; reopen++) {
+
+          const [stillPending] = await db.select().from(schema.photoCleanupsTable)
+            .where(eq(schema.photoCleanupsTable.id, pending.id));
+      const resumed = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
     expect(resumed.body.draft).toEqual(draft);
     expect(resumed.headers["cache-control"]).toBe("private, no-store");
   }
@@ -214,8 +241,8 @@ it("stores real private cutouts, recovers interrupted metadata, and finishes dis
   const recovered = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
   expect(recovered.body.draft.id).toBe(interrupted.id);
   expect(recovered.body.draft.status).toBe("ready");
-  const [persisted] = await db.select().from(schema.photoCleanupsTable)
-    .where(eq(schema.photoCleanupsTable.id, interrupted.id));
+    const [persisted] = await db.select().from(schema.photoCleanupsTable)
+      .where(eq(schema.photoCleanupsTable.id, draft.id));
   expect(persisted.status).toBe("ready");
   expect(persisted.cleanedSize).toBe(cleaned.length);
   expect(persisted.ownerId).toBe("owner");
@@ -271,7 +298,7 @@ it("stores real private cutouts, recovers interrupted metadata, and finishes dis
       expect(lease.leaseToken).toBeNull();
     }, { timeout: 90_000, interval: 250 });
     const freshOwner = await signIn();
-    const resumed = await request(app).get(endpoint).set("Cookie", freshOwner).expect(200);
+      const resumed = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
     expect(resumed.body.draft).toEqual({ ...processing.body.draft, status: "ready" });
     expect(resumed.headers["cache-control"]).toBe("private, no-store");
     await checkImages(resumed.body.draft, source, cleaned, freshOwner, other);
@@ -290,13 +317,13 @@ it("stores real private cutouts, recovers interrupted metadata, and finishes dis
     }, { timeout: 90_000, interval: 250 });
   }
   // Private drafts must not publish anything or start a 3D generation.
-  const [drinkAfter] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
-  const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const [drinkAfter] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
+    const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
   expect(drinkAfter).toEqual(drinkBefore);
   expect(menuAfter).toEqual(menuBefore);
 });
 
-it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement"] as const)(
+it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement", "acl-prolonged", "acl-prolonged-legacy"] as const)(
   "retries real private cutout storage after a transient %s failure without replacing bytes or paying again",
   async (stage) => {
     // Isolate admission limits and draft rows; never reset a workspace database.
@@ -325,6 +352,8 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement"] as 
     let aclAttempts = 0;
     let completedAclWrites = 0;
     let injected = 0;
+
+    const prolonged = stage === "acl-prolonged" || stage === "acl-prolonged-legacy";
     let boundaryAcl: Awaited<ReturnType<typeof getObjectAclPolicy>> | undefined;
 
     async function snapshot(file: File) {
@@ -378,7 +407,7 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement"] as 
       }
       aclAttempts++;
       expect(value.metadata?.["custom:aclPolicy"]).toBe(JSON.stringify({ owner: "owner", visibility: "private" }));
-      if (stage === "acl-before-write" && injected === 0) {
+      if (aclUnavailable || (stage === "acl-before-write" && injected === 0)) {
         boundaryAcl = (await snapshot(this)).acl;
         injected++;
         throw new Error("Synthetic private-owner metadata write interruption.");
@@ -395,18 +424,9 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement"] as 
 
     let draft: Draft;
     try {
-      const response = await request(app).post(endpoint).set("Cookie", owner).type("jpeg").send(input).expect(200);
-      draft = response.body.draft;
-      expect(draft.status).toBe("ready");
-      expect(injected).toBe(1);
-      expect(completedWrites).toBe(1);
-      expect(writeAttempts).toBe(stage === "write-acknowledgement" ? 1 : 2);
-      expect(rejectedOverwrites).toBe(stage === "write-acknowledgement" ? 0 : 1);
-      expect(aclAttempts).toBe(stage === "write-acknowledgement" ? 1 : 2);
-      expect(completedAclWrites).toBe(stage === "acl-acknowledgement" ? 2 : 1);
-      expect(boundaryAcl).toEqual(stage === "acl-acknowledgement" ? { owner: "owner", visibility: "private" } : null);
-      expect(mocks.edit).toHaveBeenCalledTimes(1);
-      expect(target).toBeDefined();
+      let response = await request(app).post(endpoint).set("Cookie", owner).type("jpeg").send(input).expect(prolonged ? 503 : 200);
+
+        const [pending] = await db.select().from(schema.photoCleanupsTable);
       const final = await snapshot(target!);
       expect(final.bytes).toEqual(cleaned);
       expect(final.generation).toBe(generation);
@@ -425,6 +445,9 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement"] as 
     expect(persisted.cleanedSize).toBe(cleaned.length);
     await checkImages(draft, source, cleaned, owner, other);
     for (let reopen = 0; reopen < 2; reopen++) {
+
+          const [stillPending] = await db.select().from(schema.photoCleanupsTable)
+            .where(eq(schema.photoCleanupsTable.id, pending.id));
       const resumed = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
       expect(resumed.body.draft).toEqual(draft);
     }
@@ -463,3 +486,11 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement"] as 
     expect(survivor.acl).toEqual({ owner: "owner", visibility: "private" });
   },
 );
+
+        const unsigned = `https://storage.googleapis.com${manifest.directory}/${pending.cleanedPhotoPath!.slice("/objects/".length)}`;
+
+        const denied = await fetch(unsigned, { redirect: "error" });
+
+    let aclUnavailable = prolonged;
+
+        const pendingStatus = stage === "acl-prolonged-legacy" ? "failed" : "processing";

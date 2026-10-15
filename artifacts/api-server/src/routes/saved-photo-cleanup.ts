@@ -10,25 +10,36 @@ const storage = new ObjectStorageService();
 
 router.get("/drinks/:id/photo-cleanup", async (req, res): Promise<void> => {
   if (!req.owner) { res.status(401).json({ error: "Sign in to review your photo." }); return; }
+  res.set("Cache-Control", "private, no-store");
   const [drink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, String(req.params.id)), eq(drinksTable.barId, req.owner.barId)));
   if (!drink) { res.status(404).json({ error: "Drink not found." }); return; }
-  const [draft] = await db.select().from(photoCleanupsTable)
+  let [draft] = await db.select().from(photoCleanupsTable)
     .where(and(eq(photoCleanupsTable.drinkId, drink.id), eq(photoCleanupsTable.ownerId, req.owner.id),
       ne(photoCleanupsTable.status, "discarded")))
     .orderBy(desc(photoCleanupsTable.createdAt)).limit(1);
   // The object path is reserved before OpenAI. Recover a completed storage write
   // even if the HTTP response or final database update was interrupted.
-  if (draft?.status === "processing" && draft.cleanedPhotoPath) {
+  if ((draft?.status === "processing" || draft?.status === "failed") && draft.cleanedPhotoPath) {
     try {
       const file = await storage.getObjectEntityFile(draft.cleanedPhotoPath);
       const [metadata] = await file.getMetadata();
-      await db.update(photoCleanupsTable).set({ status: "ready", cleanedSize: Number(metadata.size), error: null, updatedAt: new Date() })
-        .where(and(eq(photoCleanupsTable.id, draft.id), eq(photoCleanupsTable.status, "processing")));
-      draft.status = "ready";
-      draft.error = null;
+      // Repair ACLs even for failed drafts left by older servers. Never expose
+      // a result as ready while its private owner metadata is still unavailable.
+      await storage.trySetObjectEntityAclPolicy(draft.cleanedPhotoPath, { owner: req.owner.id, visibility: "private" });
+      const [recovered] = await db.update(photoCleanupsTable).set({
+        status: "ready", cleanedSize: Number(metadata.size), error: null, updatedAt: new Date(),
+      }).where(and(eq(photoCleanupsTable.id, draft.id), eq(photoCleanupsTable.ownerId, req.owner.id),
+        eq(photoCleanupsTable.status, draft.status))).returning();
+      // Do not manufacture a ready response if a concurrent operation changed it.
+      if (recovered) draft = recovered;
+      else {
+        res.status(503).json({ error: "Your saved photo changed. Reopen the studio to try again." }); return;
+      }
     } catch (error) {
-      if (!(error instanceof ObjectNotFoundError)) throw error;
+      if (!(error instanceof ObjectNotFoundError)) {
+        res.status(503).json({ error: "Your paid cutout is stored. Reopen the studio to recover it when storage is available." }); return;
+      }
     }
   }
   // A process interrupted by a server restart must not leave the studio locked forever.

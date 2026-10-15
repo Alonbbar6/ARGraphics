@@ -52,14 +52,15 @@ beforeAll(async () => {
   // Observe the real copy operation, not just the eventual HTTP response.
   // Track before validation/DB writes so failed saves and lost responses still
   // clean up every created snapshot. No provider operation is mocked.
-  const { ObjectStorageService } = await import("../../src/lib/objectStorage");
+  const { ObjectStorageService, PrivateImageStoredError } = await import("../../src/lib/objectStorage");
   const savePrivateImage = ObjectStorageService.prototype.savePrivateImage;
   vi.spyOn(ObjectStorageService.prototype, "savePrivateImage")
     .mockImplementation(async function(this: InstanceType<typeof ObjectStorageService>, bytes, ownerId, objectPath = `/objects/uploads/${randomUUID()}`) {
       manifest.recordGenerated(objectPath);
       try {
         return await savePrivateImage.call(this, bytes, ownerId, objectPath);
-      } catch {
+      } catch (error) {
+        if (error instanceof PrivateImageStoredError) throw error;
         throw new Error("Disposable private-image storage write failed (provider details redacted).");
       }
     });

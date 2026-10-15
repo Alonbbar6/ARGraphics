@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { app } from "./support/setup";
 import { db, schema } from "./support/database";
 import { signIn } from "./support/requests";
-import { objects, storage } from "./support/storage";
+import { objects, storage, PrivateImageStoredError } from "./support/storage";
 import { cleanupRequestTimeoutMs } from "../src/lib/photo-cleanup-limits";
 
 const mocks = vi.hoisted(() => ({ edit: vi.fn() }));
@@ -134,6 +134,83 @@ describe("saved paid cutout lifecycle", () => {
     update.mockRestore();
     const result = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
     expect(result.body.draft.status).toBe("ready");
+    expect(mocks.edit).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["processing", "failed"] as const)(
+    "recovers durable paid bytes from a %s draft after a prolonged private-metadata outage",
+    async (status) => {
+      const cookie = await signIn();
+      const other = await signIn("other@example.test");
+      const bytes = await png();
+      const save = storage.savePrivateImage.getMockImplementation()!;
+      storage.savePrivateImage.mockImplementation(async (input, owner, path) => {
+        const stored = await save(input, owner, path);
+        if (path) throw new PrivateImageStoredError("metadata unavailable");
+        return stored;
+      });
+      try {
+        await request(app).post(endpoint).set("Cookie", cookie).type("png").send(bytes).expect(503);
+      } finally {
+        storage.savePrivateImage.mockImplementation(save);
+      }
+      expect(storage.savePrivateImage).toHaveBeenCalledTimes(4); // Source + three output attempts.
+      const [draft] = await db.select().from(schema.photoCleanupsTable);
+      expect(draft.status).toBe("processing");
+      expect(draft.cleanedSize).toBeNull();
+      expect(objects.get(draft.cleanedPhotoPath!)?.bytes).toEqual(bytes);
+      // Also repair drafts incorrectly marked failed by previous server versions.
+      await db.update(schema.photoCleanupsTable).set({
+        status, error: status === "failed" ? "Cleanup could not be saved." : null,
+        updatedAt: new Date(Date.now() - 600_001),
+      }).where(eq(schema.photoCleanupsTable.id, draft.id));
+      const repair = storage.trySetObjectEntityAclPolicy.getMockImplementation()!;
+      storage.trySetObjectEntityAclPolicy.mockRejectedValue(new Error("metadata still unavailable"));
+      try {
+        await request(app).get(endpoint).expect(401);
+        await request(app).get(endpoint).set("Cookie", other).expect(404);
+        expect(storage.trySetObjectEntityAclPolicy).not.toHaveBeenCalled();
+        for (let reopen = 0; reopen < 2; reopen++) {
+          await request(app).get(endpoint).set("Cookie", cookie).expect(503);
+          const [pending] = await db.select().from(schema.photoCleanupsTable);
+          expect(pending.status).toBe(status); // Do not time out durable output.
+          expect(pending.cleanedSize).toBeNull();
+          await request(app).get(`${endpoint}/${draft.id}/cleaned`).set("Cookie", cookie).expect(404);
+        }
+        if (status === "processing") {
+          await request(app).post(endpoint).set("Cookie", cookie).type("png").send(bytes).expect(409);
+        }
+      } finally {
+        storage.trySetObjectEntityAclPolicy.mockImplementation(repair);
+      }
+      const recovered = await request(app).get(endpoint).set("Cookie", await signIn()).expect(200);
+      expect(recovered.body.draft.status).toBe("ready");
+      expect(recovered.body.draft.id).toBe(draft.id);
+      expect(recovered.body.draft.error).toBeNull();
+      expect(storage.trySetObjectEntityAclPolicy).toHaveBeenLastCalledWith(
+        draft.cleanedPhotoPath, { owner: "owner", visibility: "private" },
+      );
+      const [persisted] = await db.select().from(schema.photoCleanupsTable);
+      expect(persisted.cleanedSize).toBe(bytes.length);
+      const image = await request(app).get(`${endpoint}/${draft.id}/cleaned`).set("Cookie", cookie).expect(200);
+      expect(image.body).toEqual(bytes);
+      await request(app).get(`${endpoint}/${draft.id}/cleaned`).set("Cookie", other).expect(404);
+      expect(mocks.edit).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("never returns a recovered ready result when the draft changes during ACL repair", async () => {
+    const cookie = await signIn();
+    const { body } = await request(app).post(endpoint).set("Cookie", cookie).type("png").send(await png()).expect(200);
+    await db.update(schema.photoCleanupsTable).set({ status: "processing" });
+    storage.trySetObjectEntityAclPolicy.mockImplementationOnce(async (path) => {
+      await db.update(schema.photoCleanupsTable).set({ status: "discarded" });
+      return path;
+    });
+    await request(app).get(endpoint).set("Cookie", cookie).expect(503);
+    const result = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
+    expect(result.body.draft).toBeNull();
+    await request(app).get(`${endpoint}/${body.draft.id}/cleaned`).set("Cookie", cookie).expect(404);
     expect(mocks.edit).toHaveBeenCalledTimes(1);
   });
 

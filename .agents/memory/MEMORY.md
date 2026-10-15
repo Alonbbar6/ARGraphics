@@ -17,3 +17,4 @@
 - [Merge integrity](merge-integrity.md) — automatic merges can rewrite unreported handwritten files; unexpected diff growth requires reconstruction and type checks.
 - [PGlite clock isolation](pglite-clock-isolation.md) — In-process SQL clocks can follow JavaScript clock mocks; verify server-clock independence against real PostgreSQL.
 - [Photo review measurement](photo-review-measurement.md) — aggregate privacy-safe outcome counts are not per-owner billing attribution or exact cleanup savings.
+- [Paid cutout recovery](paid-cutout-recovery.md) — Separate durable paid bytes from access-metadata success; recovery must repair privacy without repeating the paid operation.

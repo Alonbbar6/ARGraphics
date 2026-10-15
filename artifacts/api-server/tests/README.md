@@ -134,6 +134,10 @@ It also injects transient failures after a real provider write, before the priva
 owner ACL metadata write, and after that metadata write completes. Each case checks
 that retries use create-only writes, keep the same object generation and exact
 bytes, persist private owner metadata, and resume without another OpenAI call.
+Prolonged ACL failures exhaust all three write retries and remain unavailable
+across multiple reopen attempts beyond the stale-job deadline. The checks then
+restore provider metadata access and recover both pending drafts and legacy failed
+drafts without replacing bytes, changing the generation, or repeating OpenAI.
 Scoped manifest cleanup removes only the two case-owned images and leaves a
 separate run-owned image intact for the final cleanup.
 The drink and live menu remain unchanged. Generated image paths are recorded

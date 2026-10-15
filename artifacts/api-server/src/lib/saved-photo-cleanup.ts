@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, drinksTable, photoCleanupsTable, type PhotoCleanup } from "@workspace/db";
 import { cleanupDrinkPhoto, prepareCleanupPhoto, PhotoCleanupError } from "./photo-cleanup";
-import { ObjectStorageService } from "./objectStorage";
+import { ObjectStorageService, PrivateImageStoredError } from "./objectStorage";
 
 const storage = new ObjectStorageService();
 
@@ -45,6 +45,8 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
         outputStored = true;
         break;
       } catch (error) {
+        // An ACL outage must not discard a paid result that already exists.
+        if (error instanceof PrivateImageStoredError) outputStored = true;
         if (attempt === 2) throw error;
       }
     }

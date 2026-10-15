@@ -20,27 +20,31 @@ author = "agent"
 task = "workflow.run"
 args = "table-card-ios-regressions"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "api-codegen-freshness"
+
 [[workflows.workflow]]
 name = "table-card-ios-regressions"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm test && pnpm --filter @workspace/api-server typecheck:tests"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mkdir -p .local/state && flock .local/state/api-validation.lock -c 'pnpm test && pnpm --filter @workspace/api-server typecheck:tests'"
 
 [[workflows.workflow]]
 name = "api-codegen-freshness"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm run test:api-codegen-check && pnpm run check:api-codegen"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mkdir -p .local/state && flock .local/state/api-validation.lock -c 'pnpm run test:api-codegen-check && pnpm run check:api-codegen'"
 
 [agent]
 stack = "PNPM_WORKSPACE"

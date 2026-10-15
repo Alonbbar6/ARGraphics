@@ -14,3 +14,9 @@ Check repeated route handlers by their own request and response contracts when r
 **Why:** Similar-looking handlers are not interchangeable; an automatic merge can change behavior even when the result looks plausible.
 
 **How to apply:** Preserve each incoming feature's intent, compare affected handlers against their operation contracts, and use the existing route regression tests after reconciliation.
+
+Serialize freshness checks that regenerate API files with tests that import those files.
+
+**Why:** Code generation temporarily removes its output directory. Concurrent completion checks can produce a missing generated-module failure even though the files exist before and after the run and both checks pass separately.
+
+**How to apply:** Keep both configured checks intact and use a shared lock around their commands. Do not treat transiently missing generated files as a product regression or weaken the import tests.
