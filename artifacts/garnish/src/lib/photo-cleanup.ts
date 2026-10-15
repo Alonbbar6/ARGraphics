@@ -1,4 +1,5 @@
 import type { SavedPhotoCleanup } from '@workspace/api-client-react';
+import { trackEvent } from './analytics';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 export function savedCleanupImageUrl(draft: SavedPhotoCleanup, kind: 'source' | 'cleaned') {
@@ -21,6 +22,7 @@ export async function removePhotoBackground(drinkId: string, file: Blob, onProgr
   }
   const result = await response.json() as { draft: SavedPhotoCleanup };
   if (result.draft?.status !== 'ready' || !result.draft.cleanedPhotoPath) throw new Error('The cutout is not ready yet. Reopen the studio to check its saved status.');
+  trackEvent('photo_cleanup_saved', { cutout_source: 'new' });
   onProgress?.('Cutout saved. Check the glass and garnish before generating your model.');
   return result.draft;
 }

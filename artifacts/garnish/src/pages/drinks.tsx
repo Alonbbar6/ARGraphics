@@ -5,6 +5,7 @@ import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQue
 import type { Drink, DrinkInput, SavedPhotoCleanup } from '@workspace/api-client-react';
 import { AlertCircle, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { removePhotoBackground, savedCleanupImageUrl } from '@/lib/photo-cleanup';
+import { createPhotoReviewAnalytics } from '@/lib/photo-review-analytics';
 import heic2any from 'heic2any';
 import modelViewerUrl from '@google/model-viewer/dist/model-viewer.min.js?url';
 
@@ -236,6 +237,7 @@ function ensureModelViewer() {
 }
 
 function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClose: () => void; onPublished: () => void }) {
+  const [reviewAnalytics] = useState(createPhotoReviewAnalytics);
   const queryClient = useQueryClient();
   const startGeneration = useStartDrinkGeneration();
   const updateDrink = useUpdateDrink();
@@ -273,6 +275,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     const latest = cleanupQuery.data?.draft;
     const draft = latest?.status === 'failed' ? cleanupQuery.data?.previousReadyDraft || latest : latest;
     if (!draft || choosingNewPhoto || busyMessage) return;
+    reviewAnalytics.restored(draft);
     setSavedDraft(draft);
     setOriginalPreview(savedCleanupImageUrl(draft, 'source'));
     setCleanedPreview(draft.status === 'ready' ? savedCleanupImageUrl(draft, 'cleaned') : '');
@@ -283,7 +286,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
         ? 'The replacement cleanup failed. Your earlier paid cutout is still saved below; you can review and build from it without another cleanup.'
         : latest.error || 'The cleanup was interrupted.');
     }
-  }, [cleanupQuery.data, choosingNewPhoto, busyMessage]);
+  }, [cleanupQuery.data, choosingNewPhoto, busyMessage, reviewAnalytics]);
 
   useEffect(() => () => {
     if (originalPreview.startsWith('blob:')) URL.revokeObjectURL(originalPreview);
@@ -361,6 +364,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
       const sourceUrl = URL.createObjectURL(normalized);
       setOriginalPreview(sourceUrl);
       const result = await removePhotoBackground(drink.id, normalized, setBusyMessage);
+      reviewAnalytics.cleaned(result);
       queryClient.setQueryData(getGetSavedPhotoCleanupQueryKey(drink.id), { draft: result, previousReadyDraft: null });
       setSavedDraft(result);
       setCleanedPreview(savedCleanupImageUrl(result, 'cleaned'));
@@ -383,7 +387,9 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     try {
       const sourcePhotoPath = savedDraft.sourcePhotoPath;
       const cleanedPhotoPath = savedDraft.cleanedPhotoPath;
+      const cutoutSource = reviewAnalytics.source(savedDraft);
       const result = await startGeneration.mutateAsync({ id: drink.id, data: { sourcePhotoPath, cleanedPhotoPath } });
+      reviewAnalytics.generated(cutoutSource);
       queryClient.setQueryData(getGetDrinkGenerationQueryKey(drink.id), result);
       queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
       setNotice('Your photos are in. We’ll keep this preview up to date while the model is built.');
@@ -410,6 +416,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
   };
 
   const reshoot = () => {
+    reviewAnalytics.retake(savedDraft);
     setSourceFile(null);
     setSavedDraft(null);
     setChoosingNewPhoto(true);

@@ -16,3 +16,4 @@
 - [Artwork acceptance](artwork-acceptance.md) — signed uploads remain writable; acceptance must isolate validated artwork from the upload capability.
 - [Merge integrity](merge-integrity.md) — automatic merges can rewrite unreported handwritten files; unexpected diff growth requires reconstruction and type checks.
 - [PGlite clock isolation](pglite-clock-isolation.md) — In-process SQL clocks can follow JavaScript clock mocks; verify server-clock independence against real PostgreSQL.
+- [Photo review measurement](photo-review-measurement.md) — aggregate privacy-safe outcome counts are not per-owner billing attribution or exact cleanup savings.
