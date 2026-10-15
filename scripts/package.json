@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check:ios-contract": "node ./src/check-ios-contract.mjs",
+    "test:ios-contract": "node --test ./tests/ios-contract.test.mjs",
     "check:api-codegen": "node ./src/check-api-codegen.mjs",
     "test:api-codegen-check": "node --test ./tests/check-api-codegen.test.mjs",
     "hello": "tsx ./src/hello.ts",
@@ -11,6 +13,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "tsx": "catalog:",
+    "yaml": "2.9.0"
   }
 }

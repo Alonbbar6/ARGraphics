@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "check:ios-contract": "pnpm --filter @workspace/scripts run check:ios-contract",
+    "test:ios-contract": "pnpm --filter @workspace/scripts run test:ios-contract",
     "check:api-codegen": "pnpm --filter @workspace/scripts run check:api-codegen",
     "test:api-codegen-check": "pnpm --filter @workspace/scripts run test:api-codegen-check",
     "test": "pnpm --filter @workspace/api-zod test && pnpm --filter @workspace/api-server test && pnpm --filter @workspace/garnish test",

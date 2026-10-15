@@ -26,6 +26,98 @@ commit both generated directories together with those changes. Type checking
 alone cannot detect stale but compiling output. This check is separate from
 service startup. Run `pnpm run test:api-codegen-check` for its regression tests.
 
+## Public iOS backward compatibility
+
+The **Public iOS compatibility** pull-request workflow compares
+`lib/api-spec/openapi.yaml` in the proposed commit to the contract at
+`git merge-base HEAD <target-branch-commit>`. Checkout uses full history and the
+PR head, not GitHub's synthetic merge commit. A moving target branch does not
+become the baseline until its changes are part of the shared history. Missing
+history, missing baseline files, invalid YAML and unresolved refs fail the check;
+there is no fallback to `HEAD`, a checked-in snapshot, or an empty baseline.
+
+Run locally with an explicit, fetched target:
+
+```sh
+pnpm run test:ios-contract
+git fetch origin main
+pnpm run check:ios-contract --base-ref origin/main
+```
+
+The local command compares the working-tree spec (including staged and unstaged
+edits); CI checks the committed proposed spec. Baseline operations under `/v1/`
+or tagged `ios` are protected, including menu-version, menu, table-cards and
+events, and their transitively referenced schemas. The existing public asset
+endpoint `GET /storage/public-objects/{filePath}` is also protected: its
+thumbnail and 3D-model URLs are returned to iOS clients, despite its `drinks`
+tag and non-versioned path. Removing an operation's tag cannot remove it from
+that PR's check. Owner-only changes are outside this gate.
+
+The checker rejects removed paths/methods, existing response fields (even
+optional fields), response status/media removals, weakened required response
+guarantees, type/nullability/format changes, newly required request headers,
+queries or body fields, tighter request limits/enums, broader response
+limits/enums, and authentication/base-URL changes. It handles arrays, local refs,
+recursive schemas and path-level parameters with operation overrides. New
+endpoints, new response fields, optional request fields/parameters and relaxed
+request limits are additive. It assumes clients ignore unknown response fields.
+Unknown structural constructs (for example changed `allOf`, `oneOf`, patterns,
+serialization, response headers or links) are conservatively rejected if their
+resolved structure changes; extend the checker and its tests before treating
+such a change as safe. External refs and structural `$ref` siblings are rejected.
+
+This check concerns the **wire contract for existing iOS clients**, not whether
+generated files are fresh, the implementation returns the documented response,
+or an Orval upgrade preserves validator behavior. Those remain separate checks.
+
+### Intentional breaking changes
+
+Prefer a new versioned endpoint while preserving `/v1/` for installed clients.
+Do not loosen the checker, retag an endpoint, or refresh a baseline to hide a
+failure. A spec-only approval does not migrate installed apps or server code.
+
+Before allowing any exception, repository administrators must:
+
+1. Require the `ios-contract-gate` status in branch protection/rulesets and
+   disallow direct pushes/bypasses on the target branch.
+2. Create the `ios-contract-breaking-change` GitHub environment with required
+   API/iOS reviewers and **prevent self-review**. Restrict who can modify that
+   environment and these workflow/checker files through repository review rules.
+   Environment configuration must be enforced administratively outside this PR
+   workflow: the read-only workflow token cannot inspect repository environment
+   settings. Do not add an administrator credential to PR-controlled code.
+   An unprotected or automatically created environment will not enforce review,
+   so administrators must verify protection before permitting approval records.
+3. Require both the API owner and iOS owner to approve the PR's client rollout,
+   version retirement and rollback plan. GitHub environment protection accepts
+   one of its listed reviewers, so it is a final additional gate, **not** a
+   substitute for both owners' documented PR sign-offs.
+
+For an agreed break, commit
+`lib/api-spec/ios-breaking-change-approval.json` with this shape:
+
+```json
+{
+  "baseSha256": "<exact baseline hash printed by the checker>",
+  "proposedSha256": "<exact proposed hash printed by the checker>",
+  "issues": ["<exact reported issue, without the leading '- '>"],
+  "reason": "<why a compatible or versioned change is not sufficient>",
+  "migrationPlan": "<supported client versions, rollout, retirement and rollback>",
+  "apiOwner": "<API owner's reviewer handle>",
+  "iosOwner": "<iOS owner's reviewer handle>",
+  "approvalUrl": "https://<link-to-both-owners-review>"
+}
+```
+
+Include **every** reported issue, with no extra entries. Both hashes bind the
+record to the exact raw YAML bytes, so another spec edit or a changed merge base
+invalidates the approval. A valid record only sends CI to the protected
+environment; `ios-contract-gate` cannot pass until that review succeeds.
+Local checks print that review is still needed; they do not grant approval.
+Remove the record in the next compatible PR; a retained stale record never
+authorizes another break. Repository environment/ruleset configuration is an
+administrator setup step, not something this source change applies remotely.
+
 
 ## Development demo sign-in
 

@@ -1,0 +1,64 @@
+name: Public iOS compatibility
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    outputs:
+      requires_approval: ${{ steps.contract.outputs.requires_approval }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Compare the proposed commit, not GitHub's synthetic merge commit.
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:ios-contract
+      - name: Compare to target branch merge base
+        id: contract
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: pnpm run check:ios-contract --base-ref "$BASE_SHA"
+
+  approve-breaking-change:
+    needs: compatibility
+    if: needs.compatibility.outputs.requires_approval == 'true'
+    runs-on: ubuntu-latest
+    # Administrators must configure required reviewers and prevent self-review
+    # before permitting approval records. PR tokens cannot inspect or configure
+    # repository environment protection; never add admin credentials here.
+    # See README: Intentional breaking changes.
+    environment: ios-contract-breaking-change
+    steps:
+      - run: echo "Protected-environment reviewers approved the exact contract change."
+
+  ios-contract-gate:
+    if: always()
+    needs: [compatibility, approve-breaking-change]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require compatibility or approved exact exception
+        env:
+          CHECK_RESULT: ${{ needs.compatibility.result }}
+          REQUIRES_APPROVAL: ${{ needs.compatibility.outputs.requires_approval }}
+          APPROVAL_RESULT: ${{ needs.approve-breaking-change.result }}
+        run: |
+          test "$CHECK_RESULT" = success
+          if [ "$REQUIRES_APPROVAL" = true ]; then
+            test "$APPROVAL_RESULT" = success
+          else
+            test "$REQUIRES_APPROVAL" = false
+            test "$APPROVAL_RESULT" = skipped
+          fi
