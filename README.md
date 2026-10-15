@@ -15,6 +15,42 @@ Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners c
 - Password: `Garnish-demo-2026!`
 - This seeded account is created only when the API runs with `NODE_ENV=development`. It is not created in production.
 
+## Opt-in development browser artwork smoke
+
+The offline `pnpm test` suite never launches a browser or calls real storage.
+To check actual Chromium file selection, browser-enforced storage CORS, private
+saved-artwork reload and card-sized print PDF downloads for PNG/JPEG/WebP:
+
+```sh
+pnpm --filter @workspace/api-server exec playwright install chromium
+NODE_ENV=development STORAGE_SMOKE=1 BROWSER_STORAGE_SMOKE=1 \
+  pnpm --filter @workspace/api-server test:browser-storage-smoke
+```
+
+Run only in the development workspace with App Storage configured. This command
+starts the existing Garnish UI at `http://127.0.0.1:4179` (the port must be free)
+and a separate loopback API, not the running dashboard/API or any deployed URL.
+It reuses the in-memory PostgreSQL fixtures, logs in with synthetic sessions,
+clears the database connection and Meshy settings, and substitutes a fake iOS
+key and session secret. It never reads production data or invokes Meshy/iOS.
+The browser blocks external traffic except this run's private cloud objects.
+Optional `BROWSER_SMOKE_CHROMIUM_PATH` selects an installed Chromium executable.
+On Replit, use the bundled system browser to avoid missing Linux libraries:
+
+```sh
+NODE_ENV=development STORAGE_SMOKE=1 BROWSER_STORAGE_SMOKE=1 \
+  BROWSER_SMOKE_CHROMIUM_PATH=/repl/tools/bin/chromium \
+  pnpm --filter @workspace/api-server test:browser-storage-smoke
+```
+
+Storage uploads use a unique private namespace and are recorded before PUT.
+Cleanup runs on success or failure, deletes only manifest-owned objects, and
+verifies absence. Never use bucket-wide/prefix deletes. Keep the process alive
+until cleanup completes: a forced kill cannot run cleanup. Errors name the
+failed phase without printing signed URLs or session cookies; no traces/HAR or
+owner artwork are saved. The PDF checks verify embedded artwork and a 100 × 50 mm
+page; they do not control an OS print dialog or send jobs to a printer.
+
 ## Secrets
 
 Set secrets in Replit Secrets. Never put secret values in source files.

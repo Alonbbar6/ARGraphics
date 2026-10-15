@@ -1,5 +1,27 @@
 import { expect, it } from "vitest";
 import { SmokeManifest, smokeScope } from "./storage-smoke/safety";
+import { trackSmokeUploads } from "./browser-smoke/track-uploads";
+import express from "express";
+import request from "supertest";
+
+it("records browser uploads before delivering responses through nested routers", async () => {
+  const manifest = new SmokeManifest("/fixture/private/storage-smoke/run");
+  const objectPath = "/objects/uploads/11111111-1111-4111-8111-111111111111";
+  const uploadURL = `https://storage.googleapis.com${manifest.directory}/${objectPath.slice(9)}?signature=fixture`;
+  const app = express();
+  app.use(trackSmokeUploads(manifest));
+  const nested = express.Router();
+  nested.post("/storage/uploads/request-url", (req, res) => {
+    expect(req.path).toBe("/storage/uploads/request-url");
+    res.json({ uploadURL, objectPath });
+  });
+  app.use("/api", nested);
+  await request(app).post("/api/storage/uploads/request-url").expect(200);
+  expect(() => manifest.assertOwned(objectPath)).not.toThrow();
+  const removed: string[] = [];
+  await manifest.cleanup(async (path) => { removed.push(path); });
+  expect(removed).toEqual([objectPath]);
+});
 
 it("isolates each smoke namespace and refuses public paths or invalid origins", () => {
   const first = smokeScope("/fixture/private", "/fixture/public", "https://dev.example.test");

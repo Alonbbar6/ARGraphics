@@ -5,5 +5,5 @@
     "tsBuildInfoFile": ".tests.tsbuildinfo",
     "noEmit": true
   },
-  "include": ["tests/**/*.ts", "vitest.config.ts", "vitest.storage-smoke.config.ts"]
+  "include": ["tests/**/*.ts", "vitest.config.ts", "vitest.storage-smoke.config.ts", "vitest.browser-smoke.config.ts"]
 }

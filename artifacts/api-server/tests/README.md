@@ -1,6 +1,6 @@
 # Table-card and iOS regression tests
 
-Run all regressions from the workspace root:
+Run the offline regressions from the workspace root:
 
 ```sh
 pnpm test
@@ -47,9 +47,10 @@ rate limiting. Response-padding sleeps are mocked; no inbox or live credentials
 are used.
 # API regression tests
 
-Run all API and print regressions from the workspace root with `pnpm test`.
-The API package's `test` runs both the in-memory table-card/iOS suite and the
-real-PostgreSQL owner-isolation suite below.
+Run the offline API and print regressions from the workspace root with `pnpm test`.
+The API package's `test` runs the in-memory suites only. The real-PostgreSQL
+owner-isolation and real-storage browser/provider checks remain separate opt-in
+commands.
 
 ## Opt-in real private-storage smoke check (development only)
 
@@ -141,7 +142,8 @@ These suites test API and PDF behavior, not browser file-picker/canvas rendering
 
 ## Owner isolation regressions
 
-Run `pnpm --filter @workspace/api-server test:isolation` (or `test`).
+Run `pnpm --filter @workspace/api-server test:isolation` explicitly. This
+database-connected suite is never included in the offline `pnpm test` command.
 
 The suite uses Node's built-in test runner, the real Express application,
 registration/session cookies, and real PostgreSQL queries. It requires
