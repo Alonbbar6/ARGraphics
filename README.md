@@ -90,7 +90,8 @@ All routes below are served under `/api`.
 - `GET /drinks` lists the signed-in owner's drinks.
 - `POST /storage/drink-photos/request-url` creates a short-lived upload URL for a validated drink photo; the browser uploads directly to App Storage.
 - `GET /drinks/{id}/generation` returns photo-to-3D progress and review links.
-- `POST /drinks/{id}/generation` starts Meshy image-to-3D generation from the approved photos.
+- `POST /drinks/photo-cleanup` accepts authenticated JPEG, PNG, or WebP bytes (up to 15 MB) and returns an AI-cleaned transparent PNG. Uses `OPENAI_API_KEY` server-side with OpenAI image editing, not the Replit AI proxy. Each selected photo incurs OpenAI usage; no automatic paid retries. Limited to one simultaneous cleanup and four attempts per owner per ten minutes per API process. Owners review the cutout before sending it to Meshy.
+- `POST /drinks/{id}/generation` starts Meshy image-to-3D generation from the approved photos, using `MESHY_API_KEY`. Meshy charges are separate from OpenAI cleanup. Existing polling, persistent model storage, interactive preview, and manual publishing follow cleanup approval.
 - `GET /drinks/{id}/photos/{source|cleaned}` serves the owner's private before-and-after photos.
 - `POST /drinks` accepts `{"name":"Garden Gimlet","description":"Cucumber, basil, lime","priceCents":1500,"category":"signature"}`.
 - `PATCH /drinks/{id}` accepts any subset of the drink fields, such as `{"priceCents":1600,"isAvailable":false}`.

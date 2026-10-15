@@ -207,6 +207,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /drinks/photo-cleanup:
+    post:
+      operationId: cleanupDrinkPhoto
+      tags: [drinks]
+      summary: Remove a drink photo background using the owner's OpenAI connection
+      description: Requires an owner session. Accepts a still image up to 15 MB. Limited to four requests per owner per ten minutes and one simultaneous cleanup.
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+          image/webp:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Transparent cleaned PNG; not yet sent to Meshy
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "400":
+          description: Invalid or undecodable photo
+        "401":
+          description: Owner sign-in required
+        "413":
+          description: Photo exceeds 15 MB
+        "415":
+          description: Unsupported photo content type
+        "429":
+          description: Cleanup already running or request limit reached
+        "502":
+          description: OpenAI rejected or failed the cleanup
+        "503":
+          description: OpenAI key not configured
   /drinks/{id}/generation:
     parameters:
       - in: path

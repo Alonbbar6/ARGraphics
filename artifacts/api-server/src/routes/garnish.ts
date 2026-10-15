@@ -38,6 +38,7 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService } from "../lib/objectStorage";
 import passwordRecoveryRouter from "./password-recovery";
+import photoCleanupRouter from "./photo-cleanup";
 
 const router: IRouter = Router();
 const demoBarId = "garnish-demo-bar";
@@ -272,6 +273,7 @@ router.post("/auth/logout", (_req, res): void => {
 });
 
 router.use(["/drinks", "/insights"], requireOwner);
+router.use(photoCleanupRouter);
 
 router.post("/storage/drink-photos/request-url", requireOwner, async (req, res): Promise<void> => {
   const parsed = RequestDrinkPhotoUploadBody.safeParse(req.body);

@@ -14,3 +14,9 @@ The user said to forget the old iOS feature because they lost the code and are b
 **Why:** The old client source is unavailable.
 
 **How to apply:** Do not continue work for the old iOS client. Treat connecting the replacement app as separate work when requested; this is not permission to delete existing APIs.
+
+Use the user's own OpenAI connection for drink photo cleanup rather than retrying Replit AI integration setup.
+
+**Why:** Built-in setup required phone verification; the user explicitly chose their own API key instead.
+
+**How to apply:** Keep credentials server-side in Secrets. Do not retry built-in provider provisioning unless the user requests that change. AI cleanup and Meshy generation are separately billed steps, with cutout review before generation.

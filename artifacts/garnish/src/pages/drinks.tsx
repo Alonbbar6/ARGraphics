@@ -257,6 +257,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
   const [error, setError] = useState('');
   const [approved, setApproved] = useState(false);
   const [notice, setNotice] = useState('');
+  const [viewerError, setViewerError] = useState('');
 
   useEffect(() => () => {
     if (originalPreview) URL.revokeObjectURL(originalPreview);
@@ -275,7 +276,25 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
   }, [generation?.status, queryClient]);
 
   useEffect(() => {
-    if (modelUrl) void ensureModelViewer().catch((cause: unknown) => setError(messageFrom(cause, 'The interactive 3D viewer could not load.')));
+    if (!modelUrl) return;
+    let cancelled = false;
+    setViewerError('');
+    const canvas = document.createElement('canvas');
+    try {
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) {
+        setViewerError('This browser cannot display 3D because WebGL is unavailable. Enable hardware acceleration or open the dashboard in another browser. Your model is saved.');
+        return;
+      }
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+    } catch {
+      setViewerError('This browser could not start the 3D viewer. Try another browser. Your model is saved.');
+      return;
+    }
+    void ensureModelViewer().catch((cause: unknown) => {
+      if (!cancelled) setViewerError(messageFrom(cause, 'The interactive 3D viewer could not load. Try another browser. Your model is saved.'));
+    });
+    return () => { cancelled = true; };
   }, [modelUrl]);
 
   const choosePhoto = async (file?: File) => {
@@ -357,7 +376,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
   };
 
   const publish = () => {
-    if (!modelUrl) return;
+    if (!modelUrl || viewerError) return;
     setError('');
     updateDrink.mutate({ id: drink.id, data: { isPublished: true } }, {
       onSuccess: () => {
@@ -393,11 +412,13 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
               <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-sm"><ImagePlus size={25} /></span>
               <span className="mt-4 font-semibold">Choose a drink photo</span>
               <span className="mt-1 text-sm text-muted-foreground">Use a camera shot or upload from your library.</span>
+              <span className="mt-2 text-xs text-muted-foreground">Selecting a photo starts paid OpenAI background removal. Meshy is charged separately when you approve and generate.</span>
               <span className="mt-3 text-[11px] text-muted-foreground">JPG, PNG, WebP, HEIC or HEIF · up to 15 MB</span>
               <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} data-testid="input-drink-photo" />
             </label>
           )}
           {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
+          {sourceFile && !cleanedPreview && !busyMessage && <button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button>}
           {sourceFile && cleanedPreview && (
             <div>
               <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={reshoot} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
@@ -430,11 +451,11 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
           {modelUrl && (
             <div className="overflow-hidden rounded-[1.5rem] border border-border bg-background" data-testid="panel-model-review">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Ready for a closer look</p><p className="text-sm text-muted-foreground">Drag to rotate · pinch or scroll to zoom</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">3D ready</span></div>
-              <div className="checkerboard flex h-72 items-center justify-center sm:h-96" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}>{createElement('model-viewer', { src: modelUrl, 'camera-controls': true, 'auto-rotate': true, 'rotation-per-second': '18deg', 'shadow-intensity': '0.7', 'environment-image': 'neutral', 'alt': `Interactive 3D preview of ${drink.name}`, style: { width: '100%', height: '100%', backgroundColor: 'transparent' } })}</div>
-              <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
+              <div className="checkerboard flex h-72 items-center justify-center sm:h-96" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}>{viewerError ? <div className="max-w-[30rem] rounded-2xl border border-border bg-card p-5 text-center text-sm" role="alert" data-testid="status-3d-browser-unavailable"><AlertCircle className="mx-auto mb-3 text-primary" /><p>{viewerError}</p><a href={modelUrl} download className="mt-3 inline-flex min-h-11 items-center px-3 font-semibold text-primary underline">Download saved 3D model</a></div> : createElement('model-viewer', { src: modelUrl, 'camera-controls': true, 'auto-rotate': true, 'rotation-per-second': '18deg', 'shadow-intensity': '0.7', 'environment-image': 'neutral', 'alt': `Interactive 3D preview of ${drink.name}`, style: { width: '100%', height: '100%', backgroundColor: 'transparent' } })}</div>
+              <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
             </div>
           )}
-          {modelUrl && !sourceFile && <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a new photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label>}
+          {modelUrl && !sourceFile && <div><p className="mb-2 text-xs text-muted-foreground">A new photo starts paid OpenAI cleanup. Generating a new model uses Meshy credits separately.</p><label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a new photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div>}
           {notice && <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm" role="status" data-testid="status-studio-notice">{notice}</p>}
           {error && <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert" data-testid="status-studio-error"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div>}
           {(generation?.status === 'ready' || modelUrl) && sourceFile && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}

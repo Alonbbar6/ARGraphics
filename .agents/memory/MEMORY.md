@@ -1,4 +1,5 @@
 - [Design and iOS scope](product-scope.md) — Owner dashboard uses uploaded screen references; old iOS app code is lost and a new app is being built.
+- [3D browser verification](3d-browser-verification.md) — A saved model can load successfully while the test browser cannot render WebGL; do not regenerate paid models to fix this.
 - [Tailwind token collisions](tailwind-tokens.md) — Named spacing tokens can override container-width utilities and collapse forms.
 - [App Storage signed URLs](app-storage-signed-urls.md) — use Replit's sidecar signer for private object URLs instead of GCS `File.getSignedUrl`.
 - [Generated validator merges](generated-validator-merges.md) — bundled startup can hide initialization-order errors; regenerate merged API outputs and check their ESM consumers.
