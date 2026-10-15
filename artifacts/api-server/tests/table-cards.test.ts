@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { app } from "./support/setup";
 import { db, schema } from "./support/database";
 import { cardBody, createCard, signIn } from "./support/requests";
-import { artworkBytes, artworkPath, objects, storage, uploadArtwork } from "./support/storage";
+import { acceptedArtworkPath, artworkBytes, artworkPath, objects, storage, uploadArtwork } from "./support/storage";
 import { expectResponseContract } from "./support/response-contracts";
 
-const privateUrl = `/api/storage/objects/${artworkPath.replace("/objects/", "")}`;
+const privateUrl = `/api/storage/objects/${acceptedArtworkPath.replace("/objects/", "")}`;
 const uploadBody = { name: "card.png", size: artworkBytes.length, contentType: "image/png" };
 
 describe("signed-in owner table-card lifecycle", () => {
@@ -43,7 +43,7 @@ describe("signed-in owner table-card lifecycle", () => {
     }
     const [card] = await db.select().from(schema.tableCardsTable);
     expect(card.name).toBe(saved.body.name);
-    expect(card.referenceImageUrl).toBe(artworkPath);
+    expect(card.referenceImageUrl).toBe(acceptedArtworkPath);
     expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
   });
 
@@ -82,8 +82,9 @@ describe("signed-in owner table-card lifecycle", () => {
     const deleted = await request(app).delete(`/api/table-cards/${saved.body.id}`)
       .set("Cookie", cookie).expect(200, { message: "Table card deleted." });
     expectResponseContract("deleteTableCard", 200, deleted.body);
-    expect(storage.deleteObjectEntity).toHaveBeenCalledWith(artworkPath);
-    expect(objects.has(artworkPath)).toBe(false);
+    expect(storage.deleteObjectEntity).toHaveBeenCalledWith(acceptedArtworkPath);
+    expect(objects.has(acceptedArtworkPath)).toBe(false);
+    expect(objects.has(artworkPath)).toBe(true);
     const empty = await request(app).get("/api/table-cards").set("Cookie", cookie).expect(200, []);
     expectResponseContract("listTableCards", 200, empty.body);
     await request(app).get(privateUrl).set("Cookie", cookie).expect(404);
@@ -211,7 +212,7 @@ describe("signed-in owner table-card lifecycle", () => {
       isActive: false, referenceImageUrl: saved.body.referenceImageUrl,
     });
     const [persisted] = await db.select().from(schema.tableCardsTable);
-    expect(persisted.referenceImageUrl).toBe(artworkPath);
+    expect(persisted.referenceImageUrl).toBe(acceptedArtworkPath);
     expect(Number(persisted.physicalWidthMeters)).toBe(0.22);
     expect(objects.has(artworkPath)).toBe(true);
     expect(storage.deleteObjectEntity).not.toHaveBeenCalled();

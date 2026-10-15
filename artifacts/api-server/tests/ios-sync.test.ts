@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { app } from "./support/setup";
 import { client, db, schema } from "./support/database";
 import { cardBody, createCard, iosGet, iosKey, signIn } from "./support/requests";
-import { artworkPath, objects, storage, uploadArtwork } from "./support/storage";
+import { acceptedArtworkPath, artworkPath, objects, storage, uploadArtwork } from "./support/storage";
 import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
 import { expectResponseContract } from "./support/response-contracts";
@@ -130,10 +130,10 @@ describe("iOS key protection and sync", () => {
     expectResponseContract("getPublicTableCards", 200, response.body);
     expect(response.body).toEqual([{
       id: saved.body.id, name: cardBody.name, physicalWidthCm: 12.5,
-      referenceImageUrl: `https://storage.example.test/signed-download?object=${encodeURIComponent(artworkPath)}`,
+      referenceImageUrl: `https://storage.example.test/signed-download?object=${encodeURIComponent(acceptedArtworkPath)}`,
     }]);
     expect(storage.getObjectEntityDownloadURL).toHaveBeenCalledOnce();
-    expect(storage.getObjectEntityDownloadURL).toHaveBeenCalledWith(artworkPath);
+    expect(storage.getObjectEntityDownloadURL).toHaveBeenCalledWith(acceptedArtworkPath);
   });
 
   it("advances only the owning bar's menu version on successful create and delete", async () => {
@@ -188,6 +188,8 @@ describe("iOS key protection and sync", () => {
     expect(await db.select().from(schema.tableCardsTable)).toEqual([]);
     await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
     expect(objects.has(artworkPath)).toBe(true);
+    expect(objects.has(acceptedArtworkPath)).toBe(false);
+    expect(storage.deleteObjectEntity).toHaveBeenCalledWith(acceptedArtworkPath);
     await createCard(cookie);
     await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
   });
@@ -206,7 +208,7 @@ describe("iOS key protection and sync", () => {
     expect((await db.select().from(schema.tableCardsTable)).map((card) => card.id)).toEqual([saved.body.id]);
     await iosGet("demo-bar/menu-version").expect(200, { version: expectedVersion });
     expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
-    expect(objects.has(artworkPath)).toBe(true);
+    expect(objects.has(acceptedArtworkPath)).toBe(true);
     await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
     await iosGet("demo-bar/menu-version").expect(200, { version: expectedVersion + 1 });
   });
@@ -233,7 +235,7 @@ describe("iOS key protection and sync", () => {
     await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
     await iosGet("demo-bar/table-cards").expect(200, []);
     await iosGet("demo-bar/menu-version").expect(200, { version: 3 });
-    expect(objects.has(artworkPath)).toBe(true);
+    expect(objects.has(acceptedArtworkPath)).toBe(true);
   });
 
   it.each(drinkEdits)("commits published drink edit %j with only its owner's version", async (body) => {

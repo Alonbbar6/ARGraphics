@@ -13,3 +13,5 @@
 - [Sync test isolation](sync-test-isolation.md) — Keep request origins stable when comparing menus across independent HTTP requests.
 - [Route merge integrity](route-merge-integrity.md) — After syncing concurrent changes, confirm narrow route edits remain narrow against the latest main version.
 - [Browser smoke runtime](browser-smoke-runtime.md) — Playwright's installed package does not imply its managed browser exists; verify the provisioned executable first.
+- [Artwork acceptance](artwork-acceptance.md) — signed uploads remain writable; acceptance must isolate validated artwork from the upload capability.
+- [Merge integrity](merge-integrity.md) — automatic merges can rewrite unreported handwritten files; unexpected diff growth requires reconstruction and type checks.

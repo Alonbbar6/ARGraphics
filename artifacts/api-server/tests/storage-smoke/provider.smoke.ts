@@ -66,10 +66,15 @@ it("uses real private storage for supported PUTs, owner/iOS reads, CORS, expiry,
     const [metadata] = await file.getMetadata();
     expect(metadata.contentType).toBe(image.type);
     expect(Number(metadata.size)).toBe(bytes.length);
-    const privateURL = `/api/storage/objects/${objectPath.slice("/objects/".length)}`;
-    await request(app).get(privateURL).set("Cookie", owner).expect(404); // Not saved yet.
+    const stagingURL = `/api/storage${objectPath}`;
+    await request(app).get(stagingURL).set("Cookie", owner).expect(404); // Not saved yet.
     const saved = await request(app).post("/api/table-cards").set("Cookie", owner)
       .send({ name: image.name, objectPath, physicalWidthCm: 10 }).expect(201);
+    const privateURL: string = saved.body.referenceImageUrl;
+    expect(privateURL).toMatch(/^\/api\/storage\/objects\/accepted-artwork\/[a-f0-9-]{36}$/i);
+    const acceptedPath = privateURL.slice("/api/storage".length);
+    manifest.assertOwned(acceptedPath);
+    await request(app).get(stagingURL).set("Cookie", owner).expect(404); // Never registered.
     await request(app).get(privateURL).expect(401);
     await request(app).get(privateURL).set("Cookie", other).expect(404);
     const read = await request(app).get(privateURL).set("Cookie", owner).expect(200);
@@ -80,7 +85,7 @@ it("uses real private storage for supported PUTs, owner/iOS reads, CORS, expiry,
     unsigned.search = "";
     const denied = await fetch(unsigned);
     expect([401, 403]).toContain(denied.status);
-    uploaded.push({ path: objectPath, bytes, cardId: saved.body.id });
+    uploaded.push({ path: acceptedPath, bytes, cardId: saved.body.id });
   }
 
   const iosPath = "/api/v1/bars/demo-bar/table-cards";

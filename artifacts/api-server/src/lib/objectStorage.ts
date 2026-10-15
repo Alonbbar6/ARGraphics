@@ -176,6 +176,42 @@ export class ObjectStorageService {
     await objectFile.delete({ ignoreNotFound: true });
   }
 
+  async createObjectEntitySnapshot(
+    objectPath: string,
+  ): Promise<{ objectPath: string; file: File }> {
+    const source = await this.getObjectEntityFile(objectPath);
+    const [metadata] = await source.getMetadata();
+    // The SDK represents generations as numbers. Never silently round a
+    // generation and risk selecting a different revision.
+    const generation = Number(metadata.generation);
+    if (!Number.isSafeInteger(generation) || generation <= 0) {
+      throw new Error('Object storage did not return a usable generation');
+    }
+    const pinnedSource = source.bucket.file(source.name, { generation });
+    // No upload URL is ever issued for this namespace. Each acceptance gets
+    // its own copy, so deleting one card cannot break another card's artwork.
+    const entityId = `accepted-artwork/${randomUUID()}`;
+    const { bucketName, objectName } = parseObjectPath(
+      `${this.getPrivateObjectDir().replace(/\/$/, '')}/${entityId}`,
+    );
+    const destination = objectStorageClient.bucket(bucketName).file(objectName);
+    try {
+      // sourceGeneration comes from pinnedSource; if it was overwritten and
+      // is no longer available, fail instead of copying the latest upload.
+      await pinnedSource.copy(destination, {
+        preconditionOpts: { ifGenerationMatch: 0 },
+      });
+    } catch (error) {
+      if ([404, 412].includes(Number((error as { code?: number }).code))) {
+        throw new ObjectNotFoundError();
+      }
+      throw error;
+    }
+    // Validate only this server-owned copy. The upload can now be replaced
+    // during any metadata read, byte read, decode, or database write.
+    return { objectPath: `/objects/${entityId}`, file: destination };
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();

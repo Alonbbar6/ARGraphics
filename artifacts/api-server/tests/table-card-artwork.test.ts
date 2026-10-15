@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { app } from "./support/setup";
 import { db, schema } from "./support/database";
 import { cardBody, signIn } from "./support/requests";
-import { artworkPath, objects, storage } from "./support/storage";
+import { acceptedArtworkPath, artworkPath, objects, storage } from "./support/storage";
 import { MAX_ARTWORK_BYTES } from "../src/lib/tableCardArtwork";
 
 async function image(format: "png" | "jpeg" | "webp", width = 8, height = 8) {
@@ -34,9 +34,10 @@ describe("table-card artwork content validation (offline)", () => {
     const cookie = await signIn();
     const saved = await request(app).post("/api/table-cards").set("Cookie", cookie)
       .send(cardBody).expect(201);
-    expect(saved.body.referenceImageUrl).toContain(artworkPath.slice("/objects".length));
+    expect(saved.body.referenceImageUrl).toContain(acceptedArtworkPath.slice("/objects".length));
     expect(await db.select().from(schema.tableCardsTable)).toHaveLength(1);
     expect(objects.get(artworkPath)?.bytes).toEqual(bytes);
+    expect(objects.get(acceptedArtworkPath)?.bytes).toEqual(bytes);
   });
 
   it.each(["image/png", "image/jpeg", "image/webp"])("rejects arbitrary bytes labeled %s", async (type) => {
@@ -93,6 +94,7 @@ describe("table-card artwork content validation (offline)", () => {
   });
 
   it("bounds the actual read even if metadata understates the size", async () => {
+    upload(Buffer.from("fixture"));
     const stream = Readable.from([Buffer.alloc(MAX_ARTWORK_BYTES), Buffer.alloc(1)]);
     const createReadStream = vi.fn(() => stream);
     storage.getObjectEntityFile.mockResolvedValueOnce({

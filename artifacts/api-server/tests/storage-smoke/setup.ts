@@ -34,7 +34,8 @@ beforeAll(async () => {
     const sidecar = url.origin === "http://127.0.0.1:1106"
       && url.pathname === "/object-storage/signed-object-url";
     const disposableObject = url.origin === "https://storage.googleapis.com"
-      && decodeURIComponent(url.pathname).startsWith(`${scope.directory}/uploads/`);
+      && ["uploads", "accepted-artwork"].some((namespace) =>
+        decodeURIComponent(url.pathname).startsWith(`${scope.directory}/${namespace}/`));
     if (!sidecar && !disposableObject) {
       throw new Error("Network destination forbidden in storage smoke checks (including Meshy).");
     }
@@ -46,6 +47,18 @@ beforeAll(async () => {
       throw new Error("Storage smoke network request failed (details redacted to protect signed URLs).");
     }
   });
+  // Observe the real copy operation, not just the eventual HTTP response.
+  // Track before validation/DB writes so failed saves and lost responses still
+  // clean up every created snapshot. No provider operation is mocked.
+  const { ObjectStorageService } = await import("../../src/lib/objectStorage");
+  const createSnapshot = ObjectStorageService.prototype.createObjectEntitySnapshot;
+  vi.spyOn(ObjectStorageService.prototype, "createObjectEntitySnapshot")
+    .mockImplementation(async function(this: InstanceType<typeof ObjectStorageService>, objectPath) {
+      manifest.assertOwned(objectPath);
+      const snapshot = await createSnapshot.call(this, objectPath);
+      manifest.recordAccepted(objectPath, snapshot.objectPath);
+      return snapshot;
+    });
   await initializeDatabase();
   app = (await import("../../src/app")).default;
 });
@@ -66,6 +79,7 @@ afterAll(async () => {
     }
   } finally {
     await client.close();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   }

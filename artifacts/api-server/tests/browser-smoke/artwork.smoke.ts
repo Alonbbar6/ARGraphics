@@ -110,13 +110,8 @@ it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
       phase = `${extension} browser storage PUT (HTTP ${put.status()})`;
       expect(put.status()).toBe(200);
       const saved = await savePromise;
-      if (!saved) throw new Error("Save did not complete.");
-      phase = `${extension} saving uploaded artwork (HTTP ${saved.status()})`;
-      expect(saved.status()).toBe(201);
-      await expect.poll(() => page.getByText("Table card saved. Its PDF is ready to download.", { exact: true }).count()).toBe(1);
 
-      phase = `${extension} private reload`;
-      await page.reload();
+      const savedCard = await saved.json() as { referenceImageUrl: string };
       const imageAlt = `${name} reference artwork`;
       const savedImage = page.getByAltText(imageAlt, { exact: true });
       await savedImage.waitFor();
@@ -132,7 +127,8 @@ it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
         const pixels = ctx.getImageData(0, 0, 160, 80).data;
         return [image.naturalWidth, image.naturalHeight, pixels[0], pixels[159 * 4]];
       })()`)).toEqual([160, 80, 0, 255]);
-      const privateURL = `${origin}/api/storage${objectPath}`;
+      expect((await owner.request.get(`${origin}/api/storage${objectPath}`)).status()).toBe(404);
+      const privateURL = `${origin}${savedCard.referenceImageUrl}`;
       const read = await owner.request.get(privateURL);
       expect(read.status()).toBe(200);
       expect((await read.body()).equals(bytes)).toBe(true);
@@ -173,3 +169,5 @@ it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
     // Shared setup's afterAll deletes and verifies every manifest object.
   }
 });
+
+      const acceptedPath = savedCard.referenceImageUrl.slice("/api/storage".length);

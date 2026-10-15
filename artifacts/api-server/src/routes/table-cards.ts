@@ -68,21 +68,25 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
     res.status(400).json({ error: "Enter a card name, uploaded artwork, and width from 0 to 100 cm." });
     return;
   }
+  let acceptedPath: string | undefined;
+  let committed = false;
   try {
-    const file = await storage.getObjectEntityFile(parsed.data.objectPath);
-    await validateTableCardArtwork(file);
+    const snapshot = await storage.createObjectEntitySnapshot(parsed.data.objectPath);
+    acceptedPath = snapshot.objectPath;
+    await validateTableCardArtwork(snapshot.file);
     const card = await db.transaction(async (tx) => {
       const [created] = await tx.insert(tableCardsTable).values({
         id: randomUUID(),
         barId: user.barId,
         name: parsed.data.name.trim(),
-        referenceImageUrl: parsed.data.objectPath,
+        referenceImageUrl: snapshot.objectPath,
         physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5),
         isActive: true,
       }).returning();
       await bumpMenuVersion(tx, user.barId);
       return created;
     });
+    committed = true;
     res.status(201).json(CreateTableCardResponse.parse({
       id: card.id,
       name: card.name,
@@ -102,6 +106,14 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
     }
     req.log.error({ err: error }, "Could not save table card");
     res.status(500).json({ error: "Could not save the table card." });
+  } finally {
+    if (acceptedPath && !committed) {
+      try {
+        await storage.deleteObjectEntity(acceptedPath);
+      } catch (error) {
+        req.log.warn({ err: error }, "Could not remove unaccepted card artwork from storage");
+      }
+    }
   }
 });
 

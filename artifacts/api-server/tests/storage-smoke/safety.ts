@@ -43,6 +43,15 @@ export class SmokeManifest {
     if (!this.objects.has(path)) throw new Error("Refusing to touch an object not created by this smoke run.");
   }
 
+  recordAccepted(uploadPath: string, acceptedPath: string) {
+    this.assertOwned(uploadPath);
+    if (!/^\/objects\/uploads\/[a-f0-9-]{36}$/i.test(uploadPath)
+      || !/^\/objects\/accepted-artwork\/[a-f0-9-]{36}$/i.test(acceptedPath)) {
+      throw new Error("Smoke acceptance returned an unexpected object path.");
+    }
+    this.objects.add(acceptedPath);
+  }
+
   async cleanup(remove: (path: string) => Promise<void>) {
     const failures: Error[] = [];
     for (const path of this.objects) {

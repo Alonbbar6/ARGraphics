@@ -33,6 +33,30 @@ it("isolates each smoke namespace and refuses public paths or invalid origins", 
   expect(() => smokeScope("/fixture/private", "", "https://dev.example.test/app")).toThrow();
 });
 
+it("tracks accepted copies before validation or response delivery and cleans them alongside staging uploads", async () => {
+  const manifest = new SmokeManifest("/fixture/private/storage-smoke/run");
+  const upload = "/objects/uploads/11111111-1111-4111-8111-111111111111";
+  const accepted = "/objects/accepted-artwork/22222222-2222-4222-8222-222222222222";
+  expect(() => manifest.recordAccepted(upload, accepted)).toThrow();
+  manifest.record(`https://storage.googleapis.com${manifest.directory}/${upload.slice(9)}?signature=fixture`, upload);
+  expect(() => manifest.recordAccepted(upload, "/objects/private/secret")).toThrow();
+  expect(() => manifest.recordAccepted(upload, "/objects/accepted-artwork/../secret")).toThrow();
+  manifest.recordAccepted(upload, accepted);
+  expect(() => manifest.assertOwned(accepted)).not.toThrow();
+  expect(() => manifest.recordAccepted(accepted, accepted)).toThrow();
+  const removed: string[] = [];
+  // Simulate route cleanup failure: the manifest must retain the snapshot for
+  // afterAll, which verifies absence even when the smoke itself has failed.
+  await expect(manifest.cleanup(async (path) => {
+    if (path === accepted) throw new Error("fixture cleanup failure");
+    removed.push(path);
+  })).rejects.toThrow("Disposable artwork cleanup failed");
+  expect(removed).toEqual([upload]);
+  await manifest.cleanup(async (path) => { removed.push(path); });
+  expect(removed).toEqual([upload, accepted]);
+  expect(() => manifest.assertOwned(accepted)).toThrow();
+});
+
 it("cleans only manifest objects and continues after individual cleanup failures", async () => {
   const manifest = new SmokeManifest("/fixture/private/storage-smoke/run");
   const first = "/objects/uploads/11111111-1111-4111-8111-111111111111";

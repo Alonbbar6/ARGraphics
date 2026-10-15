@@ -27,6 +27,14 @@ simulate delivery of bytes by the external signed PUT, verify metadata checks,
 stream those bytes through the private API, and check cleanup calls. They do not
 verify cloud upload signatures, URL expiry, or the storage provider's CORS.
 
+The artwork snapshot regressions overwrite the staging upload both after saving
+and during validation, then check owner streams and iOS download paths. They also
+exercise the real storage service with an offline provider double to require a
+specific source generation and a create-only accepted destination. A missing
+source generation must fail closed, never fall back to the latest upload.
+Accepted copies are independent per card and are removed on validation failure
+or database rollback; the signed upload path is never saved for new cards.
+
 The test configuration supplies public synthetic iOS/session keys and blanks
 the production database URL and Meshy key. No real credential is needed. Global
 fetch is blocked so accidental Meshy or storage-sidecar calls fail explicitly.
@@ -114,8 +122,12 @@ without waiting an hour or changing the production download lifetime.
 Each run overrides its process-local private directory with a fresh
 `storage-smoke/<random UUID>` subdirectory. No existing artwork is touched.
 Every upload is validated and recorded **before PUT** in an explicit manifest.
-Cleanup runs even after assertion/PUT failures, deletes only those exact
-manifest entries (including partial uploads), and checks that each is absent.
+The real snapshot operation is also observed: every accepted copy is recorded
+before validation, database writes, or HTTP response delivery. Owner reads use
+the saved response's accepted-artwork URL; staging paths remain unregistered.
+Cleanup runs even after assertion/PUT/save failures, deletes only those exact
+manifest entries (including partial uploads and accepted snapshots), and checks
+that each is absent.
 It never lists a bucket or recursively deletes a prefix. A retained disposable
 image also confirms deleting one card does not delete another object.
 Cleanup failures fail the command and name only normalized disposable object

@@ -50,7 +50,9 @@ router.get(
     }
     const rawPath = req.params.objectPath;
     const path = Array.isArray(rawPath) ? rawPath.join("/") : rawPath;
-    if (!/^uploads\/[a-f0-9-]{36}$/i.test(path)) {
+    // Retain reads for legacy cards while serving new server-owned snapshots.
+    // The database ownership check below still rejects unregistered objects.
+    if (!/^(?:uploads|accepted-artwork)\/[a-f0-9-]{36}$/i.test(path)) {
       res.status(404).json({ error: "Artwork not found." });
       return;
     }
