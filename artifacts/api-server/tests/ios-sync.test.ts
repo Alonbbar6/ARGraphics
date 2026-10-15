@@ -2,9 +2,9 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { app } from "./support/setup";
-import { db, schema } from "./support/database";
+import { client, db, schema } from "./support/database";
 import { cardBody, createCard, iosGet, iosKey, signIn } from "./support/requests";
-import { artworkPath, storage } from "./support/storage";
+import { artworkPath, objects, storage, uploadArtwork } from "./support/storage";
 
 const endpoints = ["menu-version", "menu", "table-cards", "events"] as const;
 function iosRequest(endpoint: typeof endpoints[number], key?: string) {
@@ -14,6 +14,20 @@ function iosRequest(endpoint: typeof endpoints[number], key?: string) {
 }
 function event(body: Record<string, unknown>, slug = "demo-bar") {
   return request(app).post(`/api/v1/bars/${slug}/events`).set("x-api-key", iosKey).send(body);
+}
+
+async function rejectVersionWrites() {
+  await client.exec(`
+    CREATE FUNCTION reject_menu_version_write() RETURNS trigger AS $$
+    BEGIN RAISE EXCEPTION 'injected menu version failure'; END;
+    $$ LANGUAGE plpgsql;
+    CREATE TRIGGER reject_menu_version_write BEFORE INSERT OR UPDATE ON menu_version
+      FOR EACH ROW EXECUTE FUNCTION reject_menu_version_write();
+  `);
+}
+
+async function allowVersionWrites() {
+  await client.exec("DROP TRIGGER reject_menu_version_write ON menu_version; DROP FUNCTION reject_menu_version_write();");
 }
 
 describe("iOS key protection and sync", () => {
@@ -87,6 +101,67 @@ describe("iOS key protection and sync", () => {
     await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
     await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
     await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+  });
+
+  it.each([false, true])("rolls back creation when the version write fails (missing row: %s)", async (missingRow) => {
+    const cookie = await signIn();
+    uploadArtwork();
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    await rejectVersionWrites();
+    try {
+      await request(app).post("/api/table-cards").set("Cookie", cookie).send(cardBody).expect(500);
+    } finally {
+      await allowVersionWrites();
+    }
+    expect(await db.select().from(schema.tableCardsTable)).toEqual([]);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
+    expect(objects.has(artworkPath)).toBe(true);
+    await createCard(cookie);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+  });
+
+  it.each([false, true])("rolls back deletion without cleaning artwork when the version write fails (missing row: %s)", async (missingRow) => {
+    const cookie = await signIn();
+    const saved = await createCard(cookie);
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const expectedVersion = missingRow ? 1 : 2;
+    await rejectVersionWrites();
+    try {
+      await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(500);
+    } finally {
+      await allowVersionWrites();
+    }
+    expect((await db.select().from(schema.tableCardsTable)).map((card) => card.id)).toEqual([saved.body.id]);
+    await iosGet("demo-bar/menu-version").expect(200, { version: expectedVersion });
+    expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
+    expect(objects.has(artworkPath)).toBe(true);
+    await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
+    await iosGet("demo-bar/menu-version").expect(200, { version: expectedVersion + 1 });
+  });
+
+  it("rolls back a saved-card edit when the version write fails", async () => {
+    const cookie = await signIn();
+    const saved = await createCard(cookie);
+    await rejectVersionWrites();
+    try {
+      await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie)
+        .send({ name: "Updated table", isActive: false }).expect(500);
+    } finally {
+      await allowVersionWrites();
+    }
+    expect(await db.select().from(schema.tableCardsTable)).toHaveLength(1);
+    expect((await db.select().from(schema.tableCardsTable))[0]).toMatchObject({ name: cardBody.name, isActive: true });
+    await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
+  });
+
+  it("keeps committed deletion and menu version when artwork cleanup fails", async () => {
+    const cookie = await signIn();
+    const saved = await createCard(cookie);
+    vi.mocked(storage.deleteObjectEntity).mockRejectedValueOnce(new Error("storage unavailable"));
+    await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
+    await iosGet("demo-bar/table-cards").expect(200, []);
+    await iosGet("demo-bar/menu-version").expect(200, { version: 3 });
+    expect(objects.has(artworkPath)).toBe(true);
   });
 
   it.each(["view", "ar_open", "ar_close"])("records a valid %s event under the selected bar", async (eventType) => {

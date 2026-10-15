@@ -18,10 +18,12 @@ import { currentUser } from "./garnish";
 const router: IRouter = Router();
 const storage = new ObjectStorageService();
 
-async function bumpMenuVersion(barId: string): Promise<void> {
+type CardTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function bumpMenuVersion(tx: CardTransaction, barId: string): Promise<void> {
   // The public API reports version 1 even before a row exists.
   // A first mutation must therefore advance that observable version to 2.
-  await db.insert(menuVersionTable).values({ barId, version: 2 })
+  await tx.insert(menuVersionTable).values({ barId, version: 2 })
     .onConflictDoUpdate({
       target: menuVersionTable.barId,
       set: { version: sql`${menuVersionTable.version} + 1` },
@@ -73,15 +75,18 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
       res.status(400).json({ error: "The uploaded file is not a supported image under 10 MB." });
       return;
     }
-    const [card] = await db.insert(tableCardsTable).values({
-      id: randomUUID(),
-      barId: user.barId,
-      name: parsed.data.name.trim(),
-      referenceImageUrl: parsed.data.objectPath,
-      physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5),
-      isActive: true,
-    }).returning();
-    await bumpMenuVersion(user.barId);
+    const card = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(tableCardsTable).values({
+        id: randomUUID(),
+        barId: user.barId,
+        name: parsed.data.name.trim(),
+        referenceImageUrl: parsed.data.objectPath,
+        physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5),
+        isActive: true,
+      }).returning();
+      await bumpMenuVersion(tx, user.barId);
+      return created;
+    });
     res.status(201).json(CreateTableCardResponse.parse({
       id: card.id,
       name: card.name,
@@ -121,11 +126,7 @@ router.patch("/table-cards/:id", async (req: Request, res: Response): Promise<vo
       }).where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
         .returning();
       if (!updated) return null;
-      await tx.insert(menuVersionTable).values({ barId: user.barId, version: 2 })
-        .onConflictDoUpdate({
-          target: menuVersionTable.barId,
-          set: { version: sql`${menuVersionTable.version} + 1` },
-        });
+      await bumpMenuVersion(tx, user.barId);
       return updated;
     });
     if (!card) {
@@ -154,14 +155,24 @@ router.delete("/table-cards/:id", async (req: Request, res: Response): Promise<v
     res.status(400).json({ error: "Invalid table card." });
     return;
   }
-  const [card] = await db.delete(tableCardsTable)
-    .where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
-    .returning();
+  let card: typeof tableCardsTable.$inferSelect | undefined;
+  try {
+    card = await db.transaction(async (tx) => {
+      const [deleted] = await tx.delete(tableCardsTable)
+        .where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
+        .returning();
+      if (deleted) await bumpMenuVersion(tx, user.barId);
+      return deleted;
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Could not delete table card");
+    res.status(500).json({ error: "Could not delete the table card." });
+    return;
+  }
   if (!card) {
     res.status(404).json({ error: "Table card not found." });
     return;
   }
-  await bumpMenuVersion(user.barId);
   try {
     await storage.deleteObjectEntity(card.referenceImageUrl);
   } catch (error) {

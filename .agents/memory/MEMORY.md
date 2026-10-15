@@ -3,3 +3,4 @@
 - [App Storage signed URLs](app-storage-signed-urls.md) — use Replit's sidecar signer for private object URLs instead of GCS `File.getSignedUrl`.
 - [Drizzle test driver peers](drizzle-test-peers.md) — Align optional driver peers across shared-schema consumers to avoid incompatible private SQL type identities.
 - [Generated request validation](generated-validation.md) — OpenAPI object constraints may need explicit runtime enforcement after code generation.
+- [Menu version consistency](menu-version-consistency.md) — iOS polling requires menu-visible changes and version increments to commit together.
