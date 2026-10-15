@@ -21,6 +21,7 @@ export async function initializeDatabase() {
 
 export async function resetDatabase() {
   await client.exec("TRUNCATE bars CASCADE");
+  await client.exec("TRUNCATE recovery_rate_limits");
   await db.insert(schema.barsTable).values([
     { id: "garnish-demo-bar", name: "Fixture Bar", slug: "demo-bar" },
     { id: "other-bar", name: "Other Fixture Bar", slug: "other-bar" },

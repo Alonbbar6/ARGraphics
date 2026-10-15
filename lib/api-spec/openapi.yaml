@@ -82,6 +82,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Session"
+  /auth/password-reset/request:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Email a single-use reset link without disclosing account existence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordRecoveryInput"
+      responses:
+        "200":
+          description: Generic acknowledgement for registered and unknown emails
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid email
+        "429":
+          description: Too many requests
+        "503":
+          description: Email recovery is not configured
+  /auth/password-reset/confirm:
+    post:
+      operationId: confirmPasswordReset
+      tags: [auth]
+      summary: Replace a password using an unexpired single-use token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordReplacementInput"
+      responses:
+        "200":
+          description: Password changed; sign in again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid password or invalid, expired, or used token
+        "429":
+          description: Too many attempts
   /auth/logout:
     post:
       operationId: logout
@@ -525,6 +571,17 @@ components:
         barName: { type: ["string", "null"] }
         barSlug: { type: ["string", "null"] }
       required: [authenticated, userName, barName, barSlug]
+    PasswordRecoveryInput:
+      type: object
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+      required: [email]
+    PasswordReplacementInput:
+      type: object
+      properties:
+        token: { type: string, pattern: "^[A-Za-z0-9_-]{43}$", minLength: 43, maxLength: 43 }
+        password: { type: string, minLength: 12, maxLength: 72 }
+      required: [token, password]
     LoginInput:
       type: object
       properties:

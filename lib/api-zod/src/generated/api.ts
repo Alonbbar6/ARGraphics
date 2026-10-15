@@ -74,6 +74,45 @@ export const LoginResponse = zod.object({
 })
 
 
+/**
+ * @summary Email a single-use reset link without disclosing account existence
+ */
+export const requestPasswordResetBodyEmailMax = 254;
+
+
+
+export const RequestPasswordResetBody = zod.object({
+  "email": zod.string().email().max(requestPasswordResetBodyEmailMax)
+})
+
+export const RequestPasswordResetResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Replace a password using an unexpired single-use token
+ */
+export const confirmPasswordResetBodyTokenMin = 43;
+export const confirmPasswordResetBodyTokenMax = 43;
+
+
+export const confirmPasswordResetBodyTokenRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const confirmPasswordResetBodyPasswordMin = 12;
+export const confirmPasswordResetBodyPasswordMax = 72;
+
+
+
+export const ConfirmPasswordResetBody = zod.object({
+  "token": zod.string().min(confirmPasswordResetBodyTokenMin).max(confirmPasswordResetBodyTokenMax).regex(confirmPasswordResetBodyTokenRegExp),
+  "password": zod.string().min(confirmPasswordResetBodyPasswordMin).max(confirmPasswordResetBodyPasswordMax)
+})
+
+export const ConfirmPasswordResetResponse = zod.object({
+  "message": zod.string()
+})
+
+
 export const LogoutResponse = zod.object({
   "message": zod.string()
 })

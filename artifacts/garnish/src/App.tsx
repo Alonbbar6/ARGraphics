@@ -10,6 +10,7 @@ import { DrinksPage } from '@/pages/drinks';
 import { InsightsPage } from '@/pages/insights';
 import { TableCardsPage, SettingsPage } from '@/pages/blocked';
 import { LoginPage, RegisterPage } from '@/pages/login';
+import { ForgotPasswordPage, ResetPasswordPage } from '@/pages/password-recovery';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -26,6 +27,8 @@ function Router() {
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
         <Route path="/drinks">{() => <Shell><DrinksPage /></Shell>}</Route>
         <Route path="/table-cards">{() => <Shell><TableCardsPage /></Shell>}</Route>
         <Route path="/insights">{() => <Shell><InsightsPage /></Shell>}</Route>

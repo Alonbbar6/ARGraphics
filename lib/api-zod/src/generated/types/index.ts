@@ -27,6 +27,8 @@ export * from './loginInput';
 export * from './menuVersion';
 export * from './message';
 export * from './ownerRegistrationInput';
+export * from './passwordRecoveryInput';
+export * from './passwordReplacementInput';
 export * from './publicDrink';
 export * from './publicMenu';
 export * from './publicTableCard';

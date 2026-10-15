@@ -37,6 +37,7 @@ import {
   UpdateDrinkParams,
 } from "@workspace/api-zod";
 import { ObjectStorageService } from "../lib/objectStorage";
+import passwordRecoveryRouter from "./password-recovery";
 
 const router: IRouter = Router();
 const demoBarId = "garnish-demo-bar";
@@ -45,6 +46,7 @@ const sessionCookie = "garnish_session";
 const MAX_PHOTO_SIZE = 15 * 1024 * 1024;
 const objectStorage = new ObjectStorageService();
 const activeMeshyPolls = new Set<string>();
+router.use(passwordRecoveryRouter);
 
 declare global {
   namespace Express {
@@ -74,10 +76,10 @@ export async function currentUser(req: Request) {
   const received = Buffer.from(signature);
   if (received.length !== expected.length || !timingSafeEqual(received, expected)) return null;
   try {
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { userId: string; expiresAt: number };
-    if (data.expiresAt < Date.now()) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { userId: string; expiresAt: number; sessionVersion?: number };
+    if (!Number.isFinite(data.expiresAt) || data.expiresAt < Date.now()) return null;
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, data.userId)).limit(1);
-    return user ?? null;
+    return user && (data.sessionVersion ?? 0) === user.sessionVersion ? user : null;
   } catch {
     return null;
   }
@@ -93,9 +95,10 @@ async function requireOwner(req: Request, res: Response, next: NextFunction): Pr
   next();
 }
 
-function setSessionCookie(res: Response, userId: string): void {
+function setSessionCookie(res: Response, userId: string, sessionVersion = 0): void {
   const payload = Buffer.from(JSON.stringify({
     userId,
+    sessionVersion,
     expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
   })).toString("base64url");
   const signature = signSession(payload);
@@ -248,12 +251,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
   const [user] = await db.select().from(usersTable)
-    .where(eq(usersTable.email, parsed.data.email.toLowerCase())).limit(1);
+    .where(eq(usersTable.email, parsed.data.email.trim().toLowerCase())).limit(1);
   if (!user || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
     res.status(401).json({ error: "Email or password did not match." });
     return;
   }
-  setSessionCookie(res, user.id);
+  setSessionCookie(res, user.id, user.sessionVersion);
   const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, user.barId)).limit(1);
   res.json(LoginResponse.parse({
     authenticated: true,

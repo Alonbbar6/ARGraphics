@@ -13,8 +13,17 @@ export const usersTable = pgTable("users", {
   barId: text("bar_id").notNull().references(() => barsTable.id, { onDelete: "cascade" }),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  sessionVersion: integer("session_version").notNull().default(0),
+  passwordResetHash: text("password_reset_hash"),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const recoveryRateLimitsTable = pgTable("recovery_rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(1),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
 export const drinksTable = pgTable("drinks", {

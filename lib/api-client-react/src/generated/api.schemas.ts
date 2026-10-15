@@ -23,6 +23,25 @@ export interface Session {
   barSlug: string | null;
 }
 
+export interface PasswordRecoveryInput {
+  /** @maxLength 254 */
+  email: string;
+}
+
+export interface PasswordReplacementInput {
+  /**
+     * @minLength 43
+     * @maxLength 43
+     * @pattern ^[A-Za-z0-9_-]{43}$
+     */
+  token: string;
+  /**
+     * @minLength 12
+     * @maxLength 72
+     */
+  password: string;
+}
+
 export interface LoginInput {
   email: string;
   /**

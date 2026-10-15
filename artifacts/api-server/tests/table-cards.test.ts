@@ -9,6 +9,42 @@ const privateUrl = `/api/storage/objects/${artworkPath.replace("/objects/", "")}
 const uploadBody = { name: "card.png", size: artworkBytes.length, contentType: "image/png" };
 
 describe("signed-in owner table-card lifecycle", () => {
+  it("updates saved details without deleting the card or artwork and advances the menu version", async () => {
+    const cookie = await signIn();
+    const saved = await createCard(cookie);
+    const [before] = (await db.select().from(schema.menuVersionTable))
+      .filter(row => row.barId === "garnish-demo-bar");
+    const updated = await request(app).patch(`/api/table-cards/${saved.body.id}`)
+      .set("Cookie", cookie).send({ name: "  Edited card  ", physicalWidthCm: 20, isActive: false }).expect(200);
+    expect(updated.body).toMatchObject({
+      id: saved.body.id, name: "Edited card", physicalWidthCm: 20,
+      isActive: false, referenceImageUrl: saved.body.referenceImageUrl,
+    });
+    expect(await db.select().from(schema.tableCardsTable)).toHaveLength(1);
+    expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
+    expect(objects.has(artworkPath)).toBe(true);
+    const [after] = (await db.select().from(schema.menuVersionTable))
+      .filter(row => row.barId === "garnish-demo-bar");
+    expect(after.version).toBe(before.version + 1);
+    await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
+  });
+
+  it("rejects empty or unsupported updates and keeps another bar's saved card untouched", async () => {
+    const cookie = await signIn();
+    const other = await signIn("other@example.test");
+    const saved = await createCard(cookie);
+    await request(app).patch(`/api/table-cards/${saved.body.id}`).send({ name: "No access" }).expect(401);
+    await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", other)
+      .send({ name: "No access" }).expect(404);
+    for (const body of [{}, { objectPath: "/objects/replacement" }, { physicalWidthCm: 0 }, { name: "   " }]) {
+      await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).send(body).expect(400);
+    }
+    const [card] = await db.select().from(schema.tableCardsTable);
+    expect(card.name).toBe(saved.body.name);
+    expect(card.referenceImageUrl).toBe(artworkPath);
+    expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
+  });
+
   it("requests an upload, saves, lists, streams private artwork, and deletes", async () => {
     const cookie = await signIn();
     const upload = await request(app).post("/api/storage/uploads/request-url")

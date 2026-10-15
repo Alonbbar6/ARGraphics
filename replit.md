@@ -9,7 +9,9 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/api-server test -- tests/password-recovery.test.ts` — password-recovery regressions against isolated in-memory PostgreSQL; mocks email delivery and never opens the workspace database
 - Required env: `DATABASE_URL` — Postgres connection string
+- Password recovery uses the connected Resend integration. `PASSWORD_RESET_FROM` must be a sender on a verified Resend domain. Set `PASSWORD_RESET_APP_URL` to the trusted HTTPS Garnish URL (including a base path if mounted below `/`) before running in production. Development falls back to the workspace preview domain only. Missing configuration returns 503 for all recovery requests; links are never built from request headers.
 
 ## Stack
 

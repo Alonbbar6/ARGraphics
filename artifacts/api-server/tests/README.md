@@ -40,7 +40,11 @@ fractional, minimum, and maximum width examples. It does not mock jsPDF.
 These suites test API and PDF behavior, not browser file-picker/canvas rendering
 or the full multi-bar authentication journey.
 
-
+Password recovery runs in the same isolated database harness and uses a mocked
+Resend connector. It covers generic acknowledgements, token expiry/replacement,
+single-use races, bcrypt limits, session revocation, delivery errors, and persisted
+rate limiting. Response-padding sleeps are mocked; no inbox or live credentials
+are used.
 # API regression tests
 
 Run all API and print regressions from the workspace root with `pnpm test`.
