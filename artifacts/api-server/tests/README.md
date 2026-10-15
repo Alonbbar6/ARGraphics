@@ -40,6 +40,13 @@ fractional, minimum, and maximum width examples. It does not mock jsPDF.
 These suites test API and PDF behavior, not browser file-picker/canvas rendering
 or the full multi-bar authentication journey.
 
+
+# API regression tests
+
+Run all API and print regressions from the workspace root with `pnpm test`.
+The API package's `test` runs both the in-memory table-card/iOS suite and the
+real-PostgreSQL owner-isolation suite below.
+
 ## Opt-in real private-storage smoke check (development only)
 
 This is a separate command, **never included in `pnpm test`**. Run it inside a
@@ -95,3 +102,62 @@ permissions fail, manually remove **only** that run's disposable objects in the
 App Storage pane under its `storage-smoke/<UUID>` directory; never delete the
 shared uploads directory. Offline regressions cover the namespace/manifest
 safety rules without any provider calls.
+
+## Table-card and iOS regressions
+
+Run `pnpm --filter @workspace/api-server test:unit` for the API unit suite,
+`pnpm --filter @workspace/garnish test` for the PDF print suite, and
+`pnpm --filter @workspace/api-server typecheck:tests` to check all API tests.
+
+The table-card/iOS suite sends HTTP requests through the production Express app,
+including login/session signing, generated request/response validators,
+authorization, CORS, rate limiting, and real Drizzle queries. PGlite executes
+those queries in an in-memory PostgreSQL instance. Its DDL is generated from the
+current production Drizzle schema, so schema changes are exercised without
+duplicating migrations or opening the workspace database. Each test resets its
+data and clock; each test file owns and closes its database.
+
+Object storage alone is replaced by a deterministic in-memory service. Tests
+simulate delivery of bytes by the external signed PUT, verify metadata checks,
+stream those bytes through the private API, and check cleanup calls. They do not
+verify cloud upload signatures, URL expiry, or the storage provider's CORS.
+
+The Vitest configuration supplies public synthetic iOS/session keys and blanks
+the production database URL and Meshy key. No real credential is needed. Global
+fetch is blocked so accidental Meshy or storage-sidecar calls fail explicitly.
+Never load workspace secrets into test fixtures.
+
+The print suite calls the same PDF builder as the owner's download button. It
+checks actual PDF MediaBox dimensions (points converted back to millimeters),
+page count, image embedding, and aspect ratio for portrait, landscape, square,
+fractional, minimum, and maximum width examples. It does not mock jsPDF.
+
+These suites test API and PDF behavior, not browser file-picker/canvas rendering.
+
+
+## Owner isolation regressions
+
+Run `pnpm --filter @workspace/api-server test:isolation` (or `test`).
+
+The suite uses Node's built-in test runner, the real Express application,
+registration/session cookies, and real PostgreSQL queries. It requires
+`DATABASE_URL` and the normal development database schema, provisioned with
+`pnpm --filter @workspace/db push`. Missing setup fails rather than skipping tests.
+
+Each run creates a uniquely named `isolation_test_*` schema, clones table
+definitions (not data), restores foreign keys within that schema, and sets the
+application pool's search path to **only** that schema. Existing owner/bar data is
+never changed. The database role needs permission to create schemas and read the
+public table definitions. The schema and temporary test bundle are removed on
+normal completion, including test failures. A forcibly killed process can leave
+an empty/test-only `isolation_test_*` schema; it can be removed separately.
+
+Session and iOS API keys are synthetic process-local fixtures, not workspace
+credentials. Tests do not call App Storage or Meshy: cross-owner requests must
+be rejected before reaching those services. Model/photo paths are fixture
+metadata only.
+
+Coverage includes two-way drink and insights isolation, hostile barId input,
+cross-owner writes/deletes and generation/photo access, signed-out/forged-cookie
+requests, public menu publication/availability filtering and API key checks,
+cross-bar event rejection, and successful owner CRUD as a positive control.

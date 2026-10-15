@@ -75,6 +75,77 @@ export interface Drink {
 }
 
 export type DrinkPhotoUploadInputKind = typeof DrinkPhotoUploadInputKind[keyof typeof DrinkPhotoUploadInputKind];
+
+
+export const DrinkPhotoUploadInputKind = {
+  original: 'original',
+  cleaned: 'cleaned',
+} as const;
+
+export type DrinkPhotoUploadInputContentType = typeof DrinkPhotoUploadInputContentType[keyof typeof DrinkPhotoUploadInputContentType];
+
+
+export const DrinkPhotoUploadInputContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface DrinkPhotoUploadInput {
+  drinkId: string;
+  kind: DrinkPhotoUploadInputKind;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * Image byte size; no greater than 15728640 (15 MB).
+     * @minimum 1
+     */
+  size: number;
+  contentType: DrinkPhotoUploadInputContentType;
+}
+
+export interface DrinkPhotoUpload {
+  uploadURL: string;
+  objectPath: string;
+}
+
+export interface DrinkGenerationInput {
+  /** @minLength 1 */
+  sourcePhotoPath: string;
+  /** @minLength 1 */
+  cleanedPhotoPath: string;
+}
+
+export type DrinkGenerationStatus = typeof DrinkGenerationStatus[keyof typeof DrinkGenerationStatus];
+
+
+export const DrinkGenerationStatus = {
+  none: 'none',
+  uploaded: 'uploaded',
+  processing: 'processing',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+export interface DrinkGeneration {
+  status: DrinkGenerationStatus;
+  /** Generation progress from 0 to 100. */
+  progress: number;
+  /** @nullable */
+  error: string | null;
+  /** @nullable */
+  sourcePhotoUrl: string | null;
+  /** @nullable */
+  cleanedPhotoUrl: string | null;
+  /** @nullable */
+  modelGlbUrl: string | null;
+  /** @nullable */
+  thumbnailUrl: string | null;
+}
+
 export type DrinkInputCategory = typeof DrinkInputCategory[keyof typeof DrinkInputCategory];
 
 
@@ -239,6 +310,7 @@ export interface TableCardUpdate {
   physicalWidthCm?: number;
   isActive?: boolean;
 }
+
 export interface PublicTableCard {
   id: string;
   name: string;
@@ -264,70 +336,3 @@ export interface ArEventInput {
   eventType: ArEventInputEventType;
 }
 
-
-export interface DrinkPhotoUploadInput {
-  drinkId: string;
-  kind: DrinkPhotoUploadInputKind;
-  /**
-     * @minLength 1
-     * @maxLength 255
-     */
-  name: string;
-  /**
-     * Image byte size; no greater than 15728640 (15 MB).
-     * @minimum 1
-     */
-  size: number;
-  contentType: DrinkPhotoUploadInputContentType;
-}
-
-export interface DrinkPhotoUpload {
-  uploadURL: string;
-  objectPath: string;
-}
-
-export const DrinkGenerationStatus = {
-  none: 'none',
-  uploaded: 'uploaded',
-  processing: 'processing',
-  ready: 'ready',
-  failed: 'failed',
-} as const;
-
-export interface DrinkGenerationInput {
-  /** @minLength 1 */
-  sourcePhotoPath: string;
-  /** @minLength 1 */
-  cleanedPhotoPath: string;
-}
-
-export type DrinkGenerationStatus = typeof DrinkGenerationStatus[keyof typeof DrinkGenerationStatus];
-
-export interface DrinkGeneration {
-  status: DrinkGenerationStatus;
-  /** Generation progress from 0 to 100. */
-  progress: number;
-  /** @nullable */
-  error: string | null;
-  /** @nullable */
-  sourcePhotoUrl: string | null;
-  /** @nullable */
-  cleanedPhotoUrl: string | null;
-  /** @nullable */
-  modelGlbUrl: string | null;
-  /** @nullable */
-  thumbnailUrl: string | null;
-}
-
-export const DrinkPhotoUploadInputKind = {
-  original: 'original',
-  cleaned: 'cleaned',
-} as const;
-
-export const DrinkPhotoUploadInputContentType = {
-  'image/jpeg': 'image/jpeg',
-  'image/png': 'image/png',
-  'image/webp': 'image/webp',
-} as const;
-
-export type DrinkPhotoUploadInputContentType = typeof DrinkPhotoUploadInputContentType[keyof typeof DrinkPhotoUploadInputContentType];

@@ -3,6 +3,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
+    // Runs separately against an isolated real-PostgreSQL schema via node:test.
+    exclude: ["tests/isolation.test.ts"],
     environment: "node",
     setupFiles: ["tests/support/setup.ts"],
     fileParallelism: false,

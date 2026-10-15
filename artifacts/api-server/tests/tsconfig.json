@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "tsBuildInfoFile": "../tmp/tests.tsbuildinfo"
+  },
+  "include": ["isolation.test.ts", "../src"],
+  "references": [
+    { "path": "../../../lib/db" },
+    { "path": "../../../lib/api-zod" }
+  ]
+}

@@ -1,6 +1,7 @@
 - [Design and iOS scope](product-scope.md) — Owner dashboard uses uploaded screen references; old iOS app code is lost and a new app is being built.
 - [Tailwind token collisions](tailwind-tokens.md) — Named spacing tokens can override container-width utilities and collapse forms.
 - [App Storage signed URLs](app-storage-signed-urls.md) — use Replit's sidecar signer for private object URLs instead of GCS `File.getSignedUrl`.
+- [Generated validator merges](generated-validator-merges.md) — bundled startup can hide initialization-order errors; regenerate merged API outputs and check their ESM consumers.
 - [Drizzle test driver peers](drizzle-test-peers.md) — Align optional driver peers across shared-schema consumers to avoid incompatible private SQL type identities.
 - [Generated request validation](generated-validation.md) — OpenAPI object constraints may need explicit runtime enforcement after code generation.
 - [Menu version consistency](menu-version-consistency.md) — iOS polling requires menu-visible changes and version increments to commit together.

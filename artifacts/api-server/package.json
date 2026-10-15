@@ -7,9 +7,11 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "pnpm run test:unit && pnpm run test:isolation",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:isolation": "node ./tests/run.mjs",
     "test:storage-smoke": "vitest run --config vitest.storage-smoke.config.ts"
   },
   "dependencies": {
