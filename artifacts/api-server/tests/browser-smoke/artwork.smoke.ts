@@ -2,20 +2,29 @@ import { createServer as createHttpServer, type Server } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import express from "express";
-import { chromium, type Browser, type BrowserContext } from "playwright";
+import { chromium, firefox, webkit, type Browser, type BrowserContext, type Request } from "playwright";
+import sharp from "sharp";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
 import { expect, it } from "vitest";
 import { app, manifest, origin } from "../storage-smoke/setup";
 import { trackSmokeUploads } from "./track-uploads";
+import { isReloadCancellation, selectedEngines } from "./engines";
 
 // No traces/HAR: they would persist signed upload URLs and session cookies.
-it("selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in Chromium", async () => {
+// Vitest runs these sequentially: one loopback port and one shared manifest.
+it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
+  "selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in %s", async (engine) => {
   let api: Server | undefined;
   let web: ViteDevServer | undefined;
   let browser: Browser | undefined;
   let phase = "isolated server startup";
   const errors: string[] = [];
   try {
+    phase = `${engine} launch (install Playwright engine and platform dependencies; see README prerequisites)`;
+    browser = await { chromium, firefox, webkit }[engine].launch({
+      executablePath: process.env[`BROWSER_SMOKE_${engine.toUpperCase()}_PATH`] || undefined,
+    });
+    phase = "isolated server startup";
     const isolated = express();
     // Record at the API boundary, before the browser can begin its PUT. Even a
     // browser crash or CORS failure therefore leaves a cleanup entry.
@@ -38,12 +47,9 @@ it("selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in Chro
       logLevel: "silent",
     });
     await web.listen();
-    browser = await chromium.launch({
-      executablePath: process.env.BROWSER_SMOKE_CHROMIUM_PATH || undefined,
-    });
     const owner = await browser.newContext({ acceptDownloads: true, serviceWorkers: "block" });
     // Restrict browser traffic too; signed PUTs continue unchanged rather than
-    // being fulfilled/mocked. Real Chromium fetch enforces preflight and CORS.
+    // being fulfilled/mocked. Every engine enforces real preflight and CORS.
     await owner.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.origin === origin || url.protocol === "blob:") return route.continue();
@@ -60,14 +66,29 @@ it("selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in Chro
       return route.abort();
     });
     const page = await owner.newPage();
+    const successfulPuts = new WeakSet<Request>();
+    page.on("response", (response) => {
+      if (response.request().method() === "PUT" && response.status() === 200) {
+        successfulPuts.add(response.request());
+      }
+    });
     page.on("pageerror", () => errors.push("Uncaught browser error"));
     page.on("console", (message) => {
       if (message.type() === "error") errors.push("Browser console error");
     });
     page.on("requestfailed", (request) => {
-      // Reload deliberately cancels obsolete UI/image requests. A browser CORS
-      // or upload failure is not ERR_ABORTED and still fails this smoke.
-      if (request.failure()?.errorText !== "net::ERR_ABORTED") errors.push("Browser request failed");
+      // Some engines abandon successful PUT response bodies. Accept only a
+      // known cancellation after HTTP 200; private reload still checks every
+      // stored byte. Failed PUTs/preflights and other failures must still fail.
+      if (!isReloadCancellation(request.method(), request.failure()?.errorText,
+        successfulPuts.has(request) ? 200 : undefined)) {
+        const error = request.failure()?.errorText;
+        const code = ["net::ERR_ABORTED", "NS_BINDING_ABORTED", "Load request cancelled",
+          "net::ERR_FAILED", "net::ERR_BLOCKED_BY_CLIENT"].includes(error ?? "") ? error : "redacted";
+        const method = ["GET", "POST", "PUT", "OPTIONS", "HEAD"].includes(request.method())
+          ? request.method() : "other";
+        errors.push(`Browser request failed (${method}, ${code})`);
+      }
     });
 
     async function signIn(context: BrowserContext, email: string) {
@@ -85,23 +106,17 @@ it("selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in Chro
       ["png", "image/png"], ["jpg", "image/jpeg"], ["webp", "image/webp"],
     ]) {
       phase = `${extension} file picker and preview`;
-      // High-contrast, non-square synthetic art; no owner artwork or files.
-      // Browser-only expressions avoid adding DOM globals to the API's Node
-      // typecheck. Strings must be invoked explicitly by Playwright.
-      const base64 = await page.evaluate<string>(`(() => {
-        const type = ${JSON.stringify(mime)};
-        const canvas = document.createElement("canvas");
-        canvas.width = 160; canvas.height = 80;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) throw new Error("Canvas context unavailable");
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, 160, 80);
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 80, 80);
-        const data = canvas.toDataURL(type, 0.95);
-        if (!data.startsWith("data:" + type + ";")) throw new Error("Unsupported fixture encoding");
-        return data.split(",")[1];
-      })()`);
-      const bytes = Buffer.from(base64, "base64");
-      const name = `Browser smoke ${extension}`;
+      // All engines decode identical in-memory art, including WebKit versions
+      // that decode WebP but cannot encode it with canvas.toDataURL.
+      const pixels = Buffer.alloc(160 * 80 * 3);
+      for (let y = 0; y < 80; y++) {
+        pixels.fill(255, (y * 160 + 80) * 3, (y + 1) * 160 * 3);
+      }
+      const encoder = sharp(pixels, { raw: { width: 160, height: 80, channels: 3 } });
+      const bytes = await (extension === "png" ? encoder.png()
+        : extension === "jpg" ? encoder.jpeg({ quality: 95 })
+          : encoder.webp({ lossless: true })).toBuffer();
+      const name = `Browser smoke ${engine} ${extension}`;
       phase = `${extension} opening artwork file chooser`;
       const picker = page.waitForEvent("filechooser");
       await page.getByText("Choose a PNG, JPEG, or WebP (up to 10 MB)", { exact: true }).click();
@@ -179,7 +194,7 @@ it("selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in Chro
       const downloadPromise = page.waitForEvent("download");
       await page.getByRole("button", { name: `Download print PDF for ${name}`, exact: true }).click();
       const download = await downloadPromise;
-      expect(download.suggestedFilename()).toBe(`Browser-smoke-${extension}.pdf`);
+      expect(download.suggestedFilename()).toBe(`Browser-smoke-${engine}-${extension}.pdf`);
       expect(await download.failure()).toBeNull();
       const file = await download.path();
       if (!file) throw new Error("PDF was not downloaded.");
@@ -196,7 +211,7 @@ it("selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in Chro
     expect(errors).toEqual([]);
   } catch {
     // Playwright errors can contain signed URLs or cookies. Expose only phase.
-    throw new Error(`Browser storage smoke failed during ${phase}; sensitive diagnostics redacted.`);
+    throw new Error(`${engine} browser storage smoke failed during ${phase}; sensitive diagnostics redacted.`);
   } finally {
     await browser?.close();
     await web?.close();

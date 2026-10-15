@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { selectedEngines } from "./tests/browser-smoke/engines";
 
 if (process.env.NODE_ENV !== "development" || process.env.STORAGE_SMOKE !== "1"
   || process.env.BROWSER_STORAGE_SMOKE !== "1") {
@@ -22,6 +23,7 @@ export default defineConfig({
       STORAGE_SMOKE_ORIGIN: "http://127.0.0.1:4179",
       PORT: "4179",
       BASE_PATH: "/",
+      BROWSER_SMOKE_BROWSERS: selectedEngines(process.env.BROWSER_SMOKE_BROWSERS).join(","),
     },
   },
 });

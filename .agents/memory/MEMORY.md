@@ -9,4 +9,5 @@
 - [Validation setup timing](validation-schema-timing.md) — Concurrent merges can reach completion checks before dependencies or development database updates.
 - [Native image decoder test builds](native-image-decoders.md) — preserve native runtime loading in standalone test bundles, not only application builds.
 - [Browser smoke type boundaries](browser-test-types.md) — Keep browser-only DOM globals out of the shared Node API test compiler.
+- [Cross-engine smoke constraints](browser-engine-smoke.md) — Separate WebP decoding from fixture encoding; successful PUT body cancellations require stored-byte checks.
 - [Sync test isolation](sync-test-isolation.md) — Keep request origins stable when comparing menus across independent HTTP requests.

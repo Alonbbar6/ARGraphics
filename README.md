@@ -36,7 +36,7 @@ service startup. Run `pnpm run test:api-codegen-check` for its regression tests.
 ## Opt-in development browser artwork smoke
 
 The offline `pnpm test` suite never launches a browser or calls real storage.
-To check actual Chromium file selection, browser-enforced storage CORS, private
+To check actual file selection, browser-enforced storage CORS, private
 saved-artwork reload and card-sized print PDF downloads for PNG/JPEG/WebP:
 
 ```sh
@@ -44,6 +44,41 @@ pnpm --filter @workspace/api-server exec playwright install chromium
 NODE_ENV=development STORAGE_SMOKE=1 BROWSER_STORAGE_SMOKE=1 \
   pnpm --filter @workspace/api-server test:browser-storage-smoke
 ```
+
+Chromium remains the default. Select any supported engines explicitly; the same
+PNG/JPEG/WebP upload, private-access and PDF assertions run sequentially for each:
+
+```sh
+pnpm --filter @workspace/api-server exec playwright install chromium firefox webkit
+NODE_ENV=development STORAGE_SMOKE=1 BROWSER_STORAGE_SMOKE=1 \
+  BROWSER_SMOKE_BROWSERS=chromium,firefox,webkit \
+  pnpm --filter @workspace/api-server test:browser-storage-smoke
+```
+
+Use `BROWSER_SMOKE_BROWSERS=firefox` or `webkit` for a single-engine check.
+Unknown, empty or duplicate selections fail immediately. A requested engine
+that cannot launch fails with its name and prerequisite guidance, never a silent
+skip or a fallback to Chromium.
+
+
+### Browser platform prerequisites
+
+Use the browser builds matching this workspace's Playwright version and a
+Playwright-supported OS (macOS, Windows, or a supported Ubuntu/Debian release;
+WebKit support varies by OS). On supported Linux hosts, provision the OS
+libraries with Playwright's `install --with-deps chromium firefox webkit`
+command, which requires system package installation privileges. Browser downloads
+alone do not supply those libraries. On NixOS/Replit, do not run Debian package
+installation commands: use compatible Nix-provisioned engine builds/libraries
+or run the matrix on a supported development host with development App Storage
+and its signing service configured. Ordinary system Firefox/Safari are not
+substitutes for Playwright's patched Firefox/WebKit builds.
+
+`webkit` tests Playwright's WebKit engine, not the installed Safari app or an iOS
+device. It catches engine regressions but does not certify native Safari file
+dialogs or device printing. Fixtures are encoded in memory by the test server,
+so WebKit's lack of WebP canvas encoding on some platforms cannot prevent testing
+its WebP decoding, canvas pixel access and PDF image conversion.
 
 Run only in the development workspace with App Storage configured. This command
 starts the existing Garnish UI at `http://127.0.0.1:4179` (the port must be free)
@@ -53,6 +88,8 @@ clears the database connection and Meshy settings, and substitutes a fake iOS
 key and session secret. It never reads production data or invokes Meshy/iOS.
 The browser blocks external traffic except this run's private cloud objects.
 Optional `BROWSER_SMOKE_CHROMIUM_PATH` selects an installed Chromium executable.
+`BROWSER_SMOKE_FIREFOX_PATH` and `BROWSER_SMOKE_WEBKIT_PATH` can similarly select
+compatible Playwright engine executables; prefer the default managed builds.
 On Replit, use the bundled system browser to avoid missing Linux libraries:
 
 ```sh
