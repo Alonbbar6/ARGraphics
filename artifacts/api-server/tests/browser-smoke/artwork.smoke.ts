@@ -1,70 +1,25 @@
-import { createServer as createHttpServer, type Server } from "node:http";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-import express from "express";
-import { chromium, firefox, webkit, type Browser, type BrowserContext, type Request } from "playwright";
+import type { BrowserContext, Request } from "playwright";
 import sharp from "sharp";
-import { createServer as createViteServer, type ViteDevServer } from "vite";
 import { expect, it } from "vitest";
-import { app, manifest, origin } from "../storage-smoke/setup";
-import { trackSmokeUploads } from "./track-uploads";
+import { manifest, origin } from "../storage-smoke/setup";
 import { isReloadCancellation, selectedEngines } from "./engines";
+import { restrictSmokeNetwork, startBrowserSmoke } from "./harness";
 
 // No traces/HAR: they would persist signed upload URLs and session cookies.
 // Vitest runs these sequentially: one loopback port and one shared manifest.
 it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
   "selects, uploads, saves, privately reloads and exports PNG/JPEG/WebP in %s", async (engine) => {
-  let api: Server | undefined;
-  let web: ViteDevServer | undefined;
-  let browser: Browser | undefined;
+  let harness: Awaited<ReturnType<typeof startBrowserSmoke>> | undefined;
   let phase = "isolated server startup";
   const errors: string[] = [];
   try {
-    phase = `${engine} launch (install Playwright engine and platform dependencies; see README prerequisites)`;
-    browser = await { chromium, firefox, webkit }[engine].launch({
-      executablePath: process.env[`BROWSER_SMOKE_${engine.toUpperCase()}_PATH`] || undefined,
-    });
-    phase = "isolated server startup";
-    const isolated = express();
-    // Record at the API boundary, before the browser can begin its PUT. Even a
-    // browser crash or CORS failure therefore leaves a cleanup entry.
-    isolated.use(trackSmokeUploads(manifest));
-    isolated.use(app);
-    api = createHttpServer(isolated);
-    await new Promise<void>((resolve, reject) => {
-      api!.once("error", reject);
-      api!.listen(0, "127.0.0.1", resolve);
-    });
-    const address = api.address();
-    if (!address || typeof address === "string") throw new Error("Missing isolated API port.");
-    const root = path.resolve(import.meta.dirname, "../../../garnish");
-    web = await createViteServer({
-      configFile: path.join(root, "vite.config.ts"),
-      server: {
-        host: "127.0.0.1", port: 4179, strictPort: true,
-        proxy: { "/api": `http://127.0.0.1:${address.port}` },
-      },
-      logLevel: "silent",
-    });
-    await web.listen();
+    harness = await startBrowserSmoke(engine);
+    const { browser } = harness;
     const owner = await browser.newContext({ acceptDownloads: true, serviceWorkers: "block" });
     // Restrict browser traffic too; signed PUTs continue unchanged rather than
     // being fulfilled/mocked. Every engine enforces real preflight and CORS.
-    await owner.route("**/*", async (route) => {
-      const url = new URL(route.request().url());
-      if (url.origin === origin || url.protocol === "blob:") return route.continue();
-      // Fonts are irrelevant to artwork, and must not introduce an external
-      // dependency or a spurious console/network error into this storage check.
-      if (url.origin === "https://fonts.googleapis.com") {
-        return route.fulfill({ status: 200, contentType: "text/css", body: "" });
-      }
-      if (url.origin === "https://storage.googleapis.com"
-        && decodeURIComponent(url.pathname).startsWith(`${manifest.directory}/uploads/`)) {
-        return route.continue();
-      }
-      errors.push("Forbidden browser network destination");
-      return route.abort();
-    });
+    await restrictSmokeNetwork(owner, errors);
     const page = await owner.newPage();
     const successfulPuts = new WeakSet<Request>();
     page.on("response", (response) => {
@@ -209,14 +164,12 @@ it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
     }
     phase = `browser diagnostics (${errors.join(", ") || "clean"})`;
     expect(errors).toEqual([]);
-  } catch {
+  } catch (cause) {
     // Playwright errors can contain signed URLs or cookies. Expose only phase.
+    if (cause instanceof Error && cause.message.startsWith("Isolated browser smoke startup failed during ")) throw cause;
     throw new Error(`${engine} browser storage smoke failed during ${phase}; sensitive diagnostics redacted.`);
   } finally {
-    await browser?.close();
-    await web?.close();
-    if (api?.listening) await new Promise<void>((resolve, reject) =>
-      api!.close((error) => error ? reject(error) : resolve()));
+    await harness?.close();
     // Shared setup's afterAll deletes and verifies every manifest object.
   }
 });

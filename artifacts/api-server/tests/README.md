@@ -63,6 +63,18 @@ commands.
 
 ## Opt-in real private-storage smoke check (development only)
 
+The browser suite also includes isolated failure/retry checks in
+`browser-smoke/artwork-failures.smoke.ts`: a rejected upload-URL request, rejected
+signed PUT, rejected card save, and failed private artwork fetch for PDF export.
+Each case uses a fresh browser context and resets only the in-memory database.
+One browser request receives a test-only HTTP 503; the retry uses the unchanged
+API/provider. Checks cover the error text, busy/re-enabled save controls,
+preserved artwork/name/width, no false success, unchanged saved-card API data,
+no failed-export download, and successful retry. Uploads are tracked before
+response delivery, including failed PUTs and orphaned uploads after failed saves;
+the shared manifest cleanup runs even if an assertion fails. These checks stay
+opt-in and are not part of the offline `pnpm test` command.
+
 This is a separate command, **never included in `pnpm test`**. Run it inside a
 Replit development workspace with App Storage already provisioned, the local
 storage sidecar reachable on port 1106, and permission to create, read, sign,

@@ -12,3 +12,4 @@
 - [Cross-engine smoke constraints](browser-engine-smoke.md) — Separate WebP decoding from fixture encoding; successful PUT body cancellations require stored-byte checks.
 - [Sync test isolation](sync-test-isolation.md) — Keep request origins stable when comparing menus across independent HTTP requests.
 - [Route merge integrity](route-merge-integrity.md) — After syncing concurrent changes, confirm narrow route edits remain narrow against the latest main version.
+- [Browser smoke runtime](browser-smoke-runtime.md) — Playwright's installed package does not imply its managed browser exists; verify the provisioned executable first.
