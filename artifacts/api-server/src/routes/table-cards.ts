@@ -60,26 +60,7 @@ router.get("/table-cards", async (req, res): Promise<void> => {
 router.post("/table-cards", async (req: Request, res: Response): Promise<void> => {
   const user = await owner(req, res);
   if (!user) return;
-  const parsed = UpdateTableCardBody.strict()
-    .refine((data) => Object.keys(data).length > 0, "Enter card details to update.")
-    .safeParse(req.body);
-
-    const card = await db.transaction(async (tx) => {
-      const [updated] = await tx.update(tableCardsTable).set({
-        ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
-        ...(parsed.data.physicalWidthCm !== undefined
-          ? { physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5) } : {}),
-        ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
-      }).where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
-        .returning();
-      if (!updated) return null;
-      await tx.insert(menuVersionTable).values({ barId: user.barId, version: 1 })
-        .onConflictDoUpdate({
-          target: menuVersionTable.barId,
-          set: { version: sql`${menuVersionTable.version} + 1` },
-        });
-      return updated;
-    });
+  const parsed = CreateTableCardBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Enter a card name, uploaded artwork, and width from 0 to 100 cm." });
     return;
@@ -92,9 +73,14 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
       res.status(400).json({ error: "The uploaded file is not a supported image under 10 MB." });
       return;
     }
-  const [card] = await db.delete(tableCardsTable)
-    .where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
-    .returning();
+    const [card] = await db.insert(tableCardsTable).values({
+      id: randomUUID(),
+      barId: user.barId,
+      name: parsed.data.name.trim(),
+      referenceImageUrl: parsed.data.objectPath,
+      physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5),
+      isActive: true,
+    }).returning();
     await bumpMenuVersion(user.barId);
     res.status(201).json(CreateTableCardResponse.parse({
       id: card.id,
@@ -115,6 +101,52 @@ router.post("/table-cards", async (req: Request, res: Response): Promise<void> =
 });
 
 router.patch("/table-cards/:id", async (req: Request, res: Response): Promise<void> => {
+  const user = await owner(req, res);
+  if (!user) return;
+  const params = UpdateTableCardParams.safeParse(req.params);
+  const parsed = UpdateTableCardBody.strict()
+    .refine((data) => Object.keys(data).length > 0, "Enter card details to update.")
+    .safeParse(req.body);
+  if (!params.success || !parsed.success) {
+    res.status(400).json({ error: "Enter valid table-card details." });
+    return;
+  }
+  try {
+    const card = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(tableCardsTable).set({
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
+        ...(parsed.data.physicalWidthCm !== undefined
+          ? { physicalWidthMeters: (parsed.data.physicalWidthCm / 100).toFixed(5) } : {}),
+        ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+      }).where(and(eq(tableCardsTable.id, params.data.id), eq(tableCardsTable.barId, user.barId)))
+        .returning();
+      if (!updated) return null;
+      await tx.insert(menuVersionTable).values({ barId: user.barId, version: 2 })
+        .onConflictDoUpdate({
+          target: menuVersionTable.barId,
+          set: { version: sql`${menuVersionTable.version} + 1` },
+        });
+      return updated;
+    });
+    if (!card) {
+      res.status(404).json({ error: "Table card not found." });
+      return;
+    }
+    res.json(UpdateTableCardResponse.parse({
+      id: card.id,
+      name: card.name,
+      referenceImageUrl: imageUrl(card.referenceImageUrl),
+      physicalWidthCm: Number(card.physicalWidthMeters) * 100,
+      isActive: card.isActive,
+      createdAt: card.createdAt,
+    }));
+  } catch (error) {
+    req.log.error({ err: error }, "Could not update table card");
+    res.status(500).json({ error: "Could not update the table card." });
+  }
+});
+
+router.delete("/table-cards/:id", async (req: Request, res: Response): Promise<void> => {
   const user = await owner(req, res);
   if (!user) return;
   const params = DeleteTableCardParams.safeParse(req.params);

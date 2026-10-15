@@ -415,6 +415,10 @@ export const StartDrinkGenerationParams = zod.object({
 
 export const updateTableCardBodyPhysicalWidthCmMax = 100;
 
+export const updateTableCardResponsePhysicalWidthCmExclusiveMin = 0;
+
+export const updateTableCardResponsePhysicalWidthCmMax = 100;
+
 export const UpdateTableCardResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -428,14 +432,10 @@ export const updateTableCardBodyNameMax = 80;
 
 export const updateTableCardBodyPhysicalWidthCmMin = 0.001;
 
+export const updateTableCardBodyNameRegExp = new RegExp('\\S');
+
 export const UpdateTableCardBody = zod.object({
   "name": zod.string().min(1).max(updateTableCardBodyNameMax).regex(updateTableCardBodyNameRegExp).optional(),
   "physicalWidthCm": zod.number().min(updateTableCardBodyPhysicalWidthCmMin).max(updateTableCardBodyPhysicalWidthCmMax).optional(),
   "isActive": zod.boolean().optional()
 })
-
-export const updateTableCardResponsePhysicalWidthCmExclusiveMin = 0;
-
-export const updateTableCardResponsePhysicalWidthCmMax = 100;
-
-export const updateTableCardBodyNameRegExp = new RegExp('\\S');

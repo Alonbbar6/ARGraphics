@@ -149,6 +149,36 @@ describe("signed-in owner table-card lifecycle", () => {
       .send(uploadBody).expect(500, { error: "Could not start the artwork upload." });
   });
 
+  it("updates only the owner's card details without deleting the card or artwork", async () => {
+    const cookie = await signIn();
+    const other = await signIn("other@example.test");
+    const saved = await createCard(cookie);
+    const versionBefore = (await db.select().from(schema.menuVersionTable))
+      .find((row) => row.barId === "garnish-demo-bar")!.version;
+    await request(app).patch(`/api/table-cards/${saved.body.id}`).expect(401);
+    await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", other)
+      .send({ name: "Not yours" }).expect(404);
+    for (const invalid of [{}, { objectPath: artworkPath }, { name: "  " }, { physicalWidthCm: 0 }]) {
+      await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie)
+        .send(invalid).expect(400);
+    }
+    const edited = await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie)
+      .send({ name: "  Edited card  ", physicalWidthCm: 22, isActive: false }).expect(200);
+    expect(edited.body).toMatchObject({
+      id: saved.body.id, name: "Edited card", physicalWidthCm: 22,
+      isActive: false, referenceImageUrl: saved.body.referenceImageUrl,
+    });
+    const [persisted] = await db.select().from(schema.tableCardsTable);
+    expect(persisted.referenceImageUrl).toBe(artworkPath);
+    expect(Number(persisted.physicalWidthMeters)).toBe(0.22);
+    expect(objects.has(artworkPath)).toBe(true);
+    expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
+    const versionAfter = (await db.select().from(schema.menuVersionTable))
+      .find((row) => row.barId === "garnish-demo-bar")!.version;
+    expect(versionAfter).toBe(versionBefore + 1);
+    await request(app).get(privateUrl).set("Cookie", cookie).expect(200);
+  });
+
   it("still removes a card and revokes private access if storage cleanup fails", async () => {
     const cookie = await signIn();
     const saved = await createCard(cookie);
