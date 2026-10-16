@@ -53,7 +53,7 @@ it.each(selectedEngines(process.env.BROWSER_SMOKE_BROWSERS))(
       expect(response.status()).toBe(200);
     }
     phase = "synthetic owner session";
-    await signIn(owner, "demo@garnish.app");
+    await signIn(owner, "demo@argraphics.app");
     await page.goto(`${origin}/table-cards`);
     await expect.poll(() => page.getByRole("heading", { name: "Table cards." }).count()).toBe(1);
 

@@ -4,10 +4,10 @@ ARGraphics is a local AR advertising platform for independent bars, restaurants 
 local artists. Partners place QR codes on tables, windows, walls and posters; guests scan
 them with the ARGraphics iOS app (`ios/`) and see AR content that only exists in that room:
 a 3D menu item, a promo offer they claim at the table, a local artist's piece, or an event
-teaser. The partner dashboard (`artifacts/garnish`) creates displays, prints codes, and
+teaser. The partner dashboard (`artifacts/argraphics`) creates displays, prints codes, and
 counts what matters: scans, unique and repeat visitors, and walk-ins (claimed offers).
 
-The workspace and package names still say "garnish" for continuity; everything a person
+The workspace and package names still say "argraphics" for continuity; everything a person
 sees says ARGraphics.
 
 ### Data model
@@ -17,12 +17,12 @@ sees says ARGraphics.
 - `qr_codes` are placed spots with short codes; scans resolve `/s/{code}`. Retired codes keep their history.
 - `scans` and `redemptions` hold a keyed hash of the app's anonymous install ID, never the ID itself.
   A redemption is one claim per guest, offer and partner-local day, valid for 15 minutes.
-- In development the API seeds a demo venue, a demo artist (`demo-artist@garnish.app`), a nearby
+- In development the API seeds a demo venue, a demo artist (`demo-artist@argraphics.app`), a nearby
   venue, displays and QR codes (`demotbl1`–`demotbl6`, `demowall`, `demobar1`). It never seeds scans or claims.
 
 ## Run the app
 
-- Start the web app with `pnpm --filter @workspace/garnish run dev`.
+- Start the web app with `pnpm --filter @workspace/argraphics run dev`.
 - Start the API with `pnpm --filter @workspace/api-server run dev`.
 - Run workspace checks with `pnpm run typecheck`.
 - Check committed API output freshness with `pnpm run check:api-codegen`.
@@ -140,8 +140,8 @@ administrator setup step, not something this source change applies remotely.
 
 ## Development demo sign-in
 
-- Email: `demo@garnish.app`
-- Password: `Garnish-demo-2026!`
+- Email: `demo@argraphics.app`
+- Password: `ARGraphics-demo-2026!`
 - This seeded account is created only when the API runs with `NODE_ENV=development`. It is not created in production.
 
 ## Opt-in development browser artwork smoke
@@ -192,7 +192,7 @@ so WebKit's lack of WebP canvas encoding on some platforms cannot prevent testin
 its WebP decoding, canvas pixel access and PDF image conversion.
 
 Run only in the development workspace with App Storage configured. This command
-starts the existing Garnish UI at `http://127.0.0.1:4179` (the port must be free)
+starts the existing ARGraphics UI at `http://127.0.0.1:4179` (the port must be free)
 and a separate loopback API, not the running dashboard/API or any deployed URL.
 It reuses the in-memory PostgreSQL fixtures, logs in with synthetic sessions,
 clears the database connection and Meshy settings, and substitutes a fake iOS

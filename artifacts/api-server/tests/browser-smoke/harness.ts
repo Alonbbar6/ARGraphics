@@ -42,7 +42,7 @@ export async function startBrowserSmoke(engine: SmokeEngine = "chromium") {
     });
     const address = api.address();
     if (!address || typeof address === "string") throw new Error("Missing isolated API port.");
-    const root = path.resolve(import.meta.dirname, "../../../garnish");
+    const root = path.resolve(import.meta.dirname, "../../../argraphics");
     phase = "Vite initialization";
     web = await createViteServer({
       configFile: path.join(root, "vite.config.ts"),

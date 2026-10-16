@@ -1,0 +1,311 @@
+/*
+ * ARGraphics partner components. Tokens come from index.css (:root / .dark) and
+ * owner.css (.argraphics-owner-root). These rules are unscoped on purpose so the
+ * same buttons, inputs and dialogs work in portals and outside the Shell.
+ */
+
+/* Focus: 2px ring with 2px offset on every interactive element. In dark mode the
+ * ring token lifts Violet to Orchid so the indicator keeps 3:1 against Midnight. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- buttons */
+.pa-btn {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border-radius: 9999px;
+  padding: 0 1.25rem;
+  font-size: .875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.pa-btn:active:not(:disabled) { transform: scale(.98); }
+.pa-btn:disabled { opacity: .5; cursor: not-allowed; }
+.pa-btn-sm { min-height: 40px; padding: 0 .9rem; font-size: .8125rem; }
+.pa-btn-icon { min-height: 44px; min-width: 44px; padding: 0; }
+/* Primary and hero are the same flat accent fill: no glow, no gradient. */
+.pa-btn-primary, .pa-btn-hero { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.pa-btn-primary:hover:not(:disabled), .pa-btn-hero:hover:not(:disabled) { background: hsl(var(--primary-hover)); }
+.pa-btn svg { flex-shrink: 0; }
+.pa-btn-ghost { background: transparent; color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+.pa-btn-ghost:hover:not(:disabled) { background: hsl(var(--muted)); }
+.pa-btn-quiet { background: transparent; color: hsl(var(--muted-foreground)); }
+.pa-btn-quiet:hover:not(:disabled) { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.pa-btn-destructive { background: #DC2626; color: #fff; }
+.pa-btn-destructive:hover:not(:disabled) { background: #B91C1C; }
+
+/* ------------------------------------------------------------------ cards */
+.pa-numeral {
+  font-family: var(--app-font-sans, 'Inter', sans-serif);
+  font-weight: 300;
+  font-size: 2.5rem;
+  line-height: 1.05;
+  letter-spacing: -.03em;
+}
+@media (min-width: 640px) { .pa-numeral { font-size: 3rem; } }
+/* The walk-ins metric is the one number that carries the accent. */
+.pa-stat-emphasis .pa-numeral { color: hsl(var(--primary-text)); }
+.pa-stat-emphasis .owner-chip-icon { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+.pa-accent-text { color: hsl(var(--primary-text)); }
+.pa-delta.is-up { color: #15803D; }
+.pa-delta.is-down { color: #B91C1C; }
+.pa-delta.is-flat { color: hsl(var(--muted-foreground)); }
+.dark .pa-delta.is-up { color: #4ADE80; }
+.dark .pa-delta.is-down { color: #FCA5A5; }
+.pa-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: hsl(var(--card));
+}
+.pa-card-in { animation: pa-card-in 520ms cubic-bezier(.2,.75,.25,1) both; }
+@keyframes pa-card-in {
+  from { opacity: 0; filter: blur(10px); transform: translateY(8px); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+.pa-thumb { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.pa-thumb model-viewer { width: 100%; height: 100%; background: transparent; pointer-events: none; --poster-color: transparent; }
+
+/* ----------------------------------------------------------------- badges */
+.pa-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-radius: 9999px;
+  padding: .15rem .55rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.pa-badge-live { background: hsl(142 71% 45% / .14); color: #15803D; }
+.dark .pa-badge-live { color: #4ADE80; }
+.pa-badge-draft { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.pa-badge-paused { background: hsl(38 92% 50% / .16); color: #92400E; }
+.dark .pa-badge-paused { color: #FCD34D; }
+.pa-badge-offer, .pa-badge-featured { background: hsl(var(--card)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); }
+.pa-badge-neutral { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.pa-badge-violet { background: hsl(var(--muted)); color: hsl(var(--secondary-foreground)); }
+
+/* --------------------------------------------------------------- skeleton */
+.pa-skeleton {
+  border-radius: 1rem;
+  background: linear-gradient(100deg, hsl(var(--muted)) 30%, hsl(var(--muted) / .55) 50%, hsl(var(--muted)) 70%);
+  background-size: 300% 100%;
+  animation: pa-skeleton 1.4s ease-in-out infinite;
+}
+@keyframes pa-skeleton { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* ------------------------------------------------------ segmented control */
+/* Segments size to their labels and are never truncated: when space runs out a label
+ * wraps between words instead. The thumb follows the active segment, measured in JS. */
+.pa-segmented {
+  position: relative;
+  display: flex;
+  border-radius: 9999px;
+  padding: 4px;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  isolation: isolate;
+}
+.pa-segmented-thumb {
+  position: absolute;
+  z-index: -1;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: var(--thumb-width, 0);
+  border-radius: 9999px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  transform: translateX(var(--thumb-left, 0));
+  transition: transform 250ms cubic-bezier(.3,.7,.2,1), width 250ms cubic-bezier(.3,.7,.2,1);
+}
+.pa-segment {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: min-content;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: .375rem;
+  border-radius: 9999px;
+  padding: 0 .75rem;
+  font-size: .8125rem;
+  font-weight: 500;
+  line-height: 1.15;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+  transition: color 150ms ease;
+}
+.pa-segment:hover { color: hsl(var(--foreground)); }
+.pa-segment.is-active { color: hsl(var(--foreground)); font-weight: 600; }
+.pa-segmented.is-sm .pa-segment { min-height: 36px; font-size: .75rem; padding: 0 .6rem; }
+
+/* --------------------------------------------------------- step indicator */
+.pa-steps { display: grid; grid-template-columns: repeat(var(--count), minmax(0, 1fr)); gap: 6px; }
+.pa-step-button { display: flex; width: 100%; flex-direction: column; gap: 6px; text-align: left; min-height: 44px; }
+.pa-step-button:disabled { cursor: default; }
+.pa-step-bar { display: block; height: 4px; border-radius: 9999px; background: hsl(var(--muted)); transition: background-color 250ms ease; }
+.pa-step.is-done .pa-step-bar { background: hsl(var(--muted-foreground)); }
+.pa-step.is-current .pa-step-bar { background: hsl(var(--foreground)); }
+.pa-step-label { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: hsl(var(--muted-foreground)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-step.is-current .pa-step-label { color: hsl(var(--foreground)); font-weight: 600; }
+@media (max-width: 420px) { .pa-step:not(.is-current) .pa-step-label { visibility: hidden; } }
+
+/* ---------------------------------------------------------------- inputs */
+.pa-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border-radius: .75rem;
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--card));
+  padding: .625rem 1rem;
+  font-size: 1rem;
+  color: hsl(var(--foreground));
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+@media (min-width: 640px) { .pa-input { font-size: .9375rem; } }
+.pa-input::placeholder { color: hsl(var(--muted-foreground) / .8); }
+.pa-input:focus { border-color: hsl(var(--muted-foreground)); }
+.pa-input:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+textarea.pa-input { min-height: 96px; resize: vertical; }
+.dark .pa-input { background: hsl(var(--background)); }
+.dark input.pa-input[type="datetime-local"] { color-scheme: dark; }
+
+/* -------------------------------------------------------------- dropzone */
+.pa-dropzone {
+  border: 1px dashed hsl(var(--input));
+  border-radius: 1rem;
+  background: hsl(var(--background));
+  padding: 1rem;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.pa-dropzone:hover, .pa-dropzone.is-over { border-color: hsl(var(--muted-foreground)); background: hsl(var(--muted)); }
+.pa-dropzone.has-preview { border-style: solid; border-color: hsl(var(--border)); background: hsl(var(--card)); }
+
+/* ---------------------------------------------------------------- dialog */
+.pa-dialog-overlay { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .62); backdrop-filter: blur(4px); animation: pa-fade 180ms ease both; }
+.pa-dialog {
+  position: fixed;
+  z-index: 61;
+  left: 50%;
+  top: 50%;
+  width: calc(100vw - 32px);
+  max-width: 28rem;
+  transform: translate(-50%, -50%);
+  border-radius: 1.25rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  padding: 1.5rem;
+  box-shadow: 0 30px 80px rgb(0 0 0 / .45);
+  animation: pa-fade 180ms ease both;
+}
+@keyframes pa-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ----------------------------------------------------------- phone frame */
+.pa-phone-glow {
+  position: relative;
+  border-radius: 46px;
+  padding: 1px;
+  background: hsl(var(--border));
+}
+.pa-phone {
+  position: relative;
+  border-radius: 43px;
+  padding: 10px;
+  background: #050509;
+}
+.pa-phone-notch {
+  position: absolute;
+  z-index: 3;
+  top: 18px;
+  left: 50%;
+  width: 84px;
+  height: 22px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: #000;
+}
+.pa-phone-screen {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 9 / 19.5;
+  border-radius: 34px;
+  background: #0B0B14;
+  color: #fff;
+}
+
+/* --------------------------------------------------------- guest preview */
+.pa-guest-camera {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 120%, rgb(120 72 40 / .55), transparent 55%),
+    radial-gradient(ellipse at 20% 10%, rgb(255 190 120 / .14), transparent 40%),
+    linear-gradient(180deg, #17121f 0%, #0b0a12 100%);
+}
+.pa-guest-float { animation: pa-float 4s ease-in-out infinite; }
+@keyframes pa-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.pa-anchor { box-shadow: 0 0 0 6px rgb(244 63 94 / .25), 0 0 18px rgb(244 63 94 / .6); }
+.pa-sheet {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  border-radius: 22px;
+  background: rgb(20 16 36 / .92);
+  border: 1px solid rgb(255 255 255 / .08);
+  backdrop-filter: blur(14px);
+  padding: 10px 14px 14px;
+}
+
+/* ------------------------------------------------------------- heatmap */
+.pa-heat { border-collapse: separate; border-spacing: 2px; width: 100%; table-layout: fixed; }
+.pa-heat td { height: 18px; border-radius: 3px; padding: 0; background: hsl(var(--muted)); }
+
+.pa-heat th { font-size: 10px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+@media (min-width: 768px) { .pa-heat td { height: 22px; } }
+
+/* ------------------------------------------------------------- masonry */
+.pa-masonry { columns: 2 160px; column-gap: 12px; }
+.pa-masonry > * { break-inside: avoid; margin-bottom: 12px; }
+@media (min-width: 1024px) { .pa-masonry { columns: 3 220px; } }
+
+/* --------------------------------------------------------- reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .pa-guest-float, .pa-skeleton { animation: none !important; }
+  .pa-btn:active:not(:disabled) { transform: none; opacity: .88; }
+  .pa-segmented-thumb { transition: none !important; }
+  .pa-card-in { animation: pa-fade 240ms ease both !important; }
+}
+
+/* One thumb-reachable hero action on mobile, parked just above the tab bar. */
+.pa-mobile-hero {
+  position: sticky;
+  z-index: 20;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  margin-top: 1.5rem;
+}
+
+/* Plain sans page title for every page but Home. */
+.pa-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+@media (min-width: 768px) { .pa-title { font-size: 2rem; } }

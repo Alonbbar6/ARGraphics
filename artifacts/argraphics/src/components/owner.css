@@ -1,0 +1,214 @@
+/*
+ * Owner workspace theme. Neutral surfaces with 1px borders and exactly one accent
+ * (--primary), reserved for primary actions and the walk-ins metric. Everything
+ * else (links, indicators, charts, chips) stays in the neutral greys. Dark is the
+ * default; light swaps the near-black surfaces for white and keeps the accent.
+ */
+.argraphics-owner-root {
+  --background: 0 0% 97%;
+  --foreground: 0 0% 9%;
+  --border: 0 0% 87%;
+  --input: 0 0% 80%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --primary: 347 77% 46%;
+  --primary-hover: 347 77% 40%;
+  --primary-foreground: 0 0% 100%;
+  --primary-text: 347 77% 42%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 15%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 38%;
+  --accent: 0 0% 94%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 0 0% 9%;
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 0 0% 9%;
+  --app-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --app-font-serif: 'DM Serif Display', Georgia, serif;
+  min-height: 100dvh;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  font-family: var(--app-font-sans);
+}
+.dark .argraphics-owner-root {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 96%;
+  --border: 0 0% 17%;
+  --input: 0 0% 24%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 96%;
+  --primary: 347 77% 50%;
+  --primary-hover: 347 77% 44%;
+  --primary-foreground: 0 0% 100%;
+  --primary-text: 351 95% 71%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 90%;
+  --muted: 0 0% 11%;
+  --muted-foreground: 0 0% 64%;
+  --accent: 0 0% 12%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 72% 58%;
+  --ring: 0 0% 85%;
+  --sidebar: 0 0% 5%;
+  --sidebar-foreground: 0 0% 96%;
+  background: hsl(var(--background));
+}
+/* Links and inline actions are neutral; the accent is reserved (see above). */
+.argraphics-owner-root .text-primary,
+.dark .argraphics-owner-root .text-primary { color: hsl(var(--foreground)); }
+.argraphics-owner-root *,
+.argraphics-owner-root *::before,
+.argraphics-owner-root *::after { min-width: 0; }
+.owner-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  border-right: 1px solid hsl(var(--border) / .72);
+}
+.owner-mark { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.owner-nav-link { border: 1px solid transparent; }
+.owner-nav-link:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.owner-nav-link[aria-current="page"] { color: hsl(var(--foreground)); }
+.owner-nav-link[aria-current="page"]:hover { background: transparent; }
+/* Sliding active indicators (250ms): sidebar moves vertically, tab bar horizontally. */
+.owner-nav-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2.75rem;
+  border-radius: .75rem;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  transform: translateY(calc(var(--index) * (2.75rem + .25rem)));
+  transition: transform 250ms cubic-bezier(.3,.7,.2,1), opacity 150ms ease;
+  pointer-events: none;
+}
+.owner-tab-indicator {
+  position: absolute;
+  top: 0;
+  left: .25rem;
+  width: calc((100% - .5rem) / 4);
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: hsl(var(--foreground));
+  transform: translateX(calc(var(--index) * 100%));
+  transition: transform 250ms cubic-bezier(.3,.7,.2,1), opacity 150ms ease;
+}
+.owner-tab-icon-active { color: hsl(var(--foreground)); }
+.pa-menu {
+  z-index: 70;
+  min-width: 15rem;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  padding: .375rem;
+  animation: pa-fade 150ms ease both;
+}
+.pa-menu-item {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: .625rem;
+  border-radius: .625rem;
+  padding: 0 .75rem;
+  font-size: .875rem;
+  cursor: pointer;
+  outline: none;
+}
+.pa-menu-item[data-highlighted] { background: hsl(var(--muted)); }
+.pa-menu-item[data-disabled] { opacity: .5; }
+@media (prefers-reduced-motion: reduce) {
+  .owner-nav-indicator, .owner-tab-indicator { transition: opacity 150ms ease !important; }
+}
+.owner-topbar {
+  border-color: hsl(var(--border) / .7);
+  background: hsl(var(--background) / .88);
+}
+.owner-main { isolation: isolate; }
+/* Named spacing tokens must not shrink Tailwind's container widths. */
+.argraphics-owner-root .max-w-sm { max-width: 24rem; }
+.argraphics-owner-root .max-w-md { max-width: 28rem; }
+.argraphics-owner-root .max-w-lg { max-width: 32rem; }
+.argraphics-owner-root .max-w-xl { max-width: 36rem; }
+.argraphics-owner-root .max-w-2xl { max-width: 42rem; }
+.argraphics-owner-root .max-w-3xl { max-width: 48rem; }
+.argraphics-owner-root [data-testid^="toggle-available-"]::before { content: ""; position: absolute; inset: -.5rem 0; }
+.argraphics-owner-root .serif { letter-spacing: -.035em; }
+.argraphics-owner-root h1 { line-height: 1.08; }
+.argraphics-owner-root button,
+.argraphics-owner-root a,
+.argraphics-owner-root input,
+.argraphics-owner-root select,
+.argraphics-owner-root textarea { transition: color .16s ease, background-color .16s ease, border-color .16s ease, transform .16s ease; }
+.argraphics-owner-root button:disabled { cursor: not-allowed; }
+.argraphics-owner-root [data-testid="button-add-drink"],
+.argraphics-owner-root [data-testid="button-add-first-drink"] { box-shadow: none; }
+.owner-mobile-nav {
+  padding-bottom: max(env(safe-area-inset-bottom), .25rem);
+}
+.argraphics-owner-root [data-testid^="row-drink-"] { min-width: 0; }
+.argraphics-owner-root [data-testid^="row-drink-"] > :first-child { min-width: 0; }
+.argraphics-owner-root [role="dialog"] { max-height: min(92dvh, 760px); overflow-y: auto; }
+.argraphics-owner-root input:focus-visible,
+.argraphics-owner-root textarea:focus-visible,
+.argraphics-owner-root select:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.argraphics-owner-root .owner-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: hsl(var(--card));
+}
+.owner-drink-grid { grid-template-columns: minmax(0, 1fr) auto; }
+@media (min-width: 640px) {
+  .owner-drink-grid { grid-template-columns: minmax(0, 1.65fr) minmax(70px, .7fr) 78px minmax(100px, .75fr) 40px; }
+}
+.owner-drinks-page [data-testid^="row-drink-"] { background: hsl(var(--card)); }
+.owner-drinks-page [data-testid^="row-drink-"]:hover { background: hsl(var(--secondary) / .34); }
+.owner-drinks-page [data-testid^="filter-category-"] { border: 1px solid transparent; }
+.owner-drinks-page [data-testid^="filter-category-"]:hover { border-color: hsl(var(--border)); }
+.owner-drinks-page [data-testid^="button-more-"] { border: 1px solid hsl(var(--border)); }
+.owner-drinks-page [role="dialog"] { border-radius: 1.25rem; }
+.owner-drinks-page .last-call { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+/* Dense dashboard-like rows stay usable without horizontal scrolling. */
+@media (min-width: 640px) and (max-width: 980px) {
+  .owner-drink-grid { grid-template-columns: minmax(0, 1.35fr) minmax(58px, .58fr) 64px minmax(92px, .75fr) 36px; gap: .5rem; }
+  .owner-drink-grid > :first-child { gap: .55rem; }
+  .owner-drink-grid > :first-child > div:first-child { width: 2.5rem; height: 2.5rem; }
+  .owner-drinks-page [data-testid^="row-drink-"] { padding-left: .75rem; padding-right: .75rem; }
+}
+@media (max-width: 767px) {
+  .owner-topbar { height: 60px; }
+  .owner-main { padding-top: 1.5rem; }
+  .argraphics-owner-root h1.serif { font-size: clamp(2.15rem, 9vw, 3rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .argraphics-owner-root *,
+  .argraphics-owner-root *::before,
+  .argraphics-owner-root *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+
+/* Partner App building blocks */
+.owner-hero-cta { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.owner-hero-cta:hover { background: hsl(var(--primary-hover)); }
+.owner-stat {
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: hsl(var(--card));
+}
+.owner-chip-icon {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: .5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+.owner-bar-fill { background: hsl(var(--muted-foreground)); }
+.owner-bar-fill.is-accent { background: hsl(var(--primary)); }
+.owner-live-dot { background: #22C55E; }

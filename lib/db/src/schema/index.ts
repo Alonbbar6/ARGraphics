@@ -17,6 +17,6 @@
 //   export type InsertPost = z.infer<typeof insertPostSchema>;
 //   export type Post = typeof postsTable.$inferSelect;
 
-export * from "./garnish";
+export * from "./argraphics";
 export * from "./photo-cleanups";
 export * from "./photo-cleanup-limits";

@@ -24,6 +24,11 @@ export interface PublicDisplay {
   modelUsdzUrl: string | null;
   /** @nullable */
   modelGlbUrl: string | null;
+  /**
+     * Real-world height in centimetres to render the model at; null means the app default.
+     * @nullable
+     */
+  modelHeightCm: number | null;
   /** @nullable */
   price: string | null;
   offer: PublicOffer | null;

@@ -60,4 +60,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-PASSWORD_RESET_FROM = "Garnish <no-reply@promptlingo.ai>"
+PASSWORD_RESET_FROM = "ARGraphics <no-reply@promptlingo.ai>"

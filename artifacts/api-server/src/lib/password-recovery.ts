@@ -84,8 +84,8 @@ export async function sendResetEmail(email: string, token: string) {
     signal: AbortSignal.timeout(3000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      from, to: [email], subject: "Reset your Garnish password",
-      text: `Reset your Garnish password:\n\n${link.href}\n\nThis link expires in 30 minutes and can be used once. Requesting another link replaces this one. If you did not request a reset, ignore this email; your password has not changed.`,
+      from, to: [email], subject: "Reset your ARGraphics password",
+      text: `Reset your ARGraphics password:\n\n${link.href}\n\nThis link expires in 30 minutes and can be used once. Requesting another link replaces this one. If you did not request a reset, ignore this email; your password has not changed.`,
     }),
   });
   if (!response.ok) throw new Error(`Reset email provider returned HTTP ${response.status}.`);

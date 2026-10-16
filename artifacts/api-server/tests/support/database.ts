@@ -23,13 +23,13 @@ export async function resetDatabase() {
   await client.exec("TRUNCATE bars CASCADE");
   await client.exec("TRUNCATE recovery_rate_limits");
   await db.insert(schema.barsTable).values([
-    { id: "garnish-demo-bar", name: "Fixture Bar", slug: "demo-bar" },
+    { id: "argraphics-demo-bar", name: "Fixture Bar", slug: "demo-bar" },
     { id: "other-bar", name: "Other Fixture Bar", slug: "other-bar" },
   ]);
   await db.insert(schema.usersTable).values([
     {
-      id: "owner", barId: "garnish-demo-bar", name: "Fixture Owner",
-      email: "demo@garnish.app", passwordHash: bcrypt.hashSync("fixture-password", 4),
+      id: "owner", barId: "argraphics-demo-bar", name: "Fixture Owner",
+      email: "demo@argraphics.app", passwordHash: bcrypt.hashSync("fixture-password", 4),
     },
     {
       id: "other-owner", barId: "other-bar", name: "Other Owner",
@@ -37,11 +37,11 @@ export async function resetDatabase() {
     },
   ]);
   await db.insert(schema.drinksTable).values([
-    { id: "fixture-drink", barId: "garnish-demo-bar", name: "Fixture Drink", isPublished: true },
+    { id: "fixture-drink", barId: "argraphics-demo-bar", name: "Fixture Drink", isPublished: true },
     { id: "other-drink", barId: "other-bar", name: "Other Drink", isPublished: true },
   ]);
   await db.insert(schema.menuVersionTable).values([
-    { barId: "garnish-demo-bar", version: 1 },
+    { barId: "argraphics-demo-bar", version: 1 },
     { barId: "other-bar", version: 1 },
   ]);
 }

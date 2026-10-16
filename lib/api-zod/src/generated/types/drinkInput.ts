@@ -17,4 +17,10 @@ export interface DrinkInput {
   /** @minimum 0 */
   priceCents: number;
   category: DrinkInputCategory;
+  /**
+     * @minimum 1
+     * @maximum 500
+     * @nullable
+     */
+  realHeightCm?: number | null;
 }

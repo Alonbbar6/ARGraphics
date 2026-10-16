@@ -63,7 +63,7 @@ struct ScanLinkTests {
         "argraphics://other/k7m2qx9a",
         "argraphics://s/",
         "argraphics://s/k7m2qx9a/extra",
-        "garnish://bar/casa-marisol",
+        "argraphics://bar/casa-marisol",
         "ftp://example.com/s/k7m2qx9a",
         "javascript:alert(1)",
         "file:///s/k7m2qx9a",

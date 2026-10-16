@@ -1266,7 +1266,10 @@ components:
         modelUsdzUrl: { type: ["string", "null"], format: uri }
         generationError: { type: ["string", "null"] }
         updatedAt: { type: string, format: date-time }
-      required: [id, name, description, priceCents, category, isAvailable, isPublished, sortOrder, thumbnailUrl, generationStatus, generationProgress, modelGlbUrl, modelUsdzUrl, generationError, updatedAt]
+        realHeightCm:
+          type: ["number", "null"]
+          description: Real-world height in centimetres the AR app renders this model at; null uses the app default.
+      required: [id, name, description, priceCents, category, isAvailable, isPublished, sortOrder, thumbnailUrl, generationStatus, generationProgress, modelGlbUrl, modelUsdzUrl, generationError, updatedAt, realHeightCm]
     DrinkPhotoUploadInput:
       type: object
       properties:
@@ -1310,7 +1313,8 @@ components:
         name: { type: string, minLength: 1, maxLength: 80 }
         description: { type: string }
         priceCents: { type: integer, minimum: 0 }
-        category: { type: string, enum: [signature, classic, seasonal, beer, wine, zero-proof] }
+        category: { type: string, enum: [signature, classic, seasonal, beer, wine, zero-proof, dish, figure, art, object] }
+        realHeightCm: { type: ["number", "null"], minimum: 1, maximum: 500 }
       required: [name, description, priceCents, category]
     DrinkUpdate:
       type: object
@@ -1318,7 +1322,8 @@ components:
         name: { type: string, minLength: 1, maxLength: 80 }
         description: { type: string }
         priceCents: { type: integer, minimum: 0 }
-        category: { type: string, enum: [signature, classic, seasonal, beer, wine, zero-proof] }
+        category: { type: string, enum: [signature, classic, seasonal, beer, wine, zero-proof, dish, figure, art, object] }
+        realHeightCm: { type: ["number", "null"], minimum: 1, maximum: 500 }
         isAvailable: { type: boolean }
         isPublished: { type: boolean }
         sortOrder: { type: integer }
@@ -1719,6 +1724,9 @@ components:
         thumbnailUrl: { type: ["string", "null"] }
         modelUsdzUrl: { type: ["string", "null"] }
         modelGlbUrl: { type: ["string", "null"] }
+        modelHeightCm:
+          type: ["number", "null"]
+          description: Real-world height in centimetres to render the model at; null means the app default.
         price: { type: ["string", "null"] }
         offer:
           oneOf:
@@ -1729,7 +1737,7 @@ components:
           oneOf:
             - $ref: "#/components/schemas/PublicArtistCredit"
             - type: "null"
-      required: [id, type, placement, title, description, mediaUrl, thumbnailUrl, modelUsdzUrl, modelGlbUrl, price, offer, eventStartsAt, artist]
+      required: [id, type, placement, title, description, mediaUrl, thumbnailUrl, modelUsdzUrl, modelGlbUrl, price, offer, eventStartsAt, artist, modelHeightCm]
     PublicSpot:
       type: object
       properties:

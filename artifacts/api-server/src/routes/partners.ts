@@ -36,7 +36,7 @@ import { InvalidArtworkError, MAX_ARTWORK_BYTES, validateRasterImage } from "../
 import {
   countBy, dailySeries, heatmap, isValidTimeZone, newQrCode, rangeBounds, safeTimeZone, totals, type TrafficRange,
 } from "../lib/traffic";
-import { currentUser, isUniqueViolation, partnerKind, publicAssetUrl } from "./garnish";
+import { currentUser, isUniqueViolation, partnerKind, publicAssetUrl } from "./argraphics";
 
 const router: IRouter = Router();
 const storage = new ObjectStorageService();
@@ -272,7 +272,8 @@ router.post("/displays", async (req, res): Promise<void> => {
   let mediaPath: string | null = null;
   let committed = false;
   try {
-    const drinkId = await ownedDrink(bar.id, input.type === "menu_item" ? input.drinkId : null);
+    // Any display may show a 3D library model; menu items must (see checkDisplayRules).
+    const drinkId = await ownedDrink(bar.id, input.drinkId);
     const artist = await artistBySlug(input.artistSlug);
     const values = {
       id: randomUUID(),

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ARGraphics"
+description = "A mobile-first dashboard for independent cocktail bars to manage drink menus, prices, table cards, and 3D menu publishing for their iOS app."
+version = "1.0.0"
+id = "artifacts/argraphics"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22674
+
+[services.development]
+run = "pnpm --filter @workspace/argraphics run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/argraphics", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/argraphics/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22674"
+BASE_PATH = "/"

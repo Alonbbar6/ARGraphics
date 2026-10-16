@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "ARGraphics Guest",
+    "slug": "argraphics-expo-guest",
+    "scheme": "argraphics",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B0B14",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan ARGraphics QR codes at your table."
+      }
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-status-bar",
+      ["expo-camera", { "cameraPermission": "Scan ARGraphics QR codes at your table." }]
+    ]
+  }
+}

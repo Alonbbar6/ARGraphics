@@ -21,7 +21,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import {
   CLAIM_VALID_MS, distanceMeters, localParts, newConfirmationCode, priceLabel, safeTimeZone, visitorHash,
 } from "../lib/traffic";
-import { isUniqueViolation, partnerKind, publicAssetUrl, rateLimitIos, requireIosKey } from "./garnish";
+import { isUniqueViolation, partnerKind, publicAssetUrl, rateLimitIos, requireIosKey } from "./argraphics";
 
 const router: IRouter = Router();
 const storage = new ObjectStorageService();
@@ -77,7 +77,9 @@ async function publicDisplays(req: Request, rows: DisplayRow[]) {
       thumbnailUrl: drink ? publicAssetUrl(req, drink.thumbnailUrl) : null,
       modelUsdzUrl: drink ? publicAssetUrl(req, drink.modelUsdzUrl) : null,
       modelGlbUrl: drink ? publicAssetUrl(req, drink.modelGlbUrl) : null,
-      price: drink ? priceLabel(drink.priceCents) : null,
+      modelHeightCm: drink?.realHeightCm ?? null,
+      // A library model on an art piece or event is decor, not something to order.
+      price: drink && row.type === "menu_item" ? priceLabel(drink.priceCents) : null,
       // An ended offer is simply no longer shown.
       offer: offerIsOpen(row, now)
         ? { title: row.offerTitle as string, details: row.offerDetails ?? "", endsAt: row.offerEndsAt }

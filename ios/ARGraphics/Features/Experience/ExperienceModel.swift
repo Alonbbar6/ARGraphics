@@ -13,11 +13,15 @@ enum ExperienceContent: Equatable {
     case none
 
     init(display: PublicDisplay) {
+        // Any display may carry a model from the venue's 3D library (a dish, a sculpture,
+        // a mascot); standing in the room beats a flat picture.
+        if let model = display.modelURL {
+            self = .model(model)
+            return
+        }
         switch display.type {
         case .menuItem:
-            if let model = display.modelURL {
-                self = .model(model)
-            } else if let image = display.mediaURL ?? display.thumbnailURL {
+            if let image = display.mediaURL ?? display.thumbnailURL {
                 self = .panel(image, framed: false)
             } else {
                 self = .none
@@ -31,6 +35,11 @@ enum ExperienceContent: Equatable {
         case .eventTeaser, .promoOffer, .unknown:
             self = display.mediaURL.map { .panel($0, framed: false) } ?? .none
         }
+    }
+
+    var isModel: Bool {
+        if case .model = self { return true }
+        return false
     }
 }
 
@@ -207,6 +216,17 @@ enum ModelPreparation {
         )
         addGroundingShadow(to: entity)
         return container
+    }
+
+    /// Loops any animation baked into the model (a waving mascot, a pouring bottle).
+    /// Call once the container is in a scene; static models are left alone.
+    static func playBakedAnimations(in container: Entity) {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        for child in container.children {
+            for animation in child.availableAnimations {
+                child.playAnimation(animation.repeat(), transitionDuration: 0.3, startsPaused: false)
+            }
+        }
     }
 
     private static func addGroundingShadow(to entity: Entity) {

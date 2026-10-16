@@ -17,6 +17,12 @@ export interface DrinkUpdate {
   /** @minimum 0 */
   priceCents?: number;
   category?: DrinkUpdateCategory;
+  /**
+     * @minimum 1
+     * @maximum 500
+     * @nullable
+     */
+  realHeightCm?: number | null;
   isAvailable?: boolean;
   isPublished?: boolean;
   sortOrder?: number;

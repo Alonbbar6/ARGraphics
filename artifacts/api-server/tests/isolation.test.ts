@@ -281,7 +281,7 @@ test("owners cannot inspect another bar's generation state, photos, or request a
 test("signed-out and forged-cookie requests cannot access owner routes or mutate data", async () => {
   const beforeDrinks = await db.select().from(drinksTable);
   const id = owners[0].drinks[0];
-  for (const cookie of [undefined, "garnish_session=forged.invalid"]) {
+  for (const cookie of [undefined, "argraphics_session=forged.invalid"]) {
     for (const [path, method, body] of [
       ["/drinks", "GET", undefined],
       ["/insights", "GET", undefined],

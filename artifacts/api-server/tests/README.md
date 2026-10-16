@@ -10,7 +10,7 @@ Or run each suite separately:
 
 ```sh
 pnpm --filter @workspace/api-server test
-pnpm --filter @workspace/garnish test
+pnpm --filter @workspace/argraphics test
 pnpm --filter @workspace/api-server typecheck:tests
 ```
 
@@ -179,7 +179,7 @@ safety rules without any provider calls.
 ## Table-card and iOS regressions
 
 Run `pnpm --filter @workspace/api-server test:unit` for the API unit suite,
-`pnpm --filter @workspace/garnish test` for the PDF print suite, and
+`pnpm --filter @workspace/argraphics test` for the PDF print suite, and
 `pnpm --filter @workspace/api-server typecheck:tests` to check all API tests.
 
 The table-card/iOS suite sends HTTP requests through the production Express app,

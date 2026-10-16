@@ -19,7 +19,7 @@ vi.mock("node:timers/promises", () => ({
   setTimeout: vi.fn().mockResolvedValue(undefined),
 }));
 
-const email = "demo@garnish.app";
+const email = "demo@argraphics.app";
 const newPassword = "Recovery-test-new-2026!";
 
 async function ownerRecord() {
@@ -38,8 +38,8 @@ const confirm = (token: string, password = newPassword) =>
   request(app).post("/api/auth/password-reset/confirm").send({ token, password });
 
 beforeEach(() => {
-  vi.stubEnv("PASSWORD_RESET_FROM", "Garnish <sender@example.test>");
-  vi.stubEnv("PASSWORD_RESET_APP_URL", "https://garnish.example.test/base");
+  vi.stubEnv("PASSWORD_RESET_FROM", "ARGraphics <sender@example.test>");
+  vi.stubEnv("PASSWORD_RESET_APP_URL", "https://argraphics.example.test/base");
   mail.send.mockReset().mockResolvedValue(new Response(JSON.stringify({ id: "fixture-email" }), { status: 200 }));
 });
 
@@ -51,7 +51,7 @@ describe("owner password recovery", () => {
     expect(known.body).toEqual({ message: expect.stringContaining("If an account exists") });
     expect(mail.send).toHaveBeenCalledOnce();
     const link = deliveredLink();
-    expect(link.origin).toBe("https://garnish.example.test");
+    expect(link.origin).toBe("https://argraphics.example.test");
     expect(link.pathname).toBe("/base/reset-password");
     expect(link.search).toBe("");
     const token = deliveredToken();

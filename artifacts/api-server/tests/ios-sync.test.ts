@@ -84,7 +84,7 @@ describe("iOS key protection and sync", () => {
 
   it("returns the documented populated menu with numeric cents, string prices, dates, and nullable assets", async () => {
     await db.update(schema.barsTable).set({ logoUrl: "https://assets.example.test/logo.png" })
-      .where(eq(schema.barsTable.id, "garnish-demo-bar"));
+      .where(eq(schema.barsTable.id, "argraphics-demo-bar"));
     await db.update(schema.drinksTable).set({
       description: "Fixture description", priceCents: 1250, category: "seasonal",
       thumbnailUrl: "/public-objects/drink.png",
@@ -92,7 +92,7 @@ describe("iOS key protection and sync", () => {
       updatedAt: new Date("2026-10-14T12:00:00.000Z"),
     }).where(eq(schema.drinksTable.id, "fixture-drink"));
     await db.insert(schema.drinksTable).values({
-      id: "nullable-assets", barId: "garnish-demo-bar", name: "No assets", isPublished: true,
+      id: "nullable-assets", barId: "argraphics-demo-bar", name: "No assets", isPublished: true,
     });
     const response = await iosGet("demo-bar/menu").set("Host", "fixture.example.test").expect(200);
     expectResponseContract("getPublicMenu", 200, response.body);
@@ -113,7 +113,7 @@ describe("iOS key protection and sync", () => {
   });
 
   it("returns the documented empty menu with an explicit null logo", async () => {
-    await db.delete(schema.drinksTable).where(eq(schema.drinksTable.barId, "garnish-demo-bar"));
+    await db.delete(schema.drinksTable).where(eq(schema.drinksTable.barId, "argraphics-demo-bar"));
     const response = await iosGet("demo-bar/menu").expect(200);
     expectResponseContract("getPublicMenu", 200, response.body);
     expect(response.body).toEqual({ barName: "Fixture Bar", logoUrl: null, drinks: [] });
@@ -123,7 +123,7 @@ describe("iOS key protection and sync", () => {
     const cookie = await signIn();
     const saved = await createCard(cookie);
     await db.insert(schema.tableCardsTable).values([
-      { id: "inactive", barId: "garnish-demo-bar", name: "Inactive", referenceImageUrl: artworkPath, isActive: false },
+      { id: "inactive", barId: "argraphics-demo-bar", name: "Inactive", referenceImageUrl: artworkPath, isActive: false },
       { id: "other-card", barId: "other-bar", name: "Other", referenceImageUrl: artworkPath },
     ]);
     const response = await iosGet("demo-bar/table-cards").expect(200);
@@ -157,19 +157,19 @@ describe("iOS key protection and sync", () => {
   });
 
   it("creates a menu-version row when one did not previously exist", async () => {
-    await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     const cookie = await signIn();
     await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
     await createCard(cookie);
     await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
     expect(await db.select().from(schema.menuVersionTable)
-      .where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"))).toHaveLength(1);
+      .where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"))).toHaveLength(1);
   });
 
   it("advances the fallback version when deleting a card with no version row", async () => {
     const cookie = await signIn();
     const saved = await createCard(cookie);
-    await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
     await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
     await iosGet("demo-bar/menu-version").expect(200, { version: 2 });
@@ -178,7 +178,7 @@ describe("iOS key protection and sync", () => {
   it.each([false, true])("rolls back creation when the version write fails (missing row: %s)", async (missingRow) => {
     const cookie = await signIn();
     uploadArtwork();
-    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     await rejectVersionWrites();
     try {
       await request(app).post("/api/table-cards").set("Cookie", cookie).send(cardBody).expect(500);
@@ -197,7 +197,7 @@ describe("iOS key protection and sync", () => {
   it.each([false, true])("rolls back deletion without cleaning artwork when the version write fails (missing row: %s)", async (missingRow) => {
     const cookie = await signIn();
     const saved = await createCard(cookie);
-    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     const expectedVersion = missingRow ? 1 : 2;
     await rejectVersionWrites();
     try {
@@ -253,7 +253,7 @@ describe("iOS key protection and sync", () => {
     const cookie = await signIn();
     await db.update(schema.drinksTable).set({ modelGlbUrl: "/objects/models/previous.glb" })
       .where(eq(schema.drinksTable.id, "fixture-drink"));
-    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     const before = await db.select().from(schema.drinksTable);
     const menuBefore = (await iosGet("demo-bar/menu").set("Host", "fixture.example.test").expect(200)).body;
     await rejectVersionWrites();
@@ -275,7 +275,7 @@ describe("iOS key protection and sync", () => {
 
   it.each([false, true])("rolls back drink deletion on version failure and allows retry (missing row: %s)", async (missingRow) => {
     const cookie = await signIn();
-    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     const before = await db.select().from(schema.drinksTable);
     await rejectVersionWrites();
     try {
@@ -297,7 +297,7 @@ describe("iOS key protection and sync", () => {
   it.each([false, true])("keeps a published drink visible when regeneration's version write fails (missing row: %s)", async (missingRow) => {
     const cookie = await signIn();
     const { body, fetchMock, taskId } = await prepareGeneration();
-    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    if (missingRow) await db.delete(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     await rejectVersionWrites();
     try {
       const response = await request(app).post("/api/drinks/fixture-drink/generation")
@@ -365,7 +365,7 @@ describe("iOS key protection and sync", () => {
     await event({ drinkId: "fixture-drink", eventType }).expect(201, { message: "Event recorded." });
     const rows = await db.select().from(schema.arEventsTable);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ barId: "garnish-demo-bar", drinkId: "fixture-drink", eventType });
+    expect(rows[0]).toMatchObject({ barId: "argraphics-demo-bar", drinkId: "fixture-drink", eventType });
     await iosGet("demo-bar/menu-version").expect(200, { version: 1 });
   });
 

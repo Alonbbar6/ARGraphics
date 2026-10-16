@@ -69,7 +69,7 @@ router.post("/auth/password-reset/confirm", async (req, res): Promise<void> => {
     res.status(400).json({ error: invalidResetMessage });
     return;
   }
-  res.setHeader("Set-Cookie", `garnish_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+  res.setHeader("Set-Cookie", `argraphics_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
   res.json(ConfirmPasswordResetResponse.parse({ message: "Password updated. Sign in with your new password." }));
 });
 

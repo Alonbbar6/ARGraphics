@@ -137,7 +137,8 @@ export const ListDrinksResponseItem = zod.object({
   "modelGlbUrl": zod.string().url().nullable(),
   "modelUsdzUrl": zod.string().url().nullable(),
   "generationError": zod.string().nullable(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.')
 })
 export const ListDrinksResponse = zod.array(ListDrinksResponseItem)
 
@@ -146,13 +147,16 @@ export const createDrinkBodyNameMax = 80;
 
 export const createDrinkBodyPriceCentsMin = 0;
 
+export const createDrinkBodyRealHeightCmMax = 500;
+
 
 
 export const CreateDrinkBody = zod.object({
   "name": zod.string().min(1).max(createDrinkBodyNameMax),
   "description": zod.string(),
   "priceCents": zod.number().int().min(createDrinkBodyPriceCentsMin),
-  "category": zod.enum(['signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof'])
+  "category": zod.enum(['signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof', 'dish', 'figure', 'art', 'object']),
+  "realHeightCm": zod.number().min(1).max(createDrinkBodyRealHeightCmMax).nullish()
 })
 
 export const CreateDrinkResponse = zod.object({
@@ -170,7 +174,8 @@ export const CreateDrinkResponse = zod.object({
   "modelGlbUrl": zod.string().url().nullable(),
   "modelUsdzUrl": zod.string().url().nullable(),
   "generationError": zod.string().nullable(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.')
 })
 
 
@@ -182,13 +187,16 @@ export const updateDrinkBodyNameMax = 80;
 
 export const updateDrinkBodyPriceCentsMin = 0;
 
+export const updateDrinkBodyRealHeightCmMax = 500;
+
 
 
 export const UpdateDrinkBody = zod.object({
   "name": zod.string().min(1).max(updateDrinkBodyNameMax).optional(),
   "description": zod.string().optional(),
   "priceCents": zod.number().int().min(updateDrinkBodyPriceCentsMin).optional(),
-  "category": zod.enum(['signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof']).optional(),
+  "category": zod.enum(['signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof', 'dish', 'figure', 'art', 'object']).optional(),
+  "realHeightCm": zod.number().min(1).max(updateDrinkBodyRealHeightCmMax).nullish(),
   "isAvailable": zod.boolean().optional(),
   "isPublished": zod.boolean().optional(),
   "sortOrder": zod.number().int().optional()
@@ -209,7 +217,8 @@ export const UpdateDrinkResponse = zod.object({
   "modelGlbUrl": zod.string().url().nullable(),
   "modelUsdzUrl": zod.string().url().nullable(),
   "generationError": zod.string().nullable(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.')
 })
 
 
@@ -1104,6 +1113,7 @@ export const CreatePublicScanResponse = zod.object({
   "thumbnailUrl": zod.string().nullable(),
   "modelUsdzUrl": zod.string().nullable(),
   "modelGlbUrl": zod.string().nullable(),
+  "modelHeightCm": zod.number().nullable().describe('Real-world height in centimetres to render the model at; null means the app default.'),
   "price": zod.string().nullable(),
   "offer": zod.union([zod.object({
   "title": zod.string(),
@@ -1127,6 +1137,7 @@ export const CreatePublicScanResponse = zod.object({
   "thumbnailUrl": zod.string().nullable(),
   "modelUsdzUrl": zod.string().nullable(),
   "modelGlbUrl": zod.string().nullable(),
+  "modelHeightCm": zod.number().nullable().describe('Real-world height in centimetres to render the model at; null means the app default.'),
   "price": zod.string().nullable(),
   "offer": zod.union([zod.object({
   "title": zod.string(),
@@ -1175,6 +1186,7 @@ export const GetPublicVenueResponse = zod.object({
   "thumbnailUrl": zod.string().nullable(),
   "modelUsdzUrl": zod.string().nullable(),
   "modelGlbUrl": zod.string().nullable(),
+  "modelHeightCm": zod.number().nullable().describe('Real-world height in centimetres to render the model at; null means the app default.'),
   "price": zod.string().nullable(),
   "offer": zod.union([zod.object({
   "title": zod.string(),

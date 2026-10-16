@@ -29,7 +29,8 @@ app.use(
 app.use(cors({
   origin: true,
   allowedHeaders: ["Content-Type", "x-api-key"],
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  // PUT: local-storage uploads when the dashboard and storage URLs use different hosts.
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

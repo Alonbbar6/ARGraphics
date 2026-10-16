@@ -133,7 +133,7 @@ it.each(["owner", "other-owner"] as const)(
   },
 );
 
-async function signIn(email = "demo@garnish.app") {
+async function signIn(email = "demo@argraphics.app") {
   const response = await request(app).post("/api/auth/login")
     .send({ email, password: "fixture-password" }).expect(200);
   return (response.headers["set-cookie"] as unknown as string[])[0].split(";")[0];
@@ -193,7 +193,7 @@ it("stores real private cutouts, recovers interrupted metadata, and finishes dis
       .png().toBuffer();
     mocks.edit.mockResolvedValue({ data: [{ b64_json: cleaned.toString("base64") }] });
     const [drinkBefore] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
-    const [menuBefore] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const [menuBefore] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
   await request(app).post(endpoint).type("jpeg").send(input).expect(401);
   await request(app).get(endpoint).expect(401);
   await request(app).get(endpoint).set("Cookie", other).expect(404);
@@ -318,7 +318,7 @@ it("stores real private cutouts, recovers interrupted metadata, and finishes dis
   }
   // Private drafts must not publish anything or start a 3D generation.
     const [drinkAfter] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
-    const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
   expect(drinkAfter).toEqual(drinkBefore);
   expect(menuAfter).toEqual(menuBefore);
 });
@@ -338,7 +338,7 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement", "ac
       .png().toBuffer();
     mocks.edit.mockResolvedValue({ data: [{ b64_json: cleaned.toString("base64") }] });
     const [drinkBefore] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
-    const [menuBefore] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const [menuBefore] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
 
     // Wrap the provider methods called by the real savePrivateImage, not a
     // replacement storage implementation. The source write is never faulted.
@@ -453,7 +453,7 @@ it.each(["write-acknowledgement", "acl-before-write", "acl-acknowledgement", "ac
     }
     expect(mocks.edit).toHaveBeenCalledTimes(1);
     const [drinkAfter] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
-    const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "garnish-demo-bar"));
+    const [menuAfter] = await db.select().from(schema.menuVersionTable).where(eq(schema.menuVersionTable.barId, "argraphics-demo-bar"));
     expect(drinkAfter).toEqual(drinkBefore);
     expect(menuAfter).toEqual(menuBefore);
 

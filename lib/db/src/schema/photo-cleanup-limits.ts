@@ -1,6 +1,6 @@
 import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { usersTable } from "./garnish";
+import { usersTable } from "./argraphics";
 
 // One bounded row per owner. Attempts survive lease release and server restarts.
 export const photoCleanupLimitsTable = pgTable("photo_cleanup_limits", {

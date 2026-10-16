@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { barsTable, db, displaysTable, qrCodesTable, usersTable } from "@workspace/db";
+import { localTimeOn, safeTimeZone } from "./traffic";
 
 /**
  * Development-only demo partners: profile details, displays and placed codes so the
@@ -31,11 +32,11 @@ export async function seedDemoPartners(demoBarId: string) {
     },
   ]).onConflictDoNothing();
   const [artistUser] = await db.select({ id: usersTable.id }).from(usersTable)
-    .where(eq(usersTable.email, "demo-artist@garnish.app")).limit(1);
+    .where(eq(usersTable.email, "demo-artist@argraphics.app")).limit(1);
   if (!artistUser) {
     await db.insert(usersTable).values({
-      id: "demo-artist-user", barId: "demo-artist", email: "demo-artist@garnish.app",
-      passwordHash: await bcrypt.hash("Garnish-demo-2026!", 12), name: "Ana Ruiz",
+      id: "demo-artist-user", barId: "demo-artist", email: "demo-artist@argraphics.app",
+      passwordHash: await bcrypt.hash("ARGraphics-demo-2026!", 12), name: "Ana Ruiz",
     }).onConflictDoNothing();
   }
   await db.insert(displaysTable).values([
@@ -55,7 +56,8 @@ export async function seedDemoPartners(demoBarId: string) {
     {
       id: "demo-display-mural-night", barId: demoBarId, type: "event_teaser", placement: "poster", status: "draft",
       title: "Mural night with Ana Ruiz", description: "Live painting, two-for-one spritzes.",
-      eventStartsAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000),
+      // A scheduled evening start (8:00 PM at the bar), not whatever time the seed happened to run.
+      eventStartsAt: localTimeOn(6, 20, 0, safeTimeZone(demo.timezone)),
     },
     {
       id: "demo-neighbor-tacos", barId: "demo-neighbor", type: "promo_offer", placement: "window", status: "live",

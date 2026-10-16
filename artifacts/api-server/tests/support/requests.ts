@@ -5,7 +5,7 @@ import { artworkPath, uploadArtwork } from "./storage";
 export const iosKey = "ios-regression-fixture-key";
 export const cardBody = { name: "Front table", objectPath: artworkPath, physicalWidthCm: 12.5 };
 
-export async function signIn(email = "demo@garnish.app") {
+export async function signIn(email = "demo@argraphics.app") {
   const response = await request(app).post("/api/auth/login")
     .send({ email, password: "fixture-password" }).expect(200);
   const cookies = response.headers["set-cookie"] as unknown as string[];

@@ -44,6 +44,32 @@ struct ModelDecodingTests {
         #expect(event.placement == .poster)
     }
 
+    @Test func modelHeight() throws {
+        // Older servers omit the field entirely.
+        let legacy = try decode(PublicDisplay.self, Fixtures.menuDisplay)
+        #expect(legacy.modelHeightCm == nil)
+        #expect(legacy.modelHeight == nil)
+
+        let sized = try decode(PublicDisplay.self, Fixtures.menuDisplay.replacingOccurrences(
+            of: "\"price\":\"$14.00\"", with: "\"modelHeightCm\":12,\"price\":\"$14.00\""))
+        #expect(sized.modelHeight == 0.12)
+
+        let bogus = try decode(PublicDisplay.self, Fixtures.menuDisplay.replacingOccurrences(
+            of: "\"price\":\"$14.00\"", with: "\"modelHeightCm\":0,\"price\":\"$14.00\""))
+        #expect(bogus.modelHeight == nil)
+    }
+
+    @Test func anyDisplayWithAModelStandsInTheRoom() throws {
+        let sculpture = try decode(PublicDisplay.self, Fixtures.artDisplay.replacingOccurrences(
+            of: "\"modelUsdzUrl\":null", with: "\"modelUsdzUrl\":\"https://h.example/s.usdz\""))
+        #expect(ExperienceContent(display: sculpture) == .model(URL(string: "https://h.example/s.usdz")!))
+        #expect(ExperienceContent(display: sculpture).isModel)
+
+        // Without a model, art still hangs framed.
+        let art = try decode(PublicDisplay.self, Fixtures.artDisplay)
+        #expect(ExperienceContent(display: art) == .panel(URL(string: "https://h.example/api/storage/public-objects/bloom.webp")!, framed: true))
+    }
+
     @Test func unknownEnumValuesDoNotBreakDecoding() throws {
         let json = Fixtures.offerDisplay
             .replacingOccurrences(of: "\"promo_offer\"", with: "\"hologram\"")

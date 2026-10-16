@@ -1,7 +1,7 @@
 import { pgTable, text, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { usersTable, drinksTable } from "./garnish";
+import { usersTable, drinksTable } from "./argraphics";
 
 export const photoCleanupsTable = pgTable("photo_cleanups", {
   id: text("id").primaryKey(),

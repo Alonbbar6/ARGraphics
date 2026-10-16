@@ -39,7 +39,7 @@ function signedLifetime(rawURL: string) {
 
 it("uses real private storage for supported PUTs, owner/iOS reads, CORS, expiry, and scoped cleanup", async () => {
   const storage = new ObjectStorageService();
-  const owner = await signIn("demo@garnish.app");
+  const owner = await signIn("demo@argraphics.app");
   const other = await signIn("other@example.test");
   await request(app).post("/api/storage/uploads/request-url")
     .send({ name: "anonymous.png", contentType: "image/png", size: 1 }).expect(401);

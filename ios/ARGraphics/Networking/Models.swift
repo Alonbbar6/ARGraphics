@@ -96,6 +96,8 @@ struct PublicDisplay: Codable, Hashable, Identifiable {
     let thumbnailUrl: String?
     let modelUsdzUrl: String?
     let modelGlbUrl: String?
+    /// Real-world height chosen by the venue; older servers omit it (decodes as nil).
+    var modelHeightCm: Double? = nil
     let price: String?
     let offer: PublicOffer?
     let eventStartsAt: Date?
@@ -105,6 +107,8 @@ struct PublicDisplay: Codable, Hashable, Identifiable {
     var thumbnailURL: URL? { MediaURL.parse(thumbnailUrl) }
     /// ARKit and RealityKit load USDZ natively; GLB is for the web viewer only.
     var modelURL: URL? { MediaURL.parse(modelUsdzUrl) }
+    /// Height to render the model at in metres, or nil for the app default.
+    var modelHeight: Float? { modelHeightCm.flatMap { $0 > 0 ? Float($0 / 100) : nil } }
 
     var typeLabel: String {
         switch type {

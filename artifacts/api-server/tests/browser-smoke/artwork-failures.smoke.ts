@@ -26,7 +26,7 @@ it.each(cases)("recovers after $stage without a false save or download", async (
     const owner = await harness.browser.newContext({ acceptDownloads: true, serviceWorkers: "block" });
     await restrictSmokeNetwork(owner, errors);
     const login = await owner.request.post(`${origin}/api/auth/login`, {
-      data: { email: "demo@garnish.app", password: "fixture-password" },
+      data: { email: "demo@argraphics.app", password: "fixture-password" },
     });
     expect(login.status()).toBe(200);
     const page = await owner.newPage();

@@ -49,7 +49,8 @@ struct ARExperienceView: UIViewRepresentable {
         private var placementTimer: Timer?
         private var loadTask: Task<Void, Never>?
 
-        private var vertical: Bool { model.placement.isVertical }
+        /// Flat art hangs on walls and windows; a 3D model always stands on a table or floor.
+        private var vertical: Bool { model.placement.isVertical && !model.content.isModel }
         private var alignment: ARRaycastQuery.TargetAlignment { vertical ? .vertical : .horizontal }
 
         init(model: ExperienceModel) {
@@ -124,7 +125,10 @@ struct ARExperienceView: UIViewRepresentable {
                     let built: ModelEntity
                     var gestures: ARView.EntityGestures = [.scale]
                     if let modelFile {
-                        built = ModelPreparation.normalizedContainer(for: try await Entity(contentsOf: modelFile))
+                        built = ModelPreparation.normalizedContainer(
+                            for: try await Entity(contentsOf: modelFile),
+                            height: self.model.display.modelHeight ?? ModelPreparation.itemHeight
+                        )
                         let extents = built.visualBounds(relativeTo: built).extents
                         self.contentSize = [max(extents.x, extents.z), extents.y]
                         gestures.insert(.rotation)
@@ -177,6 +181,7 @@ struct ARExperienceView: UIViewRepresentable {
 
             arView.scene.addAnchor(anchorEntity)
             anchor = anchorEntity
+            if model.modelFile != nil { ModelPreparation.playBakedAnimations(in: content) }
             placedOnCard = onCard
 
             if !UIAccessibility.isReduceMotionEnabled, model.phase == .finding {

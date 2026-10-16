@@ -92,7 +92,9 @@ struct ModelViewer: UIViewRepresentable {
                     let entity = try await Entity(contentsOf: file)
                     guard let self, !Task.isCancelled else { return }
                     self.turntable.children.removeAll()
-                    self.turntable.addChild(ModelPreparation.normalizedContainer(for: entity))
+                    let container = ModelPreparation.normalizedContainer(for: entity)
+                    self.turntable.addChild(container)
+                    ModelPreparation.playBakedAnimations(in: container)
                     self.frameCamera()
                 } catch {
                     self?.model.phase = .failed("This couldn't be opened here. Ask your server about it instead.")

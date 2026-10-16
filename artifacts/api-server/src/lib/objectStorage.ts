@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
 import { Readable } from 'stream';
 import { File, Storage } from '@google-cloud/storage';
 
+import { LocalFile, LocalStorage, localUrlObjectPath, signLocalUrl } from './localObjectStorage';
 import {
   canAccessObject,
   getObjectAclPolicy,
@@ -12,7 +14,27 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
 
-export const objectStorageClient = new Storage({
+/**
+ * Off Replit (a Mac, Render), set GCS_SERVICE_ACCOUNT_JSON (the key itself) or
+ * GCS_SERVICE_ACCOUNT_FILE (a path to it) to a Google Cloud service-account key;
+ * the client then authenticates and signs URLs itself.
+ * On Replit it stays unset and the sidecar provides both.
+ */
+const serviceAccountJson = process.env.GCS_SERVICE_ACCOUNT_JSON
+  || (process.env.GCS_SERVICE_ACCOUNT_FILE ? readFileSync(process.env.GCS_SERVICE_ACCOUNT_FILE, 'utf8') : undefined);
+const serviceAccount = serviceAccountJson
+  ? (JSON.parse(serviceAccountJson) as { project_id?: string; client_email: string; private_key: string })
+  : null;
+
+/** Local development: keep objects on disk instead of Google Cloud. */
+export const localStorageDir = process.env.LOCAL_STORAGE_DIR || null;
+
+export const objectStorageClient = localStorageDir
+  ? new LocalStorage(localStorageDir) as unknown as Storage
+  : serviceAccount ? new Storage({
+  credentials: { client_email: serviceAccount.client_email, private_key: serviceAccount.private_key },
+  projectId: serviceAccount.project_id,
+}) : new Storage({
   credentials: {
     audience: 'replit',
     subject_token_type: 'access_token',
@@ -188,6 +210,11 @@ export class ObjectStorageService {
     objectPath: string,
     ttlSec: number = 3600,
   ): Promise<string> {
+    if (localStorageDir) {
+      // Outside services (Meshy) cannot reach this machine; send the bytes inline.
+      const file = await this.getObjectEntityFile(objectPath);
+      return (file as unknown as LocalFile).toDataUri();
+    }
     const objectFile = await this.getObjectEntityFile(objectPath);
     const entityId = objectPath.replace(/^\/objects\//, "");
     const { bucketName, objectName } = parseObjectPath(
@@ -273,12 +300,12 @@ export class ObjectStorageService {
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
-    if (!rawPath.startsWith('https://storage.googleapis.com/')) {
+    const localPath = localUrlObjectPath(rawPath);
+    if (!localPath && !rawPath.startsWith('https://storage.googleapis.com/')) {
       return rawPath;
     }
 
-    const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
+    const rawObjectPath = localPath ?? new URL(rawPath).pathname;
 
     let objectEntityDir = this.getPrivateObjectDir();
     if (!objectEntityDir.endsWith('/')) {
@@ -356,6 +383,20 @@ async function signObjectURL({
   method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
   ttlSec: number;
 }): Promise<string> {
+  if (localStorageDir) {
+    if (method === 'HEAD') throw new Error('HEAD URLs are not supported in local storage.');
+    return signLocalUrl(bucketName, objectName, method, Date.now() + ttlSec * 1000);
+  }
+  if (serviceAccount) {
+    if (method === 'HEAD') throw new Error('HEAD URLs are not supported with a service account.');
+    const action = method === 'PUT' ? 'write' : method === 'DELETE' ? 'delete' : 'read';
+    const [url] = await objectStorageClient.bucket(bucketName).file(objectName).getSignedUrl({
+      version: 'v4',
+      action,
+      expires: Date.now() + ttlSec * 1000,
+    });
+    return url;
+  }
   const request = {
     bucket_name: bucketName,
     object_name: objectName,

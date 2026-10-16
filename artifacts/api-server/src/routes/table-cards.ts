@@ -14,7 +14,7 @@ import { db, menuVersionTable, tableCardsTable } from "@workspace/db";
 import { randomUUID } from "node:crypto";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import { InvalidArtworkError, validateTableCardArtwork } from "../lib/tableCardArtwork";
-import { currentUser } from "./garnish";
+import { currentUser } from "./argraphics";
 
 const router: IRouter = Router();
 const storage = new ObjectStorageService();

@@ -16,6 +16,7 @@ struct ExperienceScreen: View {
     @State private var showConfirmation = false
     @State private var shareMoment: ShareMoment?
     @State private var capturing = false
+    @State private var torchOn = false
     @State private var recordingStartedAt: Date?
     @State private var notice: String?
     @State private var screenHeight: CGFloat = 800
@@ -133,12 +134,19 @@ struct ExperienceScreen: View {
             Spacer()
             BrandMark(trailing: visit.venue.name).lineLimit(1)
             Spacer()
+            if model.mode == .ar, Torch.isAvailable {
+                CircleIconButton(systemImage: torchOn ? "flashlight.on.fill" : "flashlight.off.fill",
+                                 label: torchOn ? "Turn the light off" : "Turn the light on") {
+                    torchOn = Torch.set(!torchOn)
+                }
+            }
             CircleIconButton(systemImage: "square.and.arrow.up", label: "Share a photo") { Task { await sharePhoto() } }
                 .disabled(capturing || !canShare)
                 .opacity(canShare ? 1 : 0)
                 .accessibilityHidden(!canShare)
         }
         .padding(.horizontal, Spacing.m)
+        .onDisappear { if torchOn { torchOn = Torch.set(false) } }
     }
 
     private var canShare: Bool {

@@ -46,6 +46,24 @@ export function localParts(date: Date, timeZone: string) {
   };
 }
 
+/** Minutes the timezone is ahead of UTC at a given instant (negative west of Greenwich). */
+function offsetMinutes(date: Date, timeZone: string) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  const wall = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour) % 24, Number(parts.minute));
+  return Math.round((wall - date.getTime()) / 60_000);
+}
+
+/** A wall-clock time (like 8:00 PM) `daysAhead` local days from now, in the partner's timezone. */
+export function localTimeOn(daysAhead: number, hour: number, minute: number, timeZone: string, now = new Date()) {
+  const [year, month, day] = localParts(new Date(now.getTime() + daysAhead * DAY_MS), timeZone).day.split("-").map(Number);
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+  const first = guess - offsetMinutes(new Date(guess), timeZone) * 60_000;
+  // Re-check once in case the guess and the answer sit on opposite sides of a DST change.
+  return new Date(guess - offsetMinutes(new Date(first), timeZone) * 60_000);
+}
+
 export function rangeBounds(range: TrafficRange, now: Date) {
   const span = RANGE_DAYS[range] * DAY_MS;
   return { from: new Date(now.getTime() - span), to: now, previousFrom: new Date(now.getTime() - 2 * span) };

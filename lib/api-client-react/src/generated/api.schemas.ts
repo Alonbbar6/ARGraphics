@@ -127,6 +127,11 @@ export interface Drink {
   /** @nullable */
   generationError: string | null;
   updatedAt: string;
+  /**
+     * Real-world height in centimetres the AR app renders this model at; null uses the app default.
+     * @nullable
+     */
+  realHeightCm: number | null;
 }
 
 export type DrinkPhotoUploadInputKind = typeof DrinkPhotoUploadInputKind[keyof typeof DrinkPhotoUploadInputKind];
@@ -211,6 +216,10 @@ export const DrinkInputCategory = {
   beer: 'beer',
   wine: 'wine',
   'zero-proof': 'zero-proof',
+  dish: 'dish',
+  figure: 'figure',
+  art: 'art',
+  object: 'object',
 } as const;
 
 export interface DrinkInput {
@@ -223,6 +232,12 @@ export interface DrinkInput {
   /** @minimum 0 */
   priceCents: number;
   category: DrinkInputCategory;
+  /**
+     * @minimum 1
+     * @maximum 500
+     * @nullable
+     */
+  realHeightCm?: number | null;
 }
 
 export type DrinkUpdateCategory = typeof DrinkUpdateCategory[keyof typeof DrinkUpdateCategory];
@@ -235,6 +250,10 @@ export const DrinkUpdateCategory = {
   beer: 'beer',
   wine: 'wine',
   'zero-proof': 'zero-proof',
+  dish: 'dish',
+  figure: 'figure',
+  art: 'art',
+  object: 'object',
 } as const;
 
 export interface DrinkUpdate {
@@ -247,6 +266,12 @@ export interface DrinkUpdate {
   /** @minimum 0 */
   priceCents?: number;
   category?: DrinkUpdateCategory;
+  /**
+     * @minimum 1
+     * @maximum 500
+     * @nullable
+     */
+  realHeightCm?: number | null;
   isAvailable?: boolean;
   isPublished?: boolean;
   sortOrder?: number;
@@ -777,6 +802,11 @@ export interface PublicDisplay {
   modelUsdzUrl: string | null;
   /** @nullable */
   modelGlbUrl: string | null;
+  /**
+     * Real-world height in centimetres to render the model at; null means the app default.
+     * @nullable
+     */
+  modelHeightCm: number | null;
   /** @nullable */
   price: string | null;
   offer: PublicOffer | null;

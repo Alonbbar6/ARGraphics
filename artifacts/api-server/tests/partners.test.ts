@@ -168,6 +168,30 @@ describe("QR codes and the guest flow", () => {
     await request(app).patch(`/api/qr-codes/${table1.id}`).set("Cookie", cookie).send({ label: "Back" }).expect(404);
   });
 
+  it("sends any display's 3D library model to guests at its real height, without a menu price", async () => {
+    const cookie = await signIn();
+    const created = await request(app).post("/api/drinks").set("Cookie", cookie)
+      .send({ name: "Neon flamingo", description: "", priceCents: 900, category: "figure", realHeightCm: 30 }).expect(201);
+    expect(created.body.realHeightCm).toBe(30);
+    await request(app).post("/api/drinks").set("Cookie", cookie)
+      .send({ name: "Too tall", description: "", priceCents: 0, category: "figure", realHeightCm: 900 }).expect(400);
+    // Stand in for a finished Meshy build.
+    const { eq } = await import("drizzle-orm");
+    await db.update(schema.drinksTable).set({ modelUsdzUrl: "/objects/models/flamingo.usdz", modelGlbUrl: "/objects/models/flamingo.glb" })
+      .where(eq(schema.drinksTable.id, created.body.id));
+
+    const offer = await createDisplay(cookie, { status: "live", drinkId: created.body.id }).expect(201);
+    const [code] = await placeCodes(cookie, { displayId: offer.body.id });
+    const scan = await guest("post", "scans").send({ code: code.code, visitorId: visitor }).expect(200);
+    expectResponseContract("createPublicScan", 200, scan.body);
+    expect(scan.body.display).toMatchObject({
+      type: "promo_offer",
+      modelUsdzUrl: expect.stringMatching(/\/api\/storage\/public-objects\/objects\/models\/flamingo\.usdz$/),
+      modelHeightCm: 30,
+      price: null,
+    });
+  });
+
   it("claims an offer once per guest per day and refuses ended or missing offers", async () => {
     const cookie = await signIn();
     const offer = await createDisplay(cookie, { status: "live", offer: { title: "Free agua fresca", details: "With any birria tower" } }).expect(201);
@@ -216,7 +240,7 @@ describe("analytics", () => {
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
     const scan = (visitorHash: string, at: number) => ({
-      id: `scan-${visitorHash}-${at}`, barId: "garnish-demo-bar", qrCodeId: table.id, displayId: offer.body.id,
+      id: `scan-${visitorHash}-${at}`, barId: "argraphics-demo-bar", qrCodeId: table.id, displayId: offer.body.id,
       visitorHash, createdAt: new Date(at),
     });
     await db.insert(schema.scansTable).values([

@@ -26,4 +26,9 @@ export interface Drink {
   /** @nullable */
   generationError: string | null;
   updatedAt: Date;
+  /**
+     * Real-world height in centimetres the AR app renders this model at; null uses the app default.
+     * @nullable
+     */
+  realHeightCm: number | null;
 }

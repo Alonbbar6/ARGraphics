@@ -14,7 +14,7 @@ describe("signed-in owner table-card lifecycle", () => {
     const cookie = await signIn();
     const saved = await createCard(cookie);
     const [before] = (await db.select().from(schema.menuVersionTable))
-      .filter(row => row.barId === "garnish-demo-bar");
+      .filter(row => row.barId === "argraphics-demo-bar");
     const updated = await request(app).patch(`/api/table-cards/${saved.body.id}`)
       .set("Cookie", cookie).send({ name: "  Edited card  ", physicalWidthCm: 20, isActive: false }).expect(200);
     expectResponseContract("updateTableCard", 200, updated.body);
@@ -26,7 +26,7 @@ describe("signed-in owner table-card lifecycle", () => {
     expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
     expect(objects.has(artworkPath)).toBe(true);
     const [after] = (await db.select().from(schema.menuVersionTable))
-      .filter(row => row.barId === "garnish-demo-bar");
+      .filter(row => row.barId === "argraphics-demo-bar");
     expect(after.version).toBe(before.version + 1);
     await request(app).delete(`/api/table-cards/${saved.body.id}`).set("Cookie", cookie).expect(200);
   });
@@ -68,7 +68,7 @@ describe("signed-in owner table-card lifecycle", () => {
     expect(saved.body.id).toMatch(/^[a-f0-9-]{36}$/);
     expect(new Date(saved.body.createdAt).toISOString()).toBe(saved.body.createdAt);
     const [persisted] = await db.select().from(schema.tableCardsTable);
-    expect(persisted.barId).toBe("garnish-demo-bar");
+    expect(persisted.barId).toBe("argraphics-demo-bar");
     expect(Number(persisted.physicalWidthMeters)).toBe(0.125);
 
     const list = await request(app).get("/api/table-cards").set("Cookie", cookie).expect(200);
@@ -109,7 +109,7 @@ describe("signed-in owner table-card lifecycle", () => {
     const payload = Buffer.from(JSON.stringify({ userId: "owner", expiresAt: Date.now() - 1 })).toString("base64url");
     const signature = createHmac("sha256", "session-regression-fixture-secret").update(payload).digest("base64url");
     await request(app).get("/api/table-cards")
-      .set("Cookie", `garnish_session=${payload}.${signature}`).expect(401);
+      .set("Cookie", `argraphics_session=${payload}.${signature}`).expect(401);
   });
 
   it("keeps another owner's cards and artwork private and prevents their deletion", async () => {
@@ -197,7 +197,7 @@ describe("signed-in owner table-card lifecycle", () => {
     const other = await signIn("other@example.test");
     const saved = await createCard(cookie);
     const versionBefore = (await db.select().from(schema.menuVersionTable))
-      .find((row) => row.barId === "garnish-demo-bar")!.version;
+      .find((row) => row.barId === "argraphics-demo-bar")!.version;
     await request(app).patch(`/api/table-cards/${saved.body.id}`).expect(401);
     await request(app).patch(`/api/table-cards/${saved.body.id}`).set("Cookie", other)
       .send({ name: "Not yours" }).expect(404);
@@ -217,7 +217,7 @@ describe("signed-in owner table-card lifecycle", () => {
     expect(objects.has(artworkPath)).toBe(true);
     expect(storage.deleteObjectEntity).not.toHaveBeenCalled();
     const versionAfter = (await db.select().from(schema.menuVersionTable))
-      .find((row) => row.barId === "garnish-demo-bar")!.version;
+      .find((row) => row.barId === "argraphics-demo-bar")!.version;
     expect(versionAfter).toBe(versionBefore + 1);
     await request(app).get(privateUrl).set("Cookie", cookie).expect(200);
   });

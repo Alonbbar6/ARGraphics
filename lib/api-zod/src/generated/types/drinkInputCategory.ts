@@ -16,4 +16,8 @@ export const DrinkInputCategory = {
   beer: 'beer',
   wine: 'wine',
   'zero-proof': 'zero-proof',
+  dish: 'dish',
+  figure: 'figure',
+  art: 'art',
+  object: 'object',
 } as const;

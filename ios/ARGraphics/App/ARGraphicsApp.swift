@@ -36,6 +36,11 @@ final class AppEnvironment {
         if UserDefaults.standard.bool(forKey: "ARGraphicsDemo") {
             return AppEnvironment(api: DemoAPI())
         }
+        // No server configured (e.g. the CI Simulator build streamed through Appetize):
+        // show the sample venue rather than an app that can't load anything.
+        if AppConfig.current == nil {
+            return AppEnvironment(api: DemoAPI())
+        }
         #endif
         return AppEnvironment(api: AppConfig.current.map { APIClient(config: $0) })
     }

@@ -1,0 +1,106 @@
+name: iOS simulator build
+
+# Builds the Swift guest app on GitHub's macOS runners (no local Xcode needed), runs its
+# unit tests, and publishes an unsigned Simulator build. With an APPETIZE_API_TOKEN secret
+# it also uploads to Appetize.io so the app can be used in a browser. Simulators have no
+# camera or ARKit; with no server configured, the Debug build shows the demo venue.
+
+on:
+  push:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-simulator.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Generate the Xcode project
+        env:
+          API_BASE_URL: ${{ vars.ARGRAPHICS_API_BASE_URL }}
+          IOS_API_KEY: ${{ secrets.ARGRAPHICS_IOS_API_KEY }}
+        run: |
+          brew install xcodegen
+          # Without a server configured, the Debug build shows the built-in demo venue.
+          printf 'ARGRAPHICS_API_BASE_URL = %s\nARGRAPHICS_IOS_API_KEY = %s\n' \
+            "$(echo "${API_BASE_URL:-http://localhost:5000/api}" | sed 's|//|/$()/|')" "$IOS_API_KEY" \
+            > Config/Secrets.xcconfig
+          xcodegen generate
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          runtimes = sorted((r for r in devices if "iOS" in r), reverse=True)
+          for runtime in runtimes:
+              for d in devices[runtime]:
+                  if d["name"].startswith("iPhone"):
+                      print(d["udid"]); sys.exit()
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Unit tests
+        run: |
+          xcodebuild test -project ARGraphics.xcodeproj -scheme ARGraphics \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd-test" CODE_SIGNING_ALLOWED=NO | tail -40
+          exit ${PIPESTATUS[0]}
+
+      - name: Build for Simulator
+        run: |
+          xcodebuild build -project ARGraphics.xcodeproj -scheme ARGraphics -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGNING_ALLOWED=NO | tail -20
+          exit ${PIPESTATUS[0]}
+
+      - name: Package the app
+        run: |
+          APP="$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/ARGraphics.app"
+          cd "$(dirname "$APP")" && zip -qry "$GITHUB_WORKSPACE/ARGraphics-simulator.zip" ARGraphics.app
+          ls -lh "$GITHUB_WORKSPACE/ARGraphics-simulator.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ARGraphics-simulator
+          path: ARGraphics-simulator.zip
+          retention-days: 14
+
+      - name: Upload to Appetize
+        if: ${{ env.APPETIZE_API_TOKEN != '' }}
+        env:
+          APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
+          APPETIZE_APP_KEY: ${{ vars.APPETIZE_APP_KEY }}
+        working-directory: .
+        run: |
+          # Updates the same Appetize app (stable link) once APPETIZE_APP_KEY is set.
+          URL=https://api.appetize.io/v1/apps${APPETIZE_APP_KEY:+/$APPETIZE_APP_KEY}
+          curl -sf -X POST "$URL" -H "X-API-KEY: $APPETIZE_API_TOKEN" \
+            -F "file=@ARGraphics-simulator.zip" -F "platform=ios" -o appetize.json
+          KEY=$(python3 -c 'import json;print(json.load(open("appetize.json"))["publicKey"])')
+          echo "### Open in your browser: https://appetize.io/app/$KEY" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$APPETIZE_APP_KEY" ] || echo "Set repository variable APPETIZE_APP_KEY=$KEY to keep one stable link." >> "$GITHUB_STEP_SUMMARY"
+    env:
+      APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
