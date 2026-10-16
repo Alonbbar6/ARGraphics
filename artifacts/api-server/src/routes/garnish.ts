@@ -38,6 +38,7 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService } from "../lib/objectStorage";
 import passwordRecoveryRouter from "./password-recovery";
+import { seedDemoPartners } from "../lib/demo-partners";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 
@@ -110,17 +111,22 @@ function setSessionCookie(res: Response, userId: string, sessionVersion = 0): vo
   );
 }
 
-function slugBase(barName: string): string {
+export function slugBase(barName: string): string {
   const slug = barName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return slug || "bar";
 }
 
-function isUniqueViolation(error: unknown): boolean {
+export function partnerKind(kind: string | undefined): "venue" | "artist" | null {
+  if (kind === "artist") return "artist";
+  return kind === undefined ? null : "venue";
+}
+
+export function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
-function requireIosKey(req: Request, res: Response): boolean {
+export function requireIosKey(req: Request, res: Response): boolean {
   const secret = process.env.IOS_API_KEY;
   if (!secret) {
     res.status(503).json({ error: "The iOS menu connection is not configured yet." });
@@ -136,7 +142,7 @@ function requireIosKey(req: Request, res: Response): boolean {
 }
 
 const iosRateWindows = new Map<string, { count: number; resetAt: number }>();
-function rateLimitIos(req: Request, res: Response, next: NextFunction): void {
+export function rateLimitIos(req: Request, res: Response, next: NextFunction): void {
   const now = Date.now();
   const key = req.ip || req.socket.remoteAddress || "unknown";
   const current = iosRateWindows.get(key);
@@ -164,7 +170,7 @@ router.get("/auth/session", async (req, res): Promise<void> => {
   res.removeHeader("ETag");
   const user = await currentUser(req);
   if (!user) {
-    res.json(GetSessionResponse.parse({ authenticated: false, userName: null, barName: null, barSlug: null }));
+    res.json(GetSessionResponse.parse({ authenticated: false, userName: null, barName: null, barSlug: null, partnerKind: null }));
     return;
   }
   const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, user.barId)).limit(1);
@@ -173,6 +179,7 @@ router.get("/auth/session", async (req, res): Promise<void> => {
     userName: user.name,
     barName: bar?.name ?? null,
     barSlug: bar?.slug ?? null,
+    partnerKind: partnerKind(bar?.kind),
   }));
 });
 
@@ -209,6 +216,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
           id: randomUUID(),
           name: barName,
           slug,
+          kind: parsed.data.kind ?? "venue",
         }).onConflictDoNothing({ target: barsTable.slug }).returning();
         if (!bar) continue;
 
@@ -243,6 +251,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     userName: name,
     barName: createdBar.name,
     barSlug: createdBar.slug,
+    partnerKind: partnerKind(createdBar.kind),
   }));
 });
 
@@ -265,6 +274,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     userName: user.name,
     barName: bar?.name ?? null,
     barSlug: bar?.slug ?? null,
+    partnerKind: partnerKind(bar?.kind),
   }));
 });
 
@@ -311,7 +321,7 @@ router.post("/storage/drink-photos/request-url", requireOwner, async (req, res):
   }
 });
 
-function publicAssetUrl(req: Request, storedPath: string | null): string | null {
+export function publicAssetUrl(req: Request, storedPath: string | null): string | null {
   if (!storedPath) return null;
   const filePath = storedPath.startsWith("/public-objects/")
     ? storedPath.slice("/public-objects/".length)
@@ -963,7 +973,7 @@ async function seedDemoBar() {
 }
 
 if (process.env.NODE_ENV === "development") {
-  void seedDemoBar().catch((error: unknown) => {
+  void seedDemoBar().then(() => seedDemoPartners(demoBarId)).catch((error: unknown) => {
     process.stderr.write(`Garnish demo seed failed: ${String(error)}\n`);
   });
 }

@@ -1,9 +1,10 @@
 import { createElement, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
+import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useListDisplays, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
+import { Link } from 'wouter';
 import type { Drink, DrinkInput, SavedPhotoCleanup } from '@workspace/api-client-react';
-import { AlertCircle, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { removePhotoBackground, savedCleanupImageUrl } from '@/lib/photo-cleanup';
 import { createPhotoReviewAnalytics } from '@/lib/photo-review-analytics';
 import heic2any from 'heic2any';
@@ -30,6 +31,8 @@ export function DrinksPage() {
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
   const [studioDrink, setStudioDrink] = useState<Drink | null>(null);
+  const displaysQuery = useListDisplays();
+  const menuScans = displaysQuery.data ? displaysQuery.data.filter((display) => display.type === 'menu_item').reduce((sum, display) => sum + display.scansThisWeek, 0) : null;
 
   const drinks = useMemo(() => (drinksQuery.data || []).filter((drink) => {
     const matchesSearch = `${drink.name} ${drink.description}`.toLowerCase().includes(query.toLowerCase());
@@ -110,14 +113,15 @@ export function DrinksPage() {
 
   return (
     <div className="rise owner-drinks-page">
+      <Link href="/displays" className="mb-3 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={15} aria-hidden="true" /> Displays</Link>
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[.19em] text-primary">Menu workspace <span className="mx-1 text-muted-foreground/50">/</span> Drinks</p>
-          <h1 className="serif text-4xl tracking-tight sm:text-[2.8rem]">A good night starts here.</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Keep the list sharp, the prices current, and the good stuff pouring.</p>
+          <p className="mb-1.5 text-xs text-muted-foreground">3D menu library</p>
+          <h1 className="serif text-4xl tracking-tight sm:text-[2.8rem]">Dishes worth walking in for.</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Snap a photo, we turn it into 3D, and it floats over the table when guests scan.{menuScans !== null ? <> Your 3D menu items got <strong className="font-semibold text-foreground">{menuScans.toLocaleString('en-US')} scans</strong> this week.</> : null}</p>
         </div>
         <button onClick={openCreate} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-lg shadow-primary/15" data-testid="button-add-drink">
-          <CirclePlus size={18} /> Add a drink
+          <CirclePlus size={18} /> Add a dish or drink
         </button>
       </div>
       <div className="owner-toolbar mb-5 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row sm:items-center">

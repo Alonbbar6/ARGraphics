@@ -1,6 +1,25 @@
-# Garnish
+# ARGraphics
 
-Garnish is a mobile-first menu dashboard for independent cocktail bars. Owners can create a private bar account, manage drinks and prices, view menu insights, manage table-card artwork with print-size PDF export, and turn drink photos into reviewed 3D models for their iOS menu.
+ARGraphics is a local AR advertising platform for independent bars, restaurants and
+local artists. Partners place QR codes on tables, windows, walls and posters; guests scan
+them with the ARGraphics iOS app (`ios/`) and see AR content that only exists in that room:
+a 3D menu item, a promo offer they claim at the table, a local artist's piece, or an event
+teaser. The partner dashboard (`artifacts/garnish`) creates displays, prints codes, and
+counts what matters: scans, unique and repeat visitors, and walk-ins (claimed offers).
+
+The workspace and package names still say "garnish" for continuity; everything a person
+sees says ARGraphics.
+
+### Data model
+
+- `bars` are partners: `kind` is `venue` or `artist`, with bio, neighborhood, location and timezone.
+- `displays` (menu item, promo offer, art piece, event teaser) at a placement (table, wall, window, poster).
+- `qr_codes` are placed spots with short codes; scans resolve `/s/{code}`. Retired codes keep their history.
+- `scans` and `redemptions` hold a keyed hash of the app's anonymous install ID, never the ID itself.
+  A redemption is one claim per guest, offer and partner-local day, valid for 15 minutes.
+- In development the API seeds a demo venue, a demo artist (`demo-artist@garnish.app`), a nearby
+  venue, displays and QR codes (`demotbl1`–`demotbl6`, `demowall`, `demobar1`). It never seeds scans or claims.
+
 ## Run the app
 
 - Start the web app with `pnpm --filter @workspace/garnish run dev`.

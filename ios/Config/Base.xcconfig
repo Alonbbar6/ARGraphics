@@ -1,0 +1,10 @@
+// Shared build settings. Put real values in Secrets.xcconfig (git-ignored);
+// see Secrets.example.xcconfig. `$()` keeps `//` from starting a comment.
+ARGRAPHICS_API_BASE_URL = http:/$()/localhost:5000/api
+ARGRAPHICS_IOS_API_KEY =
+
+// Host that serves /.well-known/apple-app-site-association for https://<host>/s/{code}
+// Universal Links. Used by ARGraphics.entitlements. See README "Universal Links".
+ARGRAPHICS_ASSOCIATED_DOMAIN = argraphics.example.com
+
+#include? "Secrets.xcconfig"

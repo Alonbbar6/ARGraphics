@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -85,25 +85,25 @@
 
 :root {
   color-scheme: light;
-  --background: 28 35% 94%;
-  --foreground: 275 24% 17%;
-  --border: 25 16% 82%;
-  --input: 25 16% 82%;
-  --card: 30 38% 97%;
-  --card-foreground: 275 24% 17%;
-  --primary: 15 85% 55%;
-  --primary-foreground: 20 40% 98%;
-  --secondary: 328 49% 86%;
-  --secondary-foreground: 275 24% 17%;
-  --muted: 28 22% 88%;
-  --muted-foreground: 273 10% 44%;
-  --accent: 41 90% 62%;
-  --accent-foreground: 275 24% 17%;
-  --destructive: 0 65% 52%;
+  --background: 210 40% 96%;
+  --foreground: 222 47% 11%;
+  --border: 214 28% 87%;
+  --input: 214 24% 82%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 263 70% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 262 70% 95%;
+  --secondary-foreground: 263 60% 38%;
+  --muted: 214 30% 92%;
+  --muted-foreground: 215 16% 42%;
+  --accent: 271 91% 65%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --ring: 15 85% 55%;
-  --sidebar: 277 28% 19%;
-  --sidebar-foreground: 33 42% 92%;
+  --ring: 263 70% 50%;
+  --sidebar: 240 29% 6%;
+  --sidebar-foreground: 0 0% 100%;
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: 'DM Serif Display', Georgia, serif;
   --app-font-mono: ui-monospace, monospace;
@@ -112,25 +112,25 @@
 
 .dark {
   color-scheme: dark;
-  --background: 276 29% 10%;
-  --foreground: 34 36% 91%;
-  --border: 275 17% 24%;
-  --input: 275 17% 27%;
-  --card: 276 24% 14%;
-  --card-foreground: 34 36% 91%;
-  --primary: 15 88% 61%;
-  --primary-foreground: 276 29% 10%;
-  --secondary: 278 20% 22%;
-  --secondary-foreground: 34 36% 91%;
-  --muted: 276 18% 20%;
-  --muted-foreground: 275 12% 67%;
-  --accent: 41 91% 63%;
-  --accent-foreground: 276 29% 10%;
-  --destructive: 0 64% 55%;
+  --background: 240 29% 6%;
+  --foreground: 0 0% 100%;
+  --border: 256 38% 22%;
+  --input: 256 34% 28%;
+  --card: 254 48% 13%;
+  --card-foreground: 0 0% 100%;
+  --primary: 263 70% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 256 48% 22%;
+  --secondary-foreground: 268 90% 86%;
+  --muted: 254 40% 17%;
+  --muted-foreground: 250 20% 72%;
+  --accent: 271 91% 65%;
+  --accent-foreground: 240 29% 6%;
+  --destructive: 0 72% 58%;
   --destructive-foreground: 0 0% 100%;
-  --ring: 15 88% 61%;
-  --sidebar: 276 34% 8%;
-  --sidebar-foreground: 34 36% 91%;
+  --ring: 271 91% 65%;
+  --sidebar: 245 38% 8%;
+  --sidebar-foreground: 0 0% 100%;
 }
 
 :root[data-theme='daylight'] {
@@ -175,7 +175,8 @@
 }
 .last-call,
 .bg-last-call {
-  background: linear-gradient(135deg, #1B1033 0%, #3D1A5B 16%, #7A1F5C 32%, #C2185B 48%, #E8484F 62%, #F2803A 76%, #F7B348 88%, #FFDD8A 100%);
+  /* Nightfall-to-spotlight brand gradient. */
+  background: linear-gradient(135deg, #2A1B5E 0%, #6D28D9 28%, #A855F7 48%, #F43F5E 72%, #FB923C 88%, #FDE68A 100%);
 }
 .rise {
   animation: rise-in 620ms cubic-bezier(.2,.75,.25,1) both;
@@ -192,3 +193,6 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* Violet passes AA as a fill with white text, not as small text on Midnight. Text uses Orchid. */
+.dark .text-primary { color: hsl(271 91% 74%); }

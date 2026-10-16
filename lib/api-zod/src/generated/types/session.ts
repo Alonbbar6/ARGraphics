@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PartnerKind } from './partnerKind';
 
 export interface Session {
   authenticated: boolean;
@@ -14,4 +15,5 @@ export interface Session {
   barName: string | null;
   /** @nullable */
   barSlug: string | null;
+  partnerKind: PartnerKind | null;
 }

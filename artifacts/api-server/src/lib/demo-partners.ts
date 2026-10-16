@@ -1,0 +1,73 @@
+import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
+import { barsTable, db, displaysTable, qrCodesTable, usersTable } from "@workspace/db";
+
+/**
+ * Development-only demo partners: profile details, displays and placed codes so the
+ * dashboard and the iOS app have something to show. It seeds configuration only,
+ * never scans or claims; those numbers come from real use.
+ */
+export async function seedDemoPartners(demoBarId: string) {
+  const [demo] = await db.select().from(barsTable).where(eq(barsTable.id, demoBarId)).limit(1);
+  if (!demo) return;
+  if (!demo.neighborhood) {
+    await db.update(barsTable).set({
+      neighborhood: "Little Havana",
+      address: "1500 SW 8th St, Miami, FL",
+      latitude: 25.7655,
+      longitude: -80.2194,
+      bio: "Neighborhood bar with a long counter and longer Wednesdays.",
+    }).where(eq(barsTable.id, demoBarId));
+  }
+  await db.insert(barsTable).values([
+    {
+      id: "demo-artist", name: "Ana Ruiz", slug: "ana-ruiz", kind: "artist", neighborhood: "Little Havana",
+      bio: "Paints florals on the walls of places she eats. These ones only bloom after dark.",
+    },
+    {
+      id: "demo-neighbor", name: "La Gaviota Taqueria", slug: "la-gaviota", neighborhood: "Little Havana",
+      address: "1620 SW 8th St, Miami, FL", latitude: 25.7652, longitude: -80.2215,
+      bio: "Tacos al pastor off the trompo, every night but Monday.",
+    },
+  ]).onConflictDoNothing();
+  const [artistUser] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.email, "demo-artist@garnish.app")).limit(1);
+  if (!artistUser) {
+    await db.insert(usersTable).values({
+      id: "demo-artist-user", barId: "demo-artist", email: "demo-artist@garnish.app",
+      passwordHash: await bcrypt.hash("Garnish-demo-2026!", 12), name: "Ana Ruiz",
+    }).onConflictDoNothing();
+  }
+  await db.insert(displaysTable).values([
+    {
+      id: "demo-display-spritz", barId: demoBarId, type: "menu_item", placement: "table", status: "live",
+      title: "Blood Orange Spritz", description: "See it on your table before you order.", drinkId: "demo-cocktail-1",
+    },
+    {
+      id: "demo-display-wednesday", barId: demoBarId, type: "promo_offer", placement: "table", status: "live",
+      title: "Wednesday regulars", description: "Show this to your server.",
+      offerTitle: "Free agua fresca with any spritz", offerDetails: "One per table. Wednesdays only.",
+    },
+    {
+      id: "demo-display-bloom", barId: demoBarId, type: "art_piece", placement: "wall", status: "live",
+      title: "Night Bloom", description: "A mural that only exists on this wall.", artistBarId: "demo-artist",
+    },
+    {
+      id: "demo-display-mural-night", barId: demoBarId, type: "event_teaser", placement: "poster", status: "draft",
+      title: "Mural night with Ana Ruiz", description: "Live painting, two-for-one spritzes.",
+      eventStartsAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000),
+    },
+    {
+      id: "demo-neighbor-tacos", barId: "demo-neighbor", type: "promo_offer", placement: "window", status: "live",
+      title: "Taco Tuesday", offerTitle: "2-for-1 al pastor", offerDetails: "Before 7pm.",
+    },
+  ]).onConflictDoNothing();
+  await db.insert(qrCodesTable).values([
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `demo-qr-table-${index + 1}`, barId: demoBarId, displayId: "demo-display-wednesday",
+      code: `demotbl${index + 1}`, label: `Table ${index + 1}`, placement: "table",
+    })),
+    { id: "demo-qr-wall", barId: demoBarId, displayId: "demo-display-bloom", code: "demowall", label: "Back wall", placement: "wall" },
+    { id: "demo-qr-bar", barId: demoBarId, displayId: "demo-display-spritz", code: "demobar1", label: "Bar top", placement: "table" },
+  ]).onConflictDoNothing();
+}

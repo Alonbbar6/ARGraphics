@@ -39,6 +39,14 @@ export interface Message {
   message: string;
 }
 
+export type PartnerKind = typeof PartnerKind[keyof typeof PartnerKind];
+
+
+export const PartnerKind = {
+  venue: 'venue',
+  artist: 'artist',
+} as const;
+
 export interface Session {
   authenticated: boolean;
   /** @nullable */
@@ -47,6 +55,7 @@ export interface Session {
   barName: string | null;
   /** @nullable */
   barSlug: string | null;
+  partnerKind: PartnerKind | null;
 }
 
 export interface PasswordRecoveryInput {
@@ -95,6 +104,7 @@ export interface OwnerRegistrationInput {
      * @maxLength 72
      */
   password: string;
+  kind?: PartnerKind;
 }
 
 export interface Drink {
@@ -381,6 +391,478 @@ export interface ArEventInput {
   eventType: ArEventInputEventType;
 }
 
+export type DisplayType = typeof DisplayType[keyof typeof DisplayType];
+
+
+export const DisplayType = {
+  menu_item: 'menu_item',
+  promo_offer: 'promo_offer',
+  art_piece: 'art_piece',
+  event_teaser: 'event_teaser',
+} as const;
+
+export type Placement = typeof Placement[keyof typeof Placement];
+
+
+export const Placement = {
+  table: 'table',
+  wall: 'wall',
+  window: 'window',
+  poster: 'poster',
+} as const;
+
+export type DisplayStatus = typeof DisplayStatus[keyof typeof DisplayStatus];
+
+
+export const DisplayStatus = {
+  draft: 'draft',
+  live: 'live',
+  paused: 'paused',
+} as const;
+
+export interface PartnerProfile {
+  id: string;
+  kind: PartnerKind;
+  name: string;
+  slug: string;
+  bio: string;
+  neighborhood: string;
+  address: string;
+  /** @nullable */
+  latitude: number | null;
+  /** @nullable */
+  longitude: number | null;
+  timezone: string;
+}
+
+export interface PartnerProfileUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 80
+     * @pattern \S
+     */
+  name?: string;
+  /** @maxLength 600 */
+  bio?: string;
+  /** @maxLength 80 */
+  neighborhood?: string;
+  /** @maxLength 200 */
+  address?: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  latitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  longitude?: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  timezone?: string;
+}
+
+export interface Offer {
+  title: string;
+  details: string;
+  /** @nullable */
+  endsAt: string | null;
+}
+
+export interface OfferInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     * @pattern \S
+     */
+  title: string;
+  /** @maxLength 240 */
+  details?: string;
+  /** @nullable */
+  endsAt?: string | null;
+}
+
+export interface ArtistCredit {
+  name: string;
+  /** @nullable */
+  slug: string | null;
+}
+
+export interface DisplayDrink {
+  id: string;
+  name: string;
+  priceCents: number;
+  /** @nullable */
+  thumbnailUrl: string | null;
+  /** @nullable */
+  modelUsdzUrl: string | null;
+  /** @nullable */
+  modelGlbUrl: string | null;
+  generationStatus: string;
+}
+
+export interface Display {
+  id: string;
+  type: DisplayType;
+  placement: Placement;
+  status: DisplayStatus;
+  title: string;
+  description: string;
+  /** @nullable */
+  drinkId: string | null;
+  drink: DisplayDrink | null;
+  /** @nullable */
+  mediaUrl: string | null;
+  offer: Offer | null;
+  /** @nullable */
+  eventStartsAt: string | null;
+  artist: ArtistCredit | null;
+  scansThisWeek: number;
+  redemptionsThisWeek: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DisplayInputStatus = typeof DisplayInputStatus[keyof typeof DisplayInputStatus];
+
+
+export const DisplayInputStatus = {
+  draft: 'draft',
+  live: 'live',
+} as const;
+
+export interface DisplayInput {
+  type: DisplayType;
+  placement: Placement;
+  status?: DisplayInputStatus;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     * @pattern \S
+     */
+  title: string;
+  /** @maxLength 600 */
+  description?: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  drinkId?: string | null;
+  /**
+     * @nullable
+     * @pattern ^/objects/uploads/[a-f0-9-]{36}$
+     */
+  mediaObjectPath?: string | null;
+  offer?: OfferInput | null;
+  /** @nullable */
+  eventStartsAt?: string | null;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  artistName?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  artistSlug?: string | null;
+}
+
+export interface DisplayUpdate {
+  placement?: Placement;
+  status?: DisplayStatus;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     * @pattern \S
+     */
+  title?: string;
+  /** @maxLength 600 */
+  description?: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  drinkId?: string | null;
+  /**
+     * @nullable
+     * @pattern ^/objects/uploads/[a-f0-9-]{36}$
+     */
+  mediaObjectPath?: string | null;
+  offer?: OfferInput | null;
+  /** @nullable */
+  eventStartsAt?: string | null;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  artistName?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  artistSlug?: string | null;
+}
+
+export interface QrCode {
+  id: string;
+  label: string;
+  placement: Placement;
+  /** @nullable */
+  displayId: string | null;
+  /** @nullable */
+  displayTitle: string | null;
+  code: string;
+  /** Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin. */
+  path: string;
+  scansThisWeek: number;
+  redemptionsThisWeek: number;
+  createdAt: string;
+}
+
+export interface QrCodeBatchInput {
+  /**
+     * @minItems 1
+     * @maxItems 60
+     * @items.minLength 1
+     * @items.maxLength 40
+     * @items.pattern \S
+     */
+  labels: string[];
+  placement: Placement;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  displayId?: string | null;
+}
+
+export interface QrCodeUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 40
+     * @pattern \S
+     */
+  label?: string;
+  placement?: Placement;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  displayId?: string | null;
+}
+
+export interface TrafficTotals {
+  scans: number;
+  uniqueVisitors: number;
+  repeatVisitors: number;
+  redemptions: number;
+}
+
+export interface TrafficDay {
+  /** Calendar day in the partner's timezone, YYYY-MM-DD */
+  date: string;
+  scans: number;
+  redemptions: number;
+}
+
+export interface TrafficByDisplay {
+  displayId: string;
+  title: string;
+  type: DisplayType;
+  placement: Placement;
+  scans: number;
+  redemptions: number;
+}
+
+export interface TrafficByQrCode {
+  qrCodeId: string;
+  label: string;
+  scans: number;
+  redemptions: number;
+}
+
+export type AnalyticsRange = typeof AnalyticsRange[keyof typeof AnalyticsRange];
+
+
+export const AnalyticsRange = {
+  week: 'week',
+  month: 'month',
+  season: 'season',
+} as const;
+
+export interface Analytics {
+  range: AnalyticsRange;
+  from: string;
+  to: string;
+  timezone: string;
+  totals: TrafficTotals;
+  previous: TrafficTotals;
+  series: TrafficDay[];
+  /** Seven rows, Monday first, of 24 hourly scan counts in the partner's timezone. */
+  heatmap: number[][];
+  byDisplay: TrafficByDisplay[];
+  byQrCode: TrafficByQrCode[];
+}
+
+export interface Redemption {
+  id: string;
+  confirmationCode: string;
+  /** @nullable */
+  displayId: string | null;
+  displayTitle: string;
+  offerTitle: string;
+  /** @nullable */
+  spotLabel: string | null;
+  claimedAt: string;
+  expiresAt: string;
+}
+
+export interface ArtistPlacement {
+  displayId: string;
+  title: string;
+  venueName: string;
+  venueSlug: string;
+  neighborhood: string;
+  placement: Placement;
+  status: DisplayStatus;
+  scansThisWeek: number;
+}
+
+export interface ArtistSearchResult {
+  slug: string;
+  name: string;
+  neighborhood: string;
+}
+
+export interface PublicVenueSummary {
+  slug: string;
+  name: string;
+  kind: PartnerKind;
+  neighborhood: string;
+  bio: string;
+}
+
+export interface PublicOffer {
+  title: string;
+  details: string;
+  /** @nullable */
+  endsAt: string | null;
+}
+
+export interface PublicArtistCredit {
+  name: string;
+  /** @nullable */
+  slug: string | null;
+  /** @nullable */
+  bio: string | null;
+}
+
+export interface PublicDisplay {
+  id: string;
+  type: DisplayType;
+  placement: Placement;
+  title: string;
+  description: string;
+  /** @nullable */
+  mediaUrl: string | null;
+  /** @nullable */
+  thumbnailUrl: string | null;
+  /** @nullable */
+  modelUsdzUrl: string | null;
+  /** @nullable */
+  modelGlbUrl: string | null;
+  /** @nullable */
+  price: string | null;
+  offer: PublicOffer | null;
+  /** @nullable */
+  eventStartsAt: string | null;
+  artist: PublicArtistCredit | null;
+}
+
+export interface PublicSpot {
+  label: string;
+  placement: Placement;
+}
+
+export interface ScanInput {
+  /** @pattern ^[a-z0-9]{6,16}$ */
+  code: string;
+  /** @pattern ^[A-Za-z0-9-]{16,64}$ */
+  visitorId: string;
+}
+
+export interface ScanResult {
+  venue: PublicVenueSummary;
+  spot: PublicSpot;
+  display: PublicDisplay | null;
+  displays: PublicDisplay[];
+  tableCards: PublicTableCard[];
+}
+
+export interface PublicVenue {
+  venue: PublicVenueSummary;
+  displays: PublicDisplay[];
+  tableCards: PublicTableCard[];
+}
+
+export interface ClaimInput {
+  /** @pattern ^[A-Za-z0-9-]{16,64}$ */
+  visitorId: string;
+  /**
+     * @nullable
+     * @pattern ^[a-z0-9]{6,16}$
+     */
+  code?: string | null;
+}
+
+export interface Claim {
+  confirmationCode: string;
+  offerTitle: string;
+  venueName: string;
+  /** @nullable */
+  spotLabel: string | null;
+  claimedAt: string;
+  expiresAt: string;
+}
+
+export interface NearbySpot {
+  slug: string;
+  name: string;
+  kind: PartnerKind;
+  neighborhood: string;
+  distanceMeters: number;
+  liveDisplays: number;
+  /** @nullable */
+  featured: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export interface PublicArtistPiece {
+  displayId: string;
+  title: string;
+  description: string;
+  /** @nullable */
+  mediaUrl: string | null;
+  venueName: string;
+  venueSlug: string;
+  neighborhood: string;
+}
+
+export interface PublicArtist {
+  slug: string;
+  name: string;
+  bio: string;
+  neighborhood: string;
+  pieces: PublicArtistPiece[];
+}
+
 /**
  * Owner sign-in required
  */
@@ -404,5 +886,25 @@ export type GetSavedPhotoCleanup200 = {
 
 export type SavePhotoCleanup200 = {
   draft: SavedPhotoCleanup;
+};
+
+export type GetAnalyticsParams = {
+range?: GetAnalyticsRange;
+};
+
+export type GetAnalyticsRange = typeof GetAnalyticsRange[keyof typeof GetAnalyticsRange];
+
+
+export const GetAnalyticsRange = {
+  week: 'week',
+  month: 'month',
+  season: 'season',
+} as const;
+
+export type SearchArtistsParams = {
+/**
+ * @maxLength 80
+ */
+q?: string;
 };
 
