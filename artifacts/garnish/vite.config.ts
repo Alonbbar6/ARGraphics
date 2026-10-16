@@ -72,6 +72,10 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // Off-Replit local development only: forward /api to a separately started API server.
+    ...(process.env.API_PROXY_TARGET
+      ? { proxy: { '/api': { target: process.env.API_PROXY_TARGET, changeOrigin: false } } }
+      : {}),
   },
   preview: {
     port,

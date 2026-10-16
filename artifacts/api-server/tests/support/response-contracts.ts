@@ -4,9 +4,13 @@ import addFormats from "ajv-formats";
 import { parse } from "yaml";
 import { expect } from "vitest";
 import {
-  CreateTableCardResponse, DeleteTableCardResponse, GetPublicMenuResponse,
-  GetPublicMenuVersionResponse, GetPublicTableCardsResponse,
-  ListTableCardsResponse, UpdateTableCardResponse,
+  CreateDisplayResponse, CreatePublicClaimResponse, CreatePublicScanResponse, CreateQrCodesResponse,
+  CreateTableCardResponse, DeleteTableCardResponse, GetAnalyticsResponse, GetPartnerProfileResponse,
+  GetPublicArtistResponse, GetPublicMenuResponse, GetPublicMenuVersionResponse, GetPublicNearbyResponse,
+  GetPublicTableCardsResponse, GetPublicVenueResponse, GetSessionResponse, ListArtistPlacementsResponse,
+  ListDisplaysResponse, ListQrCodesResponse, ListRedemptionsResponse, ListTableCardsResponse,
+  SearchArtistsResponse, UpdateDisplayResponse, UpdatePartnerProfileResponse, UpdateQrCodeResponse,
+  UpdateTableCardResponse,
 } from "@workspace/api-zod";
 
 const generated = {
@@ -17,6 +21,24 @@ const generated = {
   createTableCard: CreateTableCardResponse,
   updateTableCard: UpdateTableCardResponse,
   deleteTableCard: DeleteTableCardResponse,
+  getSession: GetSessionResponse,
+  getPartnerProfile: GetPartnerProfileResponse,
+  updatePartnerProfile: UpdatePartnerProfileResponse,
+  listDisplays: ListDisplaysResponse,
+  createDisplay: CreateDisplayResponse,
+  updateDisplay: UpdateDisplayResponse,
+  listQrCodes: ListQrCodesResponse,
+  createQrCodes: CreateQrCodesResponse,
+  updateQrCode: UpdateQrCodeResponse,
+  getAnalytics: GetAnalyticsResponse,
+  listRedemptions: ListRedemptionsResponse,
+  listArtistPlacements: ListArtistPlacementsResponse,
+  searchArtists: SearchArtistsResponse,
+  createPublicScan: CreatePublicScanResponse,
+  createPublicClaim: CreatePublicClaimResponse,
+  getPublicVenue: GetPublicVenueResponse,
+  getPublicNearby: GetPublicNearbyResponse,
+  getPublicArtist: GetPublicArtistResponse,
 };
 type Operation = keyof typeof generated;
 type ResponseSpec = { content?: { "application/json"?: { schema: object } } };

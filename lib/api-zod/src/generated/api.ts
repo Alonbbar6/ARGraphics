@@ -21,7 +21,8 @@ export const GetSessionResponse = zod.object({
   "authenticated": zod.boolean(),
   "userName": zod.string().nullable(),
   "barName": zod.string().nullable(),
-  "barSlug": zod.string().nullable()
+  "barSlug": zod.string().nullable(),
+  "partnerKind": zod.union([zod.enum(['venue', 'artist']),zod.null()])
 })
 
 
@@ -45,14 +46,16 @@ export const RegisterBody = zod.object({
   "name": zod.string().min(registerBodyNameMin).max(registerBodyNameMax),
   "barName": zod.string().min(registerBodyBarNameMin).max(registerBodyBarNameMax),
   "email": zod.string().email().max(registerBodyEmailMax),
-  "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax)
+  "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax),
+  "kind": zod.enum(['venue', 'artist']).optional()
 })
 
 export const RegisterResponse = zod.object({
   "authenticated": zod.boolean(),
   "userName": zod.string().nullable(),
   "barName": zod.string().nullable(),
-  "barSlug": zod.string().nullable()
+  "barSlug": zod.string().nullable(),
+  "partnerKind": zod.union([zod.enum(['venue', 'artist']),zod.null()])
 })
 
 
@@ -70,7 +73,8 @@ export const LoginResponse = zod.object({
   "authenticated": zod.boolean(),
   "userName": zod.string().nullable(),
   "barName": zod.string().nullable(),
-  "barSlug": zod.string().nullable()
+  "barSlug": zod.string().nullable(),
+  "partnerKind": zod.union([zod.enum(['venue', 'artist']),zod.null()])
 })
 
 
@@ -499,6 +503,491 @@ export const DeleteTableCardResponse = zod.object({
 })
 
 
+export const GetPartnerProfileResponse = zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['venue', 'artist']),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "bio": zod.string(),
+  "neighborhood": zod.string(),
+  "address": zod.string(),
+  "latitude": zod.number().nullable(),
+  "longitude": zod.number().nullable(),
+  "timezone": zod.string()
+})
+
+
+export const updatePartnerProfileBodyNameMin = 2;
+export const updatePartnerProfileBodyNameMax = 80;
+
+
+export const updatePartnerProfileBodyNameRegExp = new RegExp('\\S');
+export const updatePartnerProfileBodyBioMax = 600;
+
+export const updatePartnerProfileBodyNeighborhoodMax = 80;
+
+export const updatePartnerProfileBodyAddressMax = 200;
+
+export const updatePartnerProfileBodyLatitudeMin = -90;
+export const updatePartnerProfileBodyLatitudeMax = 90;
+
+export const updatePartnerProfileBodyLongitudeMin = -180;
+export const updatePartnerProfileBodyLongitudeMax = 180;
+
+export const updatePartnerProfileBodyTimezoneMax = 64;
+
+
+
+export const UpdatePartnerProfileBody = zod.object({
+  "name": zod.string().min(updatePartnerProfileBodyNameMin).max(updatePartnerProfileBodyNameMax).regex(updatePartnerProfileBodyNameRegExp).optional(),
+  "bio": zod.string().max(updatePartnerProfileBodyBioMax).optional(),
+  "neighborhood": zod.string().max(updatePartnerProfileBodyNeighborhoodMax).optional(),
+  "address": zod.string().max(updatePartnerProfileBodyAddressMax).optional(),
+  "latitude": zod.number().min(updatePartnerProfileBodyLatitudeMin).max(updatePartnerProfileBodyLatitudeMax).nullish(),
+  "longitude": zod.number().min(updatePartnerProfileBodyLongitudeMin).max(updatePartnerProfileBodyLongitudeMax).nullish(),
+  "timezone": zod.string().min(1).max(updatePartnerProfileBodyTimezoneMax).optional()
+})
+
+export const UpdatePartnerProfileResponse = zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['venue', 'artist']),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "bio": zod.string(),
+  "neighborhood": zod.string(),
+  "address": zod.string(),
+  "latitude": zod.number().nullable(),
+  "longitude": zod.number().nullable(),
+  "timezone": zod.string()
+})
+
+
+export const ListDisplaysResponseItem = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "status": zod.enum(['draft', 'live', 'paused']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "drinkId": zod.string().nullable(),
+  "drink": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "priceCents": zod.number().int(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "generationStatus": zod.string()
+}),zod.null()]),
+  "mediaUrl": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable()
+}),zod.null()]),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListDisplaysResponse = zod.array(ListDisplaysResponseItem)
+
+
+export const createDisplayBodyTitleMax = 80;
+
+
+export const createDisplayBodyTitleRegExp = new RegExp('\\S');
+export const createDisplayBodyDescriptionMax = 600;
+
+export const createDisplayBodyDrinkIdMax = 120;
+
+export const createDisplayBodyMediaObjectPathRegExp = new RegExp('^/objects/uploads/[a-f0-9-]{36}$');
+export const createDisplayBodyOfferOneTitleMax = 80;
+
+
+export const createDisplayBodyOfferOneTitleRegExp = new RegExp('\\S');
+export const createDisplayBodyOfferOneDetailsMax = 240;
+
+export const createDisplayBodyArtistNameMax = 80;
+
+export const createDisplayBodyArtistSlugMax = 120;
+
+
+
+export const CreateDisplayBody = zod.object({
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "status": zod.enum(['draft', 'live']).optional(),
+  "title": zod.string().min(1).max(createDisplayBodyTitleMax).regex(createDisplayBodyTitleRegExp),
+  "description": zod.string().max(createDisplayBodyDescriptionMax).optional(),
+  "drinkId": zod.string().max(createDisplayBodyDrinkIdMax).nullish(),
+  "mediaObjectPath": zod.string().regex(createDisplayBodyMediaObjectPathRegExp).nullish(),
+  "offer": zod.union([zod.object({
+  "title": zod.string().min(1).max(createDisplayBodyOfferOneTitleMax).regex(createDisplayBodyOfferOneTitleRegExp),
+  "details": zod.string().max(createDisplayBodyOfferOneDetailsMax).optional(),
+  "endsAt": zod.coerce.date().nullish()
+}),zod.null()]).optional(),
+  "eventStartsAt": zod.coerce.date().nullish(),
+  "artistName": zod.string().max(createDisplayBodyArtistNameMax).nullish(),
+  "artistSlug": zod.string().max(createDisplayBodyArtistSlugMax).nullish()
+})
+
+export const CreateDisplayResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "status": zod.enum(['draft', 'live', 'paused']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "drinkId": zod.string().nullable(),
+  "drink": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "priceCents": zod.number().int(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "generationStatus": zod.string()
+}),zod.null()]),
+  "mediaUrl": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable()
+}),zod.null()]),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+
+
+
+export const GetDisplayParams = zod.object({
+  "id": zod.coerce.string().min(1)
+})
+
+export const GetDisplayResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "status": zod.enum(['draft', 'live', 'paused']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "drinkId": zod.string().nullable(),
+  "drink": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "priceCents": zod.number().int(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "generationStatus": zod.string()
+}),zod.null()]),
+  "mediaUrl": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable()
+}),zod.null()]),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+
+
+
+export const UpdateDisplayParams = zod.object({
+  "id": zod.coerce.string().min(1)
+})
+
+export const updateDisplayBodyTitleMax = 80;
+
+
+export const updateDisplayBodyTitleRegExp = new RegExp('\\S');
+export const updateDisplayBodyDescriptionMax = 600;
+
+export const updateDisplayBodyDrinkIdMax = 120;
+
+export const updateDisplayBodyMediaObjectPathRegExp = new RegExp('^/objects/uploads/[a-f0-9-]{36}$');
+export const updateDisplayBodyOfferOneTitleMax = 80;
+
+
+export const updateDisplayBodyOfferOneTitleRegExp = new RegExp('\\S');
+export const updateDisplayBodyOfferOneDetailsMax = 240;
+
+export const updateDisplayBodyArtistNameMax = 80;
+
+export const updateDisplayBodyArtistSlugMax = 120;
+
+
+
+export const UpdateDisplayBody = zod.object({
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']).optional(),
+  "status": zod.enum(['draft', 'live', 'paused']).optional(),
+  "title": zod.string().min(1).max(updateDisplayBodyTitleMax).regex(updateDisplayBodyTitleRegExp).optional(),
+  "description": zod.string().max(updateDisplayBodyDescriptionMax).optional(),
+  "drinkId": zod.string().max(updateDisplayBodyDrinkIdMax).nullish(),
+  "mediaObjectPath": zod.string().regex(updateDisplayBodyMediaObjectPathRegExp).nullish(),
+  "offer": zod.union([zod.object({
+  "title": zod.string().min(1).max(updateDisplayBodyOfferOneTitleMax).regex(updateDisplayBodyOfferOneTitleRegExp),
+  "details": zod.string().max(updateDisplayBodyOfferOneDetailsMax).optional(),
+  "endsAt": zod.coerce.date().nullish()
+}),zod.null()]).optional(),
+  "eventStartsAt": zod.coerce.date().nullish(),
+  "artistName": zod.string().max(updateDisplayBodyArtistNameMax).nullish(),
+  "artistSlug": zod.string().max(updateDisplayBodyArtistSlugMax).nullish()
+})
+
+export const UpdateDisplayResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "status": zod.enum(['draft', 'live', 'paused']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "drinkId": zod.string().nullable(),
+  "drink": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "priceCents": zod.number().int(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "generationStatus": zod.string()
+}),zod.null()]),
+  "mediaUrl": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable()
+}),zod.null()]),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+
+
+
+export const DeleteDisplayParams = zod.object({
+  "id": zod.coerce.string().min(1)
+})
+
+export const DeleteDisplayResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const ListQrCodesResponseItem = zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "displayId": zod.string().nullable(),
+  "displayTitle": zod.string().nullable(),
+  "code": zod.string(),
+  "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date()
+})
+export const ListQrCodesResponse = zod.array(ListQrCodesResponseItem)
+
+
+/**
+ * @summary Create one QR code per label, all with the same placement and display
+ */
+export const createQrCodesBodyLabelsItemMax = 40;
+
+
+export const createQrCodesBodyLabelsItemRegExp = new RegExp('\\S');
+export const createQrCodesBodyLabelsMax = 60;
+
+export const createQrCodesBodyDisplayIdMax = 120;
+
+
+
+export const CreateQrCodesBody = zod.object({
+  "labels": zod.array(zod.string().min(1).max(createQrCodesBodyLabelsItemMax).regex(createQrCodesBodyLabelsItemRegExp)).min(1).max(createQrCodesBodyLabelsMax),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "displayId": zod.string().max(createQrCodesBodyDisplayIdMax).nullish()
+})
+
+export const CreateQrCodesResponseItem = zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "displayId": zod.string().nullable(),
+  "displayTitle": zod.string().nullable(),
+  "code": zod.string(),
+  "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date()
+})
+export const CreateQrCodesResponse = zod.array(CreateQrCodesResponseItem)
+
+
+
+
+
+export const UpdateQrCodeParams = zod.object({
+  "id": zod.coerce.string().min(1)
+})
+
+export const updateQrCodeBodyLabelMax = 40;
+
+
+export const updateQrCodeBodyLabelRegExp = new RegExp('\\S');
+export const updateQrCodeBodyDisplayIdMax = 120;
+
+
+
+export const UpdateQrCodeBody = zod.object({
+  "label": zod.string().min(1).max(updateQrCodeBodyLabelMax).regex(updateQrCodeBodyLabelRegExp).optional(),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']).optional(),
+  "displayId": zod.string().max(updateQrCodeBodyDisplayIdMax).nullish()
+})
+
+export const UpdateQrCodeResponse = zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "displayId": zod.string().nullable(),
+  "displayTitle": zod.string().nullable(),
+  "code": zod.string(),
+  "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
+  "scansThisWeek": zod.number().int(),
+  "redemptionsThisWeek": zod.number().int(),
+  "createdAt": zod.coerce.date()
+})
+
+
+
+
+
+export const DeleteQrCodeParams = zod.object({
+  "id": zod.coerce.string().min(1)
+})
+
+export const DeleteQrCodeResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const GetAnalyticsQueryParams = zod.object({
+  "range": zod.enum(['week', 'month', 'season']).optional()
+})
+
+export const GetAnalyticsResponse = zod.object({
+  "range": zod.enum(['week', 'month', 'season']),
+  "from": zod.coerce.date(),
+  "to": zod.coerce.date(),
+  "timezone": zod.string(),
+  "totals": zod.object({
+  "scans": zod.number().int(),
+  "uniqueVisitors": zod.number().int(),
+  "repeatVisitors": zod.number().int(),
+  "redemptions": zod.number().int()
+}),
+  "previous": zod.object({
+  "scans": zod.number().int(),
+  "uniqueVisitors": zod.number().int(),
+  "repeatVisitors": zod.number().int(),
+  "redemptions": zod.number().int()
+}),
+  "series": zod.array(zod.object({
+  "date": zod.string().describe('Calendar day in the partner\'s timezone, YYYY-MM-DD'),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int()
+})),
+  "heatmap": zod.array(zod.array(zod.number().int())).describe('Seven rows, Monday first, of 24 hourly scan counts in the partner\'s timezone.'),
+  "byDisplay": zod.array(zod.object({
+  "displayId": zod.string(),
+  "title": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int()
+})),
+  "byQrCode": zod.array(zod.object({
+  "qrCodeId": zod.string(),
+  "label": zod.string(),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int()
+}))
+})
+
+
+export const ListRedemptionsResponseItem = zod.object({
+  "id": zod.string(),
+  "confirmationCode": zod.string(),
+  "displayId": zod.string().nullable(),
+  "displayTitle": zod.string(),
+  "offerTitle": zod.string(),
+  "spotLabel": zod.string().nullable(),
+  "claimedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+})
+export const ListRedemptionsResponse = zod.array(ListRedemptionsResponseItem)
+
+
+export const ListArtistPlacementsResponseItem = zod.object({
+  "displayId": zod.string(),
+  "title": zod.string(),
+  "venueName": zod.string(),
+  "venueSlug": zod.string(),
+  "neighborhood": zod.string(),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "status": zod.enum(['draft', 'live', 'paused']),
+  "scansThisWeek": zod.number().int()
+})
+export const ListArtistPlacementsResponse = zod.array(ListArtistPlacementsResponseItem)
+
+
+export const searchArtistsQueryQMax = 80;
+
+
+
+export const SearchArtistsQueryParams = zod.object({
+  "q": zod.coerce.string().max(searchArtistsQueryQMax).optional()
+})
+
+export const SearchArtistsResponseItem = zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string()
+})
+export const SearchArtistsResponse = zod.array(SearchArtistsResponseItem)
+
+
 export const GetPublicMenuVersionParams = zod.object({
   "slug": zod.coerce.string()
 })
@@ -574,6 +1063,214 @@ export const CreatePublicEventBody = zod.object({
 
 export const CreatePublicEventResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * @summary Record a guest scan of a placed QR code and return what to show
+ */
+export const CreatePublicScanHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const createPublicScanBodyCodeRegExp = new RegExp('^[a-z0-9]{6,16}$');
+export const createPublicScanBodyVisitorIdRegExp = new RegExp('^[A-Za-z0-9-]{16,64}$');
+
+
+export const CreatePublicScanBody = zod.object({
+  "code": zod.string().regex(createPublicScanBodyCodeRegExp),
+  "visitorId": zod.string().regex(createPublicScanBodyVisitorIdRegExp)
+})
+
+export const CreatePublicScanResponse = zod.object({
+  "venue": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['venue', 'artist']),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "spot": zod.object({
+  "label": zod.string(),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster'])
+}),
+  "display": zod.union([zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "mediaUrl": zod.string().nullable(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "price": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable(),
+  "bio": zod.string().nullable()
+}),zod.null()])
+}),zod.null()]),
+  "displays": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "mediaUrl": zod.string().nullable(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "price": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable(),
+  "bio": zod.string().nullable()
+}),zod.null()])
+})),
+  "tableCards": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "referenceImageUrl": zod.string().url(),
+  "physicalWidthCm": zod.number()
+}))
+})
+
+
+export const GetPublicVenueParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetPublicVenueHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const GetPublicVenueResponse = zod.object({
+  "venue": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['venue', 'artist']),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "displays": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "mediaUrl": zod.string().nullable(),
+  "thumbnailUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "modelGlbUrl": zod.string().nullable(),
+  "price": zod.string().nullable(),
+  "offer": zod.union([zod.object({
+  "title": zod.string(),
+  "details": zod.string(),
+  "endsAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "eventStartsAt": zod.coerce.date().nullable(),
+  "artist": zod.union([zod.object({
+  "name": zod.string(),
+  "slug": zod.string().nullable(),
+  "bio": zod.string().nullable()
+}),zod.null()])
+})),
+  "tableCards": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "referenceImageUrl": zod.string().url(),
+  "physicalWidthCm": zod.number()
+}))
+})
+
+
+export const GetPublicNearbyParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetPublicNearbyHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const GetPublicNearbyResponseItem = zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['venue', 'artist']),
+  "neighborhood": zod.string(),
+  "distanceMeters": zod.number().int(),
+  "liveDisplays": zod.number().int(),
+  "featured": zod.string().nullable(),
+  "latitude": zod.number(),
+  "longitude": zod.number()
+})
+export const GetPublicNearbyResponse = zod.array(GetPublicNearbyResponseItem)
+
+
+export const GetPublicArtistParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetPublicArtistHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const GetPublicArtistResponse = zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "bio": zod.string(),
+  "neighborhood": zod.string(),
+  "pieces": zod.array(zod.object({
+  "displayId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "mediaUrl": zod.string().nullable(),
+  "venueName": zod.string(),
+  "venueSlug": zod.string(),
+  "neighborhood": zod.string()
+}))
+})
+
+
+/**
+ * @summary Claim a display's offer; repeating a claim the same day returns the same claim
+ */
+export const CreatePublicClaimParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CreatePublicClaimHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const createPublicClaimBodyVisitorIdRegExp = new RegExp('^[A-Za-z0-9-]{16,64}$');
+export const createPublicClaimBodyCodeRegExp = new RegExp('^[a-z0-9]{6,16}$');
+
+
+export const CreatePublicClaimBody = zod.object({
+  "visitorId": zod.string().regex(createPublicClaimBodyVisitorIdRegExp),
+  "code": zod.string().regex(createPublicClaimBodyCodeRegExp).nullish()
+})
+
+export const CreatePublicClaimResponse = zod.object({
+  "confirmationCode": zod.string(),
+  "offerTitle": zod.string(),
+  "venueName": zod.string(),
+  "spotLabel": zod.string().nullable(),
+  "claimedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
 })
 
 

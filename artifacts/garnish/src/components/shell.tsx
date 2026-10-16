@@ -1,49 +1,108 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useGetSession, useHealthCheck, useLogout, getGetSessionQueryKey } from '@workspace/api-client-react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { getGetPartnerProfileQueryKey, getGetSessionQueryKey, useGetPartnerProfile, useGetSession, useLogout } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Activity, BarChart3, ChevronDown, CircleHelp, GlassWater, LayoutGrid, LogOut, Moon, Settings2, Sun } from 'lucide-react';
+import { BarChart3, ChevronDown, CircleHelp, Home, Layers, LogOut, Moon, QrCode, Settings2, Sun, type LucideIcon } from 'lucide-react';
+import { initials } from '@/lib/traffic';
 import './owner.css';
+import './partner.css';
 
-const links = [
-  { href: '/drinks', label: 'Drinks', icon: GlassWater },
-  { href: '/table-cards', label: 'Table cards', icon: LayoutGrid },
-  { href: '/insights', label: 'Insights', icon: BarChart3 },
-  { href: '/settings', label: 'Bar settings', icon: Settings2 },
-];
+type Tab = { href: string; label: string; icon: LucideIcon; match: (path: string) => boolean };
+
+function tabsFor(kind: 'venue' | 'artist'): Tab[] {
+  return [
+    kind === 'artist'
+      ? { href: '/artist', label: 'Home', icon: Home, match: (path) => path === '/artist' || path === '/home' }
+      : { href: '/home', label: 'Home', icon: Home, match: (path) => path === '/home' },
+    { href: '/displays', label: 'Displays', icon: Layers, match: (path) => path.startsWith('/displays') || path === '/drinks' },
+    { href: '/qr-codes', label: 'QR Codes', icon: QrCode, match: (path) => path === '/qr-codes' || path === '/table-cards' },
+    { href: '/analytics', label: 'Analytics', icon: BarChart3, match: (path) => path === '/analytics' },
+  ];
+}
+
+const pageNames: Record<string, string> = {
+  '/drinks': '3D menu library',
+  '/table-cards': 'AR table-card artwork',
+  '/settings': 'Settings',
+  '/displays/new': 'New display',
+};
+
+/** The ARGraphics mark: a small AR anchor in the brand gradient. */
+export function BrandMark({ size = 32 }: { size?: number }) {
+  return (
+    <span className="owner-mark grid shrink-0 place-items-center rounded-[10px] last-call text-white" style={{ width: size, height: size }} aria-hidden="true">
+      <svg width={Math.round(size * 0.56)} height={Math.round(size * 0.56)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+        <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
+      </svg>
+    </span>
+  );
+}
+
+export function Wordmark({ size = 28, className = '' }: { size?: number; className?: string }) {
+  return (
+    <span className={`flex items-center gap-2.5 ${className}`}>
+      <BrandMark size={size} />
+      <span className="text-[15px] font-bold tracking-[.02em]">ARGraphics</span>
+    </span>
+  );
+}
+
+const ONBOARDING_SKIP_KEY = 'argraphics-onboarding-skipped';
+
+export function markOnboardingSkipped() {
+  try { sessionStorage.setItem(ONBOARDING_SKIP_KEY, '1'); } catch { /* storage may be blocked */ }
+}
+
+function onboardingSkipped() {
+  try { return sessionStorage.getItem(ONBOARDING_SKIP_KEY) === '1'; } catch { return false; }
+}
+
+export function toggleTheme() {
+  const isDark = document.documentElement.classList.contains('dark');
+  window.dispatchEvent(new CustomEvent('garnish-theme', { detail: isDark ? 'daylight' : 'lastcall' }));
+}
+
+function useIsDark() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'));
+    const onTheme = (event: Event) => setDark((event as CustomEvent<string>).detail === 'lastcall');
+    window.addEventListener('garnish-theme', onTheme);
+    return () => window.removeEventListener('garnish-theme', onTheme);
+  }, []);
+  return dark;
+}
 
 export function Shell({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: session, isLoading } = useGetSession();
-  const health = useHealthCheck();
+  const profile = useGetPartnerProfile({ query: { enabled: Boolean(session?.authenticated), queryKey: getGetPartnerProfileQueryKey(), retry: false, staleTime: 60_000 } });
   const logout = useLogout();
   const queryClient = useQueryClient();
-  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'daylight' ? 'daylight' : 'lastcall');
-
-  useEffect(() => {
-    const onTheme = (event: Event) => setTheme((event as CustomEvent<string>).detail);
-    window.addEventListener('garnish-theme', onTheme);
-    return () => window.removeEventListener('garnish-theme', onTheme);
-  }, []);
+  const dark = useIsDark();
 
   useEffect(() => {
     if (!isLoading && !session?.authenticated) setLocation('/login');
   }, [isLoading, session?.authenticated, setLocation]);
 
-  const toggleTheme = () => {
-    window.dispatchEvent(new CustomEvent('garnish-theme', { detail: theme === 'lastcall' ? 'daylight' : 'lastcall' }));
-  };
+  // A partner who hasn't told us where they are yet gets the three-screen welcome first.
+  useEffect(() => {
+    if (profile.data && !profile.data.neighborhood.trim() && !onboardingSkipped()) setLocation('/welcome');
+  }, [profile.data, setLocation]);
+
+  const kind = session?.partnerKind === 'artist' || profile.data?.kind === 'artist' ? 'artist' : 'venue';
+
+  useEffect(() => {
+    if (kind === 'artist' && location === '/home') setLocation('/artist');
+  }, [kind, location, setLocation]);
 
   const signOut = () => {
     logout.mutate(undefined, {
       onSuccess: () => {
         queryClient.clear();
-        queryClient.setQueryData(getGetSessionQueryKey(), {
-          authenticated: false,
-          userName: null,
-          barName: null,
-          barSlug: null,
-        });
+        queryClient.setQueryData(getGetSessionQueryKey(), { authenticated: false, userName: null, barName: null, barSlug: null, partnerKind: null });
         setLocation('/login');
       },
     });
@@ -51,10 +110,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-[100dvh] p-6">
-        <div className="mx-auto max-w-6xl animate-pulse space-y-5">
-          <div className="h-12 w-48 rounded-2xl bg-muted" />
-          <div className="h-64 rounded-3xl bg-muted" />
+      <div className="min-h-[100dvh] p-6" aria-busy="true" aria-label="Loading your dashboard">
+        <div className="mx-auto max-w-6xl space-y-5">
+          <div className="pa-skeleton h-12 w-48" />
+          <div className="pa-skeleton h-64" />
         </div>
       </div>
     );
@@ -62,85 +121,104 @@ export function Shell({ children }: { children: ReactNode }) {
 
   if (!session?.authenticated) return null;
 
+  const tabs = tabsFor(kind);
+  const activeIndex = tabs.findIndex((tab) => tab.match(location));
+  const partnerName = profile.data?.name || session.barName || (kind === 'artist' ? 'Your studio' : 'Your spot');
+  const pageName = activeIndex >= 0 ? tabs[activeIndex].label : pageNames[location] ?? (location.startsWith('/displays/') ? 'Edit display' : 'Workspace');
+
+  const profileMenu = (align: 'start' | 'end', compact: boolean) => (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className={compact
+            ? 'grid h-11 w-11 place-items-center rounded-full'
+            : 'flex w-full items-center gap-3 rounded-2xl border border-border bg-card/60 p-2.5 text-left hover:bg-muted'}
+          aria-label={`Account menu for ${partnerName}`}
+          data-testid="button-profile-menu"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6D28D9] to-[#F43F5E] text-xs font-bold text-white" aria-hidden="true">{initials(partnerName)}</span>
+          {!compact && <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold" data-testid="text-bar-name">{partnerName}</span>
+              <span className="block truncate text-xs text-muted-foreground">{session.userName || 'Owner'} · {kind === 'artist' ? 'Artist' : 'Venue'}</span>
+            </span>
+            <ChevronDown size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+          </>}
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align={align} side={compact ? 'bottom' : 'top'} sideOffset={8} className="pa-menu">
+          <DropdownMenu.Label className="px-3 pb-2 pt-1">
+            <span className="block text-sm font-semibold">{partnerName}</span>
+            <span className="block text-xs text-muted-foreground">{session.userName}</span>
+          </DropdownMenu.Label>
+          <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Item className="pa-menu-item" onSelect={() => setLocation('/settings')}><Settings2 size={16} aria-hidden="true" /> Settings & profile</DropdownMenu.Item>
+          <DropdownMenu.Item className="pa-menu-item" onSelect={(event) => { event.preventDefault(); toggleTheme(); }} data-testid="button-theme-toggle">
+            {dark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />} {dark ? 'Light mode' : 'Dark mode'}
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className="pa-menu-item" asChild><a href="mailto:hello@argraphics.app"><CircleHelp size={16} aria-hidden="true" /> Help from a real person</a></DropdownMenu.Item>
+          <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Item className="pa-menu-item" disabled={logout.isPending} onSelect={signOut} data-testid="button-sign-out"><LogOut size={16} aria-hidden="true" /> Sign out</DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+
   return (
-    <div className="garnish-owner-root min-h-[100dvh] md:grid md:grid-cols-[236px_minmax(0,1fr)]">
-      <aside className="owner-sidebar hidden min-h-[100dvh] flex-col bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
-        <Link href="/drinks" className="mb-10 flex min-h-11 items-center gap-3 px-2 text-xl font-bold tracking-tight">
-          <span className="owner-mark grid h-9 w-9 place-items-center rounded-xl last-call text-[#24131f]">
-            <GlassWater size={19} strokeWidth={2.4} />
-          </span>
-          garnish<span className="text-primary">.</span>
+    <div className="garnish-owner-root min-h-[100dvh] md:grid md:grid-cols-[232px_minmax(0,1fr)]">
+      <aside className="owner-sidebar hidden min-h-[100dvh] flex-col bg-sidebar px-3 py-5 text-sidebar-foreground md:flex">
+        <Link href={tabs[0].href} className="mb-8 flex min-h-11 items-center px-2" aria-label="ARGraphics home">
+          <Wordmark />
         </Link>
-        <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-sidebar-foreground/45">Workspace</p>
-        <div className="mb-7 rounded-2xl border border-white/10 bg-white/[.04] p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold" data-testid="text-bar-name">{session?.barName || 'Your bar'}</p>
-              <p className="mt-1 truncate text-xs text-sidebar-foreground/55">{session?.barSlug ? `garnish.menu/${session.barSlug}` : 'Menu workspace'}</p>
-            </div>
-            <ChevronDown size={16} className="shrink-0 text-sidebar-foreground/50" />
-          </div>
-        </div>
-        <nav className="space-y-1" aria-label="Main navigation">
-          {links.map(({ href, label, icon: Icon }) => (
-            <Link
-              href={href}
-              key={href}
-              data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`}
-              className={`owner-nav-link flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${location === href ? 'bg-white/10 text-white' : 'text-sidebar-foreground/65 hover:bg-white/[.06] hover:text-white'}`}
-            >
-              <Icon size={18} />
-              {label}
-              {href === '/drinks' && <span className="ml-auto h-2 w-2 rounded-full bg-[#e88357]" />}
-            </Link>
-          ))}
+        <nav className="relative space-y-1" aria-label="Main navigation" style={{ ['--index' as string]: Math.max(0, activeIndex) }}>
+          <span className={`owner-nav-indicator ${activeIndex < 0 ? 'opacity-0' : ''}`} aria-hidden="true" />
+          {tabs.map(({ href, label, icon: Icon }, index) => {
+            const active = index === activeIndex;
+            return (
+              <Link
+                href={href}
+                key={href}
+                aria-current={active ? 'page' : undefined}
+                data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`}
+                className={`owner-nav-link relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium ${active ? 'text-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground'}`}
+              >
+                <Icon size={17} aria-hidden="true" />
+                {label}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="mt-auto space-y-3">
-          <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-sidebar-foreground/55">
-            <Activity size={14} className={health.isError ? 'text-primary' : 'text-emerald-400'} />
-            {health.isError ? 'Connection needs a check' : 'All systems pouring'}
-          </div>
-          <div className="flex items-center gap-3 border-t border-white/10 px-2 pt-4">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#583143] text-sm font-semibold">
-              {(session?.userName || 'B').slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{session?.userName || 'Bar owner'}</p>
-              <p className="text-xs text-sidebar-foreground/50">Bar owner</p>
-            </div>
-            <button className="grid h-10 w-10 place-items-center rounded-xl text-sidebar-foreground/60 hover:bg-white/10" aria-label="Sign out" onClick={signOut} disabled={logout.isPending} data-testid="button-sign-out">
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
+        <div className="mt-auto">{profileMenu('start', false)}</div>
       </aside>
       <div className="min-w-0">
-        <header className="owner-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/90 px-4 backdrop-blur-lg md:px-8">
-          <Link href="/drinks" className="flex min-h-11 items-center gap-2 text-lg font-bold md:hidden">
-            <span className="grid h-8 w-8 place-items-center rounded-lg last-call text-[#24131f]"><GlassWater size={17} /></span>
-            garnish<span className="text-primary">.</span>
+        <header className="owner-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b px-4 backdrop-blur-lg md:px-8">
+          <Link href={tabs[0].href} className="flex min-h-11 items-center md:hidden" aria-label="ARGraphics home">
+            <Wordmark size={28} />
           </Link>
-          <p className="hidden text-sm text-muted-foreground md:block">{session?.barName || 'Your bar'} <span className="mx-2 text-border">/</span> Shift workspace</p>
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={toggleTheme} className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted" aria-label="Toggle color theme" data-testid="button-theme-toggle">
-              {theme === 'lastcall' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <button onClick={() => window.alert('Help is on the way. Contact hello@garnish.menu for a hand.')} className="hidden h-11 items-center gap-2 rounded-xl px-3 text-sm text-muted-foreground hover:bg-muted sm:flex" data-testid="button-help">
-              <CircleHelp size={17} /> Help
-            </button>
-          </div>
+          <p className="hidden text-sm text-muted-foreground md:block">
+            {partnerName}<span className="mx-2 text-border">/</span><span className="text-foreground">{pageName}</span>
+          </p>
+          <div className="ml-auto flex items-center gap-1 md:hidden">{profileMenu('end', true)}</div>
         </header>
-        <main className="owner-main mx-auto w-full max-w-[1600px] min-w-0 px-4 pb-28 pt-7 md:px-7 md:pb-10 md:pt-8 xl:px-10">
+        <main id="main" className="owner-main mx-auto w-full max-w-[1400px] min-w-0 px-4 pb-32 pt-6 md:px-7 md:pb-12 md:pt-8 xl:px-10">
           {children}
         </main>
       </div>
-      <nav className="owner-mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur-xl md:hidden" aria-label="Mobile navigation">
-        {links.map(({ href, label, icon: Icon }) => (
-          <Link href={href} key={href} className={`flex min-h-[60px] flex-col items-center justify-center gap-1 text-[10px] font-medium ${location === href ? 'text-primary' : 'text-muted-foreground'}`} data-testid={`mobile-nav-${label.toLowerCase().replaceAll(' ', '-')}`}>
-            <Icon size={19} />
-            {label === 'Bar settings' ? 'Settings' : label}
-          </Link>
-        ))}
+      <nav className="owner-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-xl md:hidden" aria-label="Main navigation">
+        <div className="relative grid grid-cols-4 px-1 pt-1" style={{ ['--index' as string]: Math.max(0, activeIndex) }}>
+          <span className={`owner-tab-indicator ${activeIndex < 0 ? 'opacity-0' : ''}`} aria-hidden="true" />
+          {tabs.map(({ href, label, icon: Icon }, index) => {
+            const active = index === activeIndex;
+            return (
+              <Link href={href} key={href} aria-current={active ? 'page' : undefined} className={`flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`} data-testid={`mobile-nav-${label.toLowerCase().replaceAll(' ', '-')}`}>
+                <Icon size={20} className={active ? 'owner-tab-icon-active' : undefined} aria-hidden="true" />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );

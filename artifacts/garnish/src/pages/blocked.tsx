@@ -1,8 +1,10 @@
-import { getListTableCardsQueryKey, useCreateTableCard, useDeleteTableCard, useListTableCards, useGetSession } from '@workspace/api-client-react';
+import { getGetPartnerProfileQueryKey, getListTableCardsQueryKey, useCreateTableCard, useDeleteTableCard, useGetAnalytics, useGetPartnerProfile, useGetSession, useListTableCards, useUpdatePartnerProfile } from '@workspace/api-client-react';
+import { Link } from 'wouter';
+import { Button, buttonClass, Field, inputClass, PageHeader } from '@/components/partner-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { createTableCardPdf } from '../lib/table-card-pdf';
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertCircle, Check, Copy, Download, ExternalLink, KeyRound, LayoutGrid, Link2, LoaderCircle, Pencil, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Download, LayoutGrid, LoaderCircle, Pencil, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { TableCardEditor } from '@/components/table-card-editor';
 
 type ArtworkSelection = {
@@ -25,6 +27,7 @@ export function TableCardsPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const traffic = useGetAnalytics({ range: 'week' });
 
   useEffect(() => () => {
     if (artwork?.previewUrl) URL.revokeObjectURL(artwork.previewUrl);
@@ -165,7 +168,8 @@ export function TableCardsPage() {
 
   return (
     <div className="rise">
-      <div className="mb-8"><p className="mb-2 text-xs font-bold uppercase tracking-[.22em] text-primary">At every seat</p><h1 className="serif text-4xl sm:text-5xl">Table cards.</h1><p className="mt-2 text-sm text-muted-foreground">Upload your artwork, set the printed width, and export a card-sized PDF.</p></div>
+      <Link href="/qr-codes" className="mb-3 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={15} aria-hidden="true" /> QR Codes</Link>
+      <PageHeader eyebrow="AR table-card artwork" title="Art the app can see" lede={<>Printed artwork works like a code: guests point the ARGraphics app at the card and your display appears on it.{traffic.data ? <> Your spot had <strong className="font-semibold text-foreground">{traffic.data.totals.scans.toLocaleString('en-US')} scans</strong> this week.</> : null}</>} />
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,.8fr)]">
         <section className="rounded-3xl border border-border bg-card p-5 sm:p-7">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-primary">New artwork</p>
@@ -200,7 +204,7 @@ export function TableCardsPage() {
             </div>}
             {error && <p role="alert" className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</p>}
             {message && <p role="status" className="flex items-start gap-2 rounded-xl bg-primary/10 p-3 text-sm text-primary"><Check size={16} className="mt-0.5 shrink-0" />{message}</p>}
-            <button type="submit" disabled={busy || !artwork} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={busy || !artwork} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 rounded-full">
               {busy ? <><LoaderCircle size={17} className="animate-spin" />Uploading artwork…</> : 'Save table card'}
             </button>
           </form>
@@ -216,7 +220,7 @@ export function TableCardsPage() {
               <article key={card.id} className="overflow-hidden rounded-2xl border border-border bg-background">
                 <img src={card.referenceImageUrl} alt={`${card.name} reference artwork`} className="h-40 w-full bg-muted object-contain p-3" />
                 <div className="flex items-center gap-3 p-4">
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{card.name}</p><p className="mt-1 text-xs text-muted-foreground">{card.physicalWidthCm} cm wide · PDF uses original aspect ratio</p><p className="mt-1 text-xs text-muted-foreground">{card.isActive ? 'Active in iOS menu' : 'Inactive in iOS menu'}</p></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{card.name}</p><p className="mt-1 text-xs text-muted-foreground">{card.physicalWidthCm} cm wide · PDF uses original aspect ratio</p><p className="mt-1 text-xs text-muted-foreground">{card.isActive ? 'Active in the ARGraphics app' : 'Hidden from the ARGraphics app'}</p></div>
                   <button type="button" onClick={() => setEditingId(card.id)} disabled={editingId !== null || deleteCard.isPending} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50" aria-label={`Edit ${card.name}`} title="Edit card details"><Pencil size={17} /></button>
                   <button type="button" onClick={() => void downloadPdf(card)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80" aria-label={`Download print PDF for ${card.name}`} title="Download print-ready PDF"><Download size={17} /></button>
                   <button type="button" onClick={() => void removeCard(card.id)} disabled={deleteCard.isPending || editingId !== null} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50" aria-label={`Delete ${card.name}`} title="Delete card"><Trash2 size={17} /></button>
@@ -235,53 +239,69 @@ export function TableCardsPage() {
 }
 
 export function SettingsPage() {
-  const { data: session, isLoading } = useGetSession();
-  const slug = session?.barSlug || '';
-  const [copied, setCopied] = useState(false);
-  const url = slug ? `${window.location.origin}/menu/${slug}` : '';
-  const copyUrl = async () => {
-    if (!url) return;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+  const queryClient = useQueryClient();
+  const { data: session } = useGetSession();
+  const profile = useGetPartnerProfile();
+  const analytics = useGetAnalytics({ range: 'week' });
+  const updateProfile = useUpdatePartnerProfile();
+  const [form, setForm] = useState({ name: '', bio: '', neighborhood: '', address: '' });
+  const [saved, setSaved] = useState('');
+  const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    if (profile.data) setForm({ name: profile.data.name, bio: profile.data.bio, neighborhood: profile.data.neighborhood, address: profile.data.address });
+  }, [profile.data]);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaved('');
+    setFormError('');
+    updateProfile.mutate({ data: { name: form.name.trim(), bio: form.bio.trim(), neighborhood: form.neighborhood.trim(), address: form.address.trim() } }, {
+      onSuccess: (result) => {
+        queryClient.setQueryData(getGetPartnerProfileQueryKey(), result);
+        setSaved('Saved. Guests see the new details on their next scan.');
+      },
+      onError: () => setFormError('That didn’t save. Names need at least 2 characters.'),
+    });
   };
 
-  if (isLoading) {
-    return <div className="space-y-5"><div className="h-10 w-56 animate-pulse rounded-lg bg-muted" /><div className="h-48 animate-pulse rounded-3xl bg-muted" /><div className="h-48 animate-pulse rounded-3xl bg-muted" /></div>;
-  }
+  const artist = (profile.data?.kind ?? session?.partnerKind) === 'artist';
+  const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   return (
     <div className="rise">
-      <div className="mb-8"><p className="mb-2 text-xs font-bold uppercase tracking-[.22em] text-primary">The back bar</p><h1 className="serif text-4xl sm:text-5xl">Settings & details.</h1><p className="mt-2 text-sm text-muted-foreground">Your bar’s name, your menu’s address, and the bits behind the scenes.</p></div>
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
-        <section className="rounded-3xl border border-border bg-card p-5 sm:p-7">
-          <div className="mb-6 flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-primary">Your bar</p><h2 className="serif mt-1 text-3xl">The basics</h2></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-secondary-foreground"><ShieldCheck size={19} /></span></div>
-          <dl className="divide-y divide-border">
-            <div className="flex min-h-16 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Bar name</dt><dd className="text-right text-sm font-semibold" data-testid="text-settings-bar-name">{session?.barName || 'Not set'}</dd></div>
-            <div className="flex min-h-16 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Menu address</dt><dd className="text-right text-sm font-semibold">{slug ? `/${slug}` : 'Not set'}</dd></div>
-            <div className="flex min-h-16 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">iOS connection</dt><dd className="text-right text-sm font-semibold">Key-protected API</dd></div>
-          </dl>
-          {slug && <div className="mt-5 flex flex-col gap-2 rounded-2xl bg-background p-3 sm:flex-row"><div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 text-sm text-muted-foreground"><Link2 size={15} className="shrink-0" /><span className="truncate">{url}</span></div><button onClick={copyUrl} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-secondary px-4 text-sm font-semibold text-secondary-foreground" data-testid="button-copy-menu-url">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copied' : 'Copy link'}</button><a href={url} target="_blank" rel="noreferrer" className="grid min-h-11 place-items-center rounded-xl px-3 text-muted-foreground hover:bg-muted" aria-label="Open public menu"><ExternalLink size={16} /></a></div>}
+      <PageHeader eyebrow="Settings" title="Your details" lede={analytics.data ? `${analytics.data.totals.scans.toLocaleString('en-US')} scans and ${analytics.data.totals.redemptions.toLocaleString('en-US')} walk-ins this week. Keep these details right so nearby guests can find you.` : 'What guests see about you after they scan.'} />
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+        <section className="pa-card p-5 sm:p-7">
+          <h2 className="text-lg font-semibold">{artist ? 'Artist profile' : 'Venue profile'}</h2>
+          {profile.isLoading ? <div className="pa-skeleton mt-5 h-64" /> : profile.isError ? (
+            <p className="mt-4 text-sm text-muted-foreground">Your profile didn’t load. Refresh to try again.</p>
+          ) : (
+            <form className="mt-5 space-y-4" onSubmit={submit}>
+              <Field label={artist ? 'Name' : 'Venue name'}><input className={inputClass} value={form.name} onChange={set('name')} minLength={2} maxLength={80} required /></Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Neighborhood"><input className={inputClass} value={form.neighborhood} onChange={set('neighborhood')} maxLength={80} /></Field>
+                {!artist && <Field label="Street address"><input className={inputClass} value={form.address} onChange={set('address')} maxLength={200} autoComplete="street-address" /></Field>}
+              </div>
+              <Field label={artist ? 'Bio' : 'About your spot'} hint={`${form.bio.length}/600 · shown on the guest card`}><textarea className={inputClass} rows={4} value={form.bio} onChange={set('bio')} maxLength={600} /></Field>
+              {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+              {saved && <p role="status" className="flex items-center gap-2 text-sm text-primary"><Check size={15} aria-hidden="true" />{saved}</p>}
+              <Button type="submit" loading={updateProfile.isPending}>Save details</Button>
+            </form>
+          )}
         </section>
-        <section className="rounded-3xl border border-border bg-card p-5 sm:p-7">
-          <div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-primary">Connection</p><h2 className="serif mt-1 text-3xl">API access</h2></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary"><KeyRound size={19} /></span></div>
-          <p className="text-sm leading-6 text-muted-foreground">The iOS menu API uses the <code className="rounded bg-muted px-1.5 py-0.5">IOS_API_KEY</code> secret. Keep it in the iOS app’s secure configuration; never include it in a public client or check it into source control.</p>
-          <div className="mt-5 rounded-2xl border border-border bg-background p-4">
-            <p className="text-xs font-bold uppercase tracking-[.15em] text-muted-foreground">Request examples</p>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-foreground">{`GET /api/v1/bars/${slug || '{slug}'}/menu-version
-GET /api/v1/bars/${slug || '{slug}'}/menu
-GET /api/v1/bars/${slug || '{slug}'}/table-cards
-POST /api/v1/bars/${slug || '{slug}'}/events
-Header: x-api-key: $IOS_API_KEY
-Body: { "drinkId": "drink-id", "eventType": "ar_open" }`}</pre>
-          </div>
-          <p className="mt-4 text-xs leading-5 text-muted-foreground">Rotate the secret through Replit Secrets to revoke existing clients. Browser CORS preflight is enabled for the API key header; requests are limited to 120 per IP per minute.</p>
+        <section className="pa-card p-5 sm:p-7">
+          <h2 className="text-lg font-semibold">Account</h2>
+          <dl className="mt-3 divide-y divide-border">
+            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Signed in as</dt><dd className="truncate text-right text-sm font-semibold">{session?.userName || '—'}</dd></div>
+            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Account type</dt><dd className="text-right text-sm font-semibold">{artist ? 'Artist' : 'Venue'}</dd></div>
+            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Times shown in</dt><dd className="text-right text-sm font-semibold">{profile.data?.timezone.replace(/_/g, ' ') || '—'}</dd></div>
+            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Location pin</dt><dd className="text-right text-sm font-semibold">{profile.data?.latitude != null ? 'Set' : 'Not set'}</dd></div>
+          </dl>
+          <p className="mt-5 flex items-start gap-2 text-sm text-muted-foreground"><ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden="true" />Your numbers are private. Guests only see your name, neighborhood and what’s live.</p>
+          <a href="mailto:hello@argraphics.app" className={buttonClass('ghost', 'md', 'mt-5 w-full')}>Talk to a real person</a>
         </section>
       </div>
-      <section className="mt-5 rounded-3xl border border-border bg-card p-5 sm:p-7">
-        <p className="text-xs font-bold uppercase tracking-[.18em] text-primary">A note on changes</p>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Bar profile editing and billing aren’t connected yet. Your bar details above are read-only for now, so nothing here can accidentally change the live menu.</p>
-      </section>
     </div>
   );
 }

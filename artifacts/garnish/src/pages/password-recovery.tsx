@@ -2,18 +2,19 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRequestPasswordReset, useConfirmPasswordReset } from '@workspace/api-client-react';
-import { ArrowLeft, GlassWater, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, LoaderCircle } from 'lucide-react';
+import { Wordmark } from '@/components/shell';
 
 function RecoveryLayout({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   useEffect(() => {
     const previous = document.title;
-    document.title = `${title} | Garnish`;
+    document.title = `${title} | ARGraphics`;
     const meta = document.querySelector('meta[name="description"]');
     const ogTitle = document.querySelector('meta[property="og:title"]');
     const ogDescription = document.querySelector('meta[property="og:description"]');
     const oldValues = [meta, ogTitle, ogDescription].map(node => node?.getAttribute('content') ?? '');
     meta?.setAttribute('content', description);
-    ogTitle?.setAttribute('content', `${title} | Garnish`);
+    ogTitle?.setAttribute('content', `${title} | ARGraphics`);
     ogDescription?.setAttribute('content', description);
     return () => {
       document.title = previous;
@@ -22,11 +23,11 @@ function RecoveryLayout({ title, description, children }: { title: string; descr
   }, [title, description]);
   return (
     <main className="relative flex min-h-[100dvh] flex-col px-5 py-6 sm:px-10 md:px-16 md:py-10">
-      <Link href="/" className="flex min-h-11 items-center gap-2 text-lg font-bold">
-        <span className="grid h-8 w-8 place-items-center rounded-lg last-call text-[#26141d]"><GlassWater size={17} /></span>garnish<span className="text-primary">.</span>
+      <Link href="/" className="flex min-h-11 items-center" aria-label="ARGraphics home">
+        <Wordmark />
       </Link>
       <section className="mx-auto my-auto w-full py-14" style={{ width: '100%', maxWidth: '28rem' }}>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[.22em] text-primary">Your bar account</p>
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[.22em] text-primary">Your ARGraphics account</p>
         <h1 className="serif text-5xl leading-tight">{title}</h1>
         <p className="mt-3 text-sm text-muted-foreground">{description}</p>
         {children}
@@ -36,8 +37,8 @@ function RecoveryLayout({ title, description, children }: { title: string; descr
   );
 }
 
-const inputClass = 'mt-1.5 min-h-12 w-full rounded-xl border border-input bg-card px-4 outline-none focus:border-primary';
-const buttonClass = 'flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-60';
+const inputClass = 'pa-input mt-1.5';
+const buttonClass = 'pa-btn pa-btn-primary w-full';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
