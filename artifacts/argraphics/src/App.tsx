@@ -14,7 +14,7 @@ import { DisplaysPage } from '@/pages/displays';
 import { EditDisplayPage, NewDisplayPage } from '@/pages/display-editor';
 import { ArtistPage } from '@/pages/artist';
 import { OnboardingPage } from '@/pages/onboarding';
-import { ScanFallbackPage } from '@/pages/scan';
+import { ScanPage } from '@/pages/scan';
 import { TableCardsPage, SettingsPage } from '@/pages/blocked';
 import { LoginPage, RegisterPage } from '@/pages/login';
 import { ForgotPasswordPage, ResetPasswordPage } from '@/pages/password-recovery';
@@ -37,7 +37,7 @@ function Router() {
         <Route path="/forgot-password" component={ForgotPasswordPage} />
         <Route path="/reset-password" component={ResetPasswordPage} />
         <Route path="/welcome" component={OnboardingPage} />
-        <Route path="/s/:code">{(params) => <ScanFallbackPage code={params.code} />}</Route>
+        <Route path="/s/:code">{(params) => <ScanPage code={params.code} />}</Route>
         <Route path="/home">{() => <Shell><HomePage /></Shell>}</Route>
         <Route path="/artist">{() => <Shell><ArtistPage /></Shell>}</Route>
         <Route path="/displays">{() => <Shell><DisplaysPage /></Shell>}</Route>

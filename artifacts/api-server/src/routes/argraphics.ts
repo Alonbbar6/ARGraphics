@@ -126,7 +126,17 @@ export function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
+/**
+ * The web guest page (/s/:code) calls the same guest routes from this site. A page can't
+ * keep the key secret (it's an abuse-control token, not a secret), so browser requests the
+ * browser itself marks as same-origin are accepted instead. Rate limits still apply.
+ */
+function isSameOriginBrowser(req: Request): boolean {
+  return req.get("sec-fetch-site") === "same-origin";
+}
+
 export function requireIosKey(req: Request, res: Response): boolean {
+  if (isSameOriginBrowser(req) && !req.get("x-api-key")) return true;
   const secret = process.env.IOS_API_KEY;
   if (!secret) {
     res.status(503).json({ error: "The iOS menu connection is not configured yet." });

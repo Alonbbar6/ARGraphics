@@ -192,6 +192,23 @@ describe("QR codes and the guest flow", () => {
     });
   });
 
+  it("serves the web guest page from this site without the app key, but not other sites", async () => {
+    const cookie = await signIn();
+    const offer = await createDisplay(cookie, { status: "live" }).expect(201);
+    const [code] = await placeCodes(cookie, { displayId: offer.body.id });
+    const scan = (site: string) => request(app).post("/api/v1/scans").set("Sec-Fetch-Site", site)
+      .set("X-Forwarded-For", `203.0.113.${(ip += 1) % 250}`).send({ code: code.code, visitorId: visitor });
+
+    const ok = await scan("same-origin").expect(200);
+    expectResponseContract("createPublicScan", 200, ok.body);
+    expect(ok.body.display.id).toBe(offer.body.id);
+    await scan("cross-site").expect(401);
+    await scan("same-site").expect(401);
+    // A wrong key is still refused, even from the page.
+    await request(app).post("/api/v1/scans").set("Sec-Fetch-Site", "same-origin").set("x-api-key", "wrong")
+      .send({ code: code.code, visitorId: visitor }).expect(401);
+  });
+
   it("claims an offer once per guest per day and refuses ended or missing offers", async () => {
     const cookie = await signIn();
     const offer = await createDisplay(cookie, { status: "live", offer: { title: "Free agua fresca", details: "With any birria tower" } }).expect(201);
