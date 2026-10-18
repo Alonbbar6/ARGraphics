@@ -45,6 +45,14 @@ export async function seedDemoPartners(demoBarId: string) {
       title: "Blood Orange Spritz", description: "See it on your table before you order.", drinkId: "demo-cocktail-1",
     },
     {
+      id: "demo-display-last-word", barId: demoBarId, type: "menu_item", placement: "table", status: "live",
+      title: "Last Word", description: "Gin, green chartreuse, maraschino, lime. Turn it around before you order.", drinkId: "demo-cocktail-3",
+    },
+    {
+      id: "demo-display-gimlet", barId: demoBarId, type: "menu_item", placement: "table", status: "live",
+      title: "Garden Gimlet", description: "Cucumber, basil, lime, house gin. This season only.", drinkId: "demo-cocktail-4",
+    },
+    {
       id: "demo-display-wednesday", barId: demoBarId, type: "promo_offer", placement: "table", status: "live",
       title: "Wednesday regulars", description: "Show this to your server.",
       offerTitle: "Free agua fresca with any spritz", offerDetails: "One per table. Wednesdays only.",
