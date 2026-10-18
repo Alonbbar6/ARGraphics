@@ -3,7 +3,7 @@
 A guest scans the ARGraphics QR code at their table, on a wall, in a window or on a poster,
 and sees that spot's AR display in place: a 3D special on the table, an artist's piece on the
 wall, an event poster or an offer floating over the table. Offers can be claimed and shown to
-staff. Guests use this native app; there is no web AR or App Clip version.
+staff. Guests without the app get the web page at `/s/{code}` (3D viewer and AR Quick Look); this app adds table-card tracking, offer claiming with a live clock, and sharing.
 
 Built with SwiftUI, ARKit and RealityKit. Requires iOS 18 or later and Xcode 26.
 
@@ -14,7 +14,39 @@ Built with SwiftUI, ARKit and RealityKit. Requires iOS 18 or later and Xcode 26.
    - `ARGRAPHICS_API_BASE_URL`: the API server root including `/api`, for example `https://your-host/api`.
    - `ARGRAPHICS_IOS_API_KEY`: the same value as the server's `IOS_API_KEY`.
    - `ARGRAPHICS_ASSOCIATED_DOMAIN`: the web host printed in QR codes (see Universal Links).
+   - `ARGRAPHICS_TEAM_ID`: your Apple Developer team ID (only needed for device and TestFlight builds).
 3. `xcodegen generate && open ARGraphics.xcodeproj`, then run the **ARGraphics** scheme.
+
+## Ship to TestFlight
+
+Two ways. Both need an App Store Connect app record with bundle ID `app.argraphics.visitor`
+and an App Store Connect API key (Users and Access > Integrations > App Store Connect API,
+role App Manager; download the `.p8` once, note the Key ID and Issuer ID).
+
+**From any Mac with Xcode 26** (a cloud Mac works):
+
+```
+brew install xcodegen
+cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig   # fill in all four values
+export ASC_KEY_ID=ABC123DEF4 ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx ASC_KEY_PATH=~/AuthKey_ABC123DEF4.p8
+./scripts/testflight.sh
+```
+
+The script runs the unit tests, archives a signed Release build (Xcode creates the
+certificate and profile itself through the API key), uploads it, and prints the build number.
+Builds appear under App Store Connect > TestFlight after processing; add testers there.
+`BUILD_NUMBER=` and `MARKETING_VERSION=` override the defaults, `SKIP_TESTS=1` skips tests.
+
+**From GitHub, no Mac at all:** `.github/workflows/ios-testflight.yml` does the same on a
+hosted macOS runner. Add the secrets and variables listed at the top of that file, then run
+it from the Actions tab or push a tag like `ios-v1.0.1`. The build number is the run number.
+
+Before the first upload, in App Store Connect:
+- Register the bundle ID with the **Associated Domains** capability.
+- Fill in the app's privacy details: camera (app functionality), no tracking, no data collected
+  beyond an anonymous visitor ID used for counting.
+- Replace `TEAMID` in the web app's `public/.well-known/apple-app-site-association` with
+  your team ID and deploy the web app, or printed codes keep opening Safari.
 
 Tests use stubbed networking and never contact a server. Keep derived data outside `~/Desktop`
 (codesign fails on Desktop file attributes):

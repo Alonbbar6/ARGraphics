@@ -105,16 +105,22 @@ async function liveDisplays(barId: string) {
     .orderBy(desc(displaysTable.updatedAt));
 }
 
-async function publicTableCards(barId: string) {
+async function publicTableCards(req: Request, barId: string) {
   const cards = await db.select().from(tableCardsTable)
     .where(and(eq(tableCardsTable.barId, barId), eq(tableCardsTable.isActive, true)))
     .orderBy(asc(tableCardsTable.createdAt));
-  return Promise.all(cards.map(async (card) => ({
-    id: card.id,
-    name: card.name,
-    referenceImageUrl: await storage.getObjectEntityDownloadURL(card.referenceImageUrl),
-    physicalWidthCm: Number(card.physicalWidthMeters) * 100,
-  })));
+  const signed = await Promise.all(cards.map(async (card) => {
+    // A card whose image is gone is left out; the rest of the venue still loads.
+    const referenceImageUrl = await signedMedia(req, card.referenceImageUrl);
+    if (!referenceImageUrl) return null;
+    return {
+      id: card.id,
+      name: card.name,
+      referenceImageUrl,
+      physicalWidthCm: Number(card.physicalWidthMeters) * 100,
+    };
+  }));
+  return signed.filter((card): card is NonNullable<typeof card> => card !== null);
 }
 
 function rejectInvalid(res: Response, message: string) {
@@ -148,7 +154,7 @@ router.post("/v1/scans", async (req, res): Promise<void> => {
     spot: { label: found.code.label, placement: found.code.placement },
     display: serialized.find((display) => display.id === pointed?.id) ?? null,
     displays: serialized,
-    tableCards: await publicTableCards(found.bar.id),
+    tableCards: await publicTableCards(req, found.bar.id),
   }));
 });
 
@@ -168,7 +174,7 @@ router.get("/v1/venues/:slug", async (req, res): Promise<void> => {
   res.json(GetPublicVenueResponse.parse({
     venue: venueSummary(bar),
     displays: await publicDisplays(req, await liveDisplays(bar.id)),
-    tableCards: await publicTableCards(bar.id),
+    tableCards: await publicTableCards(req, bar.id),
   }));
 });
 

@@ -97,6 +97,7 @@ struct ModelViewer: UIViewRepresentable {
                     ModelPreparation.playBakedAnimations(in: container)
                     self.frameCamera()
                 } catch {
+                    self?.loadedFile = nil
                     self?.model.phase = .failed("This couldn't be opened here. Ask your server about it instead.")
                 }
             }

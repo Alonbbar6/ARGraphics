@@ -1,7 +1,13 @@
 // Shared build settings. Put real values in Secrets.xcconfig (git-ignored);
 // see Secrets.example.xcconfig. `$()` keeps `//` from starting a comment.
-ARGRAPHICS_API_BASE_URL = http:/$()/localhost:5000/api
+// Local development: the web dev server on port 22674 proxies /api to the API server.
+// A phone on the same wifi needs the Mac's LAN address instead of localhost.
+ARGRAPHICS_API_BASE_URL = http:/$()/localhost:22674/api
 ARGRAPHICS_IOS_API_KEY =
+
+// Apple Developer team (10 characters, from developer.apple.com > Membership). Needed to
+// sign device and TestFlight builds; Simulator builds work without it.
+ARGRAPHICS_TEAM_ID =
 
 // Host that serves /.well-known/apple-app-site-association for https://<host>/s/{code}
 // Universal Links. Used by ARGraphics.entitlements. See README "Universal Links".

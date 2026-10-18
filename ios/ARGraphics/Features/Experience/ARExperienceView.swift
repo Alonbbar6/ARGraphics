@@ -148,6 +148,8 @@ struct ARExperienceView: UIViewRepresentable {
                     self.marker = marker
                     self.arView?.installGestures(gestures, for: built)
                 } catch {
+                    // Forget the key so "Try again" rebuilds instead of being skipped as already loaded.
+                    self?.loadedKey = nil
                     self?.model.phase = .failed("This couldn't be opened here. Ask your server about it instead.")
                 }
             }

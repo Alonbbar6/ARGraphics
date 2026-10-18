@@ -173,12 +173,9 @@ struct NearbyRow: View {
 
     private func directions() {
         let coordinate = CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude)
-        let item: MKMapItem
-        if #available(iOS 26, *) {
-            item = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude), address: nil)
-        } else {
-            item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-        }
+        // MKMapItem(placemark:) is deprecated on iOS 26 but still works, and it is the only
+        // initializer the iOS 18 SDK has, so one code path builds with Xcode 16 and 26.
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
         item.name = spot.name
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
     }

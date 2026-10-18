@@ -1,7 +1,7 @@
 import Foundation
 
 /// Build-time settings injected through Config/*.xcconfig into Info.plist.
-struct AppConfig {
+struct AppConfig: Equatable {
     let apiBaseURL: URL
     let apiKey: String
 

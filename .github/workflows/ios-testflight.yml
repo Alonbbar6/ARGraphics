@@ -1,0 +1,73 @@
+name: iOS TestFlight
+
+# Archives the guest app on GitHub's macOS runners and uploads it to TestFlight. No Mac of
+# your own is needed. Run it from the Actions tab (workflow_dispatch) or push a tag like
+# ios-v1.0.3. Build numbers are minutes since 2026-01-01, shared with scripts/testflight.sh,
+# so local and CI uploads never collide. Set these repository secrets first:
+#   ARGRAPHICS_IOS_API_KEY        the API server's IOS_API_KEY
+#   ARGRAPHICS_TEAM_ID            Apple Developer team ID (10 characters)
+#   ASC_KEY_ID, ASC_ISSUER_ID     App Store Connect API key (role App Manager)
+#   ASC_KEY_P8                    the AuthKey_*.p8 file's contents
+# and repository variables:
+#   ARGRAPHICS_API_BASE_URL       https://<your host>/api
+#   ARGRAPHICS_ASSOCIATED_DOMAIN  <your host> (serves /.well-known/apple-app-site-association)
+
+on:
+  push:
+    tags: ["ios-v*"]
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: Version shown to testers (blank keeps project.yml's)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Configure
+        env:
+          API_BASE_URL: ${{ vars.ARGRAPHICS_API_BASE_URL }}
+          IOS_API_KEY: ${{ secrets.ARGRAPHICS_IOS_API_KEY }}
+          ASSOCIATED_DOMAIN: ${{ vars.ARGRAPHICS_ASSOCIATED_DOMAIN }}
+          TEAM_ID: ${{ secrets.ARGRAPHICS_TEAM_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          brew install xcodegen
+          test -n "$API_BASE_URL" || { echo "Set the ARGRAPHICS_API_BASE_URL repository variable"; exit 1; }
+          test -n "$IOS_API_KEY" || { echo "Set the ARGRAPHICS_IOS_API_KEY repository secret"; exit 1; }
+          printf 'ARGRAPHICS_API_BASE_URL = %s\nARGRAPHICS_IOS_API_KEY = %s\nARGRAPHICS_ASSOCIATED_DOMAIN = %s\nARGRAPHICS_TEAM_ID = %s\n' \
+            "$(echo "$API_BASE_URL" | sed 's|//|/$()/|')" "$IOS_API_KEY" "${ASSOCIATED_DOMAIN:-argraphics.example.com}" "$TEAM_ID" \
+            > Config/Secrets.xcconfig
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive and upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+          OUT_DIR: ${{ runner.temp }}/out
+        run: ./scripts/testflight.sh | tee "$RUNNER_TEMP/testflight.log"
+
+      - name: Summary
+        run: grep "Uploaded build" "$RUNNER_TEMP/testflight.log" >> "$GITHUB_STEP_SUMMARY" || true
