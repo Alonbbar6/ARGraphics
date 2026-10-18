@@ -45,6 +45,11 @@ export function InviteChapter() {
                 </Link>
               </Magnetic>
               <Magnetic strength={0.2}>
+                <a href={`${import.meta.env.BASE_URL}b/demo-bar`} className="lp-btn lp-btn-ghost lp-btn-lg">
+                  Try it as a guest
+                </a>
+              </Magnetic>
+              <Magnetic strength={0.2}>
                 <a href="mailto:hello@argraphics.app" className="lp-btn lp-btn-ghost lp-btn-lg">
                   Talk to us
                 </a>

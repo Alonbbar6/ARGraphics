@@ -11,7 +11,7 @@ export const APP_STORE_URL: string | null = ((import.meta.env.VITE_APP_STORE_URL
 const DEFAULT_HEIGHT_CM = 16;
 const ACCENT = 'bg-[hsl(347_77%_46%)] hover:bg-[hsl(347_77%_40%)] text-white';
 
-type Display = {
+export type Display = {
   id: string;
   type: 'menu_item' | 'promo_offer' | 'art_piece' | 'event_teaser';
   placement: string;
@@ -27,7 +27,7 @@ type Display = {
   eventStartsAt: string | null;
   artist: { name: string; slug: string | null; bio: string | null } | null;
 };
-type ScanResult = {
+export type ScanResult = {
   venue: { slug: string; name: string; neighborhood: string | null };
   spot: { label: string; placement: string };
   display: Display | null;
@@ -40,7 +40,7 @@ type Claim = { confirmationCode: string; offerTitle: string; spotLabel: string |
 const VISITOR_KEY = 'argraphics-visitor-id';
 
 /** Anonymous per-browser ID so the venue can count unique guests and limit claims. */
-function visitorId(): string {
+export function visitorId(): string {
   try {
     const saved = localStorage.getItem(VISITOR_KEY);
     if (saved) return saved;
@@ -53,7 +53,14 @@ function visitorId(): string {
 }
 
 /** Same guest routes as the iOS app; the browser marks these requests same-origin. */
-async function guestPost<T>(path: string, body: unknown): Promise<T> {
+export async function guestGet<T>(path: string): Promise<T> {
+  const response = await fetch(`/api/v1/${path}`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error((data as { error?: string }).error ?? 'Something went wrong.'), { status: response.status });
+  return data as T;
+}
+
+export async function guestPost<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`/api/v1/${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -162,11 +169,12 @@ export function ScanPage({ code }: { code: string }) {
   );
 }
 
-function typeLabel(display: Display) {
+export function typeLabel(display: Display) {
   return { menu_item: 'On the menu', promo_offer: 'Offer', art_piece: 'Art', event_teaser: 'Coming up' }[display.type] ?? 'Tonight';
 }
 
-function DisplayView({ display, code }: { display: Display; code: string }) {
+/** One item: 3D with "View in AR", or its picture, plus price, details and any offer. */
+export function DisplayView({ display, code }: { display: Display; code: string | null }) {
   const image = display.mediaUrl ?? display.thumbnailUrl;
   return (
     <article className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-[#121212]">
@@ -281,7 +289,7 @@ function ArModel({ glbUrl, title, heightCm }: { glbUrl: string; title: string; h
   );
 }
 
-function OfferClaim({ display, code }: { display: Display; code: string }) {
+function OfferClaim({ display, code }: { display: Display; code: string | null }) {
   const [state, setState] = useState<{ kind: 'idle' } | { kind: 'busy' } | { kind: 'claimed'; claim: Claim } | { kind: 'error'; message: string }>({ kind: 'idle' });
   const [now, setNow] = useState(() => Date.now());
 
@@ -294,7 +302,7 @@ function OfferClaim({ display, code }: { display: Display; code: string }) {
   const claim = async () => {
     setState({ kind: 'busy' });
     try {
-      const claimed = await guestPost<Claim>(`displays/${encodeURIComponent(display.id)}/claims`, { visitorId: visitorId(), code });
+      const claimed = await guestPost<Claim>(`displays/${encodeURIComponent(display.id)}/claims`, code ? { visitorId: visitorId(), code } : { visitorId: visitorId() });
       setNow(Date.now());
       setState({ kind: 'claimed', claim: claimed });
     } catch (error) {

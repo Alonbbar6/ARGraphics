@@ -16,6 +16,7 @@ const queryClient = new QueryClient();
  */
 const Landing = lazy(() => import('@/pages/landing').then((m) => ({ default: m.Landing })));
 const ScanPage = lazy(() => import('@/pages/scan').then((m) => ({ default: m.ScanPage })));
+const VenuePage = lazy(() => import('@/pages/venue').then((m) => ({ default: m.VenuePage })));
 const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/password-recovery').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -60,6 +61,7 @@ function Router() {
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/welcome" component={OnboardingPage} />
           <Route path="/s/:code">{(params) => <ScanPage code={params.code} />}</Route>
+          <Route path="/b/:slug">{(params) => <VenuePage slug={params.slug} />}</Route>
           <Route path="/home">{() => <InShell page={HomePage} />}</Route>
           <Route path="/artist">{() => <InShell page={ArtistPage} />}</Route>
           <Route path="/displays">{() => <InShell page={DisplaysPage} />}</Route>

@@ -27,6 +27,33 @@ export function originIsPrivate(origin: string) {
   return /^https?:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\])/i.test(origin);
 }
 
+/** The code-free guest page: every live item, each placeable in AR. For bios, listings, tents. */
+function MenuLinkCard({ slug }: { slug: string }) {
+  const url = `${publicOrigin()}/b/${encodeURIComponent(slug)}`;
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast({ title: 'Copy failed', description: url });
+    }
+  };
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4" data-testid="card-menu-link">
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">Your guest page, no code needed</p>
+        <p className="mt-1 truncate text-sm text-muted-foreground">
+          <a href={url} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">{url}</a>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Guests open it from your Instagram bio, Google listing or a table tent and place any item on their table in AR. Printed codes still point to a specific spot.</p>
+      </div>
+      <Button onClick={() => void copy()} variant="ghost" data-testid="button-copy-menu-link">{copied ? 'Copied' : 'Copy link'}</Button>
+    </div>
+  );
+}
+
 function codeUrl(qr: Pick<QrCodeRecord, 'path'>) {
   return scanUrl(publicOrigin(), qr.path);
 }
@@ -83,6 +110,7 @@ export function QrCodesPage() {
           <p className="mt-1 text-muted-foreground">Before printing, open the dashboard from your public address (for example the tunnel URL) so guests' phones can reach it.</p>
         </div>
       ) : null}
+      {session.data?.barSlug ? <MenuLinkCard slug={session.data.barSlug} /> : null}
       <PageHeader
         title="Codes on every table"
         lede={list.length ? <>Every code counts its own scans and walk-ins. This week: <strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong>, <strong className="font-semibold text-foreground">{countLabel(walkIns, 'walk-in')}</strong>{busiest && busiest.scansThisWeek > 0 ? <>, and {busiest.label} is your busiest spot ({share(busiest.scansThisWeek, scans)}% of scans).</> : '.'}</> : 'One code per table, window or poster. Guests scan it with their phone camera and see what you put there.'}
