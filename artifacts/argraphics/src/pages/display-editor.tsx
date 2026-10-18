@@ -5,7 +5,9 @@ import {
   getGetDisplayQueryKey, getListDisplaysQueryKey, getSearchArtistsQueryKey, useCreateDisplay, useGetDisplay,
   useGetPartnerProfile, useGetSession, useListDrinks, useSearchArtists, useUpdateDisplay, type Display, type Drink,
 } from '@workspace/api-client-react';
-import { ArrowLeft, ArrowRight, Box, Check, CircleCheck, ExternalLink, QrCode, Search, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Box, Camera, Check, CircleCheck, ExternalLink, QrCode, Search, X } from 'lucide-react';
+import { CameraCapture } from '@/components/camera-capture';
+import { cameraSupported } from '@/lib/camera';
 import { Button, buttonClass, Dropzone, ErrorPanel, Field, inputClass, PageHeader, PhoneFrame, SegmentedControl, Skeleton, StepIndicator } from '@/components/partner-ui';
 import { GuestPreview, PLACEMENT_ICONS, TYPE_ICONS } from '@/components/display-parts';
 import {
@@ -53,6 +55,7 @@ function DisplayEditor({ initial, existing, startStep }: { initial: DisplayDraft
   const [reached, setReached] = useState(Math.max(startStep, existing ? STEPS.length - 1 : 0));
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [showProblems, setShowProblems] = useState(false);
   const [published, setPublished] = useState<Display | null>(null);
@@ -240,14 +243,23 @@ function DisplayEditor({ initial, existing, startStep }: { initial: DisplayDraft
               ) : (
                 <section>
                   <h2 className="mb-2 text-sm font-medium">{draft.type === 'art_piece' ? 'The piece' : draft.type === 'event_teaser' ? 'Poster or photo for the night' : 'A photo that sells it'}</h2>
-                  <Dropzone
-                    title={draft.type === 'art_piece' ? 'Drop the artwork or a photo of it' : 'Snap the dish or drop a photo'}
-                    hint="A phone photo works. JPEG, PNG or WebP, up to 10 MB."
-                    busy={uploading}
-                    previewUrl={imageUrl}
-                    onFile={(file) => void chooseFile(file)}
-                    onClear={() => { setLocalPreview(null); update({ mediaObjectPath: null }); }}
-                  />
+                  {cameraOpen ? (
+                    <CameraCapture subject={draft.title || 'display'} accept="image/png,image/jpeg,image/webp" onCancel={() => setCameraOpen(false)} onCapture={(file) => { setCameraOpen(false); void chooseFile(file); }} onPickFile={(file) => { setCameraOpen(false); void chooseFile(file); }} />
+                  ) : (
+                    <>
+                      <Dropzone
+                        title={draft.type === 'art_piece' ? 'Drop the artwork or a photo of it' : 'Snap the dish or drop a photo'}
+                        hint="A phone photo works. JPEG, PNG or WebP, up to 10 MB."
+                        busy={uploading}
+                        previewUrl={imageUrl}
+                        onFile={(file) => void chooseFile(file)}
+                        onClear={() => { setLocalPreview(null); update({ mediaObjectPath: null }); }}
+                      />
+                      {cameraSupported() && !imageUrl && !uploading && (
+                        <button type="button" onClick={() => setCameraOpen(true)} className={cn(buttonClass('ghost', 'sm'), 'mt-2')} data-testid="button-display-camera"><Camera size={15} aria-hidden="true" /> Take a photo now</button>
+                      )}
+                    </>
+                  )}
                   {uploadError && <p role="alert" className="mt-2 text-sm text-destructive">{uploadError}</p>}
                   <label className="mt-4 block text-sm font-medium">Show it in 3D (optional)
                     <select className={`${inputClass} mt-2`} value={draft.drinkId ?? ''} onChange={(event) => update({ drinkId: event.target.value || null })} data-testid="select-display-model">

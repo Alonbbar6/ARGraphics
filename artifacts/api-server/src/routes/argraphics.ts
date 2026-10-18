@@ -1013,7 +1013,11 @@ async function seedDemoBar() {
 }
 
 if (process.env.NODE_ENV === "development") {
-  void seedDemoBar().then(() => seedDemoPartners(demoBarId)).catch((error: unknown) => {
+  // The demo bar may predate the ARGraphics rename; its slug is stable even when its id is not.
+  void seedDemoBar()
+    .then(() => db.select({ id: barsTable.id }).from(barsTable).where(eq(barsTable.slug, demoSlug)).limit(1))
+    .then(([bar]) => seedDemoPartners(bar?.id ?? demoBarId))
+    .catch((error: unknown) => {
     process.stderr.write(`ARGraphics demo seed failed: ${String(error)}\n`);
   });
 }

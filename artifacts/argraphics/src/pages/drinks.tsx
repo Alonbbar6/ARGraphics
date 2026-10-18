@@ -4,7 +4,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useListDisplays, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import type { Drink, DrinkInput, SavedPhotoCleanup } from '@workspace/api-client-react';
-import { AlertCircle, ArrowLeft, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Camera, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { CameraCapture } from '@/components/camera-capture';
+import { cameraSupported } from '@/lib/camera';
 import { removePhotoBackground, savedCleanupImageUrl } from '@/lib/photo-cleanup';
 import { createPhotoReviewAnalytics } from '@/lib/photo-review-analytics';
 import heic2any from 'heic2any';
@@ -51,7 +53,8 @@ export function DrinksPage() {
   const [editing, setEditing] = useState<Drink | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
-  const [studioDrink, setStudioDrink] = useState<Drink | null>(null);
+  const [studioDrink, setStudioDrink] = useState<{ drink: Drink; camera: boolean } | null>(null);
+  const [snapAfterCreate, setSnapAfterCreate] = useState(false);
   const [sizeChoice, setSizeChoice] = useState('');
   const displaysQuery = useListDisplays();
   const menuScans = displaysQuery.data ? displaysQuery.data.filter((display) => display.type === 'menu_item').reduce((sum, display) => sum + display.scansThisWeek, 0) : null;
@@ -66,10 +69,11 @@ export function DrinksPage() {
     queryClient.invalidateQueries({ queryKey: getGetInsightsQueryKey() });
   };
 
-  const openCreate = () => {
+  const openCreate = (snap = false) => {
     setEditing(null);
     setSizeChoice('');
     setFormError('');
+    setSnapAfterCreate(snap);
     setModalOpen(true);
   };
 
@@ -81,8 +85,8 @@ export function DrinksPage() {
     setMenuFor(null);
   };
 
-  const openStudio = (drink: Drink) => {
-    setStudioDrink(drink);
+  const openStudio = (drink: Drink, camera = false) => {
+    setStudioDrink({ drink, camera });
     setMenuFor(null);
   };
 
@@ -115,7 +119,14 @@ export function DrinksPage() {
     if (editing) {
       updateDrink.mutate({ id: editing.id, data: input }, { onSuccess: closeOnSuccess, onError: () => setFormError('That edit did not stick. Give it another try.') });
     } else {
-      createDrink.mutate({ data: input }, { onSuccess: closeOnSuccess, onError: () => setFormError('Could not add that drink. Try again in a moment.') });
+      createDrink.mutate({ data: input }, {
+        onSuccess: (created) => {
+          closeOnSuccess();
+          // "Snap a dish": straight from the name to the camera, no second menu.
+          if (snapAfterCreate) openStudio(created, true);
+        },
+        onError: () => setFormError('Could not add that drink. Try again in a moment.'),
+      });
     }
   };
 
@@ -151,9 +162,14 @@ export function DrinksPage() {
           <h1 className="pa-title">Dishes worth walking in for.</h1>
           <p className="mt-2 text-sm text-muted-foreground">Snap a photo, we turn it into 3D, and it floats over the table when guests scan.{menuScans !== null ? <> Your 3D menu items got <strong className="font-semibold text-foreground">{countLabel(menuScans, 'scan')}</strong> this week.</> : null}</p>
         </div>
-        <button onClick={openCreate} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-lg shadow-primary/15" data-testid="button-add-drink">
-          <CirclePlus size={18} /> Add a dish or drink
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button onClick={() => openCreate(true)} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-lg shadow-primary/15" data-testid="button-snap-drink">
+            <Camera size={18} /> Snap a dish
+          </button>
+          <button onClick={() => openCreate()} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 font-semibold hover:bg-muted" data-testid="button-add-drink">
+            <CirclePlus size={18} /> Add without a photo
+          </button>
+        </div>
       </div>
       <div className="owner-toolbar mb-5 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row sm:items-center">
         <label className="owner-search flex min-h-11 flex-1 items-center gap-3 rounded-xl bg-muted/60 px-3">
@@ -173,7 +189,7 @@ export function DrinksPage() {
           <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-secondary text-secondary-foreground"><GlassWater size={25} /></span>
           <h2 className="text-xl font-semibold">First round’s on you.</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">Add the drinks your guests ask for most. You can tune the list as the shift goes.</p>
-          <button onClick={openCreate} className="mt-6 min-h-12 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground" data-testid="button-add-first-drink">Add your first drink</button>
+          <button onClick={() => openCreate(true)} className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground" data-testid="button-add-first-drink"><Camera size={18} /> Snap your first dish</button>
         </section>
       ) : drinks.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center"><p className="font-medium">No drinks in that round.</p><button onClick={() => { setQuery(''); setCategory('all'); }} className="mt-3 min-h-11 px-4 text-sm text-primary underline underline-offset-4" data-testid="button-clear-filter">Clear filters</button></div>
@@ -227,7 +243,7 @@ export function DrinksPage() {
       {modalOpen && <div className="fixed inset-0 z-50 grid place-items-end bg-black/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="drink-form-title" className="w-full max-w-lg rounded-t-[2rem] border border-border bg-card p-5 shadow-2xl sm:rounded-[2rem] sm:p-7">
           <div className="mb-5 flex items-start justify-between">
-            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-primary">{editing ? 'A quick edit' : 'Add to the list'}</p><h2 id="drink-form-title" className="mt-1 text-xl font-semibold">{editing ? 'Tweak this pour.' : 'What are we pouring?'}</h2></div>
+            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-primary">{editing ? 'A quick edit' : 'Add to the list'}</p><h2 id="drink-form-title" className="mt-1 text-xl font-semibold">{editing ? 'Tweak this pour.' : snapAfterCreate ? 'Name it, then point the camera.' : 'What are we pouring?'}</h2></div>
             <button onClick={() => setModalOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-muted" aria-label="Close form"><X size={19} /></button>
           </div>
           <form onSubmit={submitDrink} className="space-y-4">
@@ -252,12 +268,12 @@ export function DrinksPage() {
             {formError && <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
             <button disabled={createDrink.isPending || updateDrink.isPending} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-save-drink">
               {(createDrink.isPending || updateDrink.isPending) && <LoaderCircle size={17} className="animate-spin" />}
-              {editing ? 'Save changes' : 'Add to the menu'}
+              {editing ? 'Save changes' : snapAfterCreate ? 'Next: take the photo' : 'Add to the menu'}
             </button>
           </form>
         </section>
       </div>}
-      {studioDrink && <PhotoTo3DStudio drink={studioDrink} onClose={() => setStudioDrink(null)} onPublished={() => { refresh(); setStudioDrink(null); }} />}
+      {studioDrink && <PhotoTo3DStudio drink={studioDrink.drink} startWithCamera={studioDrink.camera} onClose={() => setStudioDrink(null)} onPublished={() => { refresh(); setStudioDrink(null); }} />}
     </div>
   );
 }
@@ -266,7 +282,7 @@ function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClose: () => void; onPublished: () => void }) {
+function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished }: { drink: Drink; startWithCamera?: boolean; onClose: () => void; onPublished: () => void }) {
   const [reviewAnalytics] = useState(createPhotoReviewAnalytics);
   const queryClient = useQueryClient();
   const startGeneration = useStartDrinkGeneration();
@@ -284,6 +300,10 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [savedDraft, setSavedDraft] = useState<SavedPhotoCleanup | null>(null);
   const [choosingNewPhoto, setChoosingNewPhoto] = useState(false);
+  // Camera first when the owner came here to shoot; the viewfinder closes once a frame is taken.
+  const [cameraOpen, setCameraOpen] = useState(startWithCamera && cameraSupported());
+  // "Snap and build": skip the cutout check and start the paid 3D build as soon as the cutout is ready.
+  const [autoBuild, setAutoBuild] = useState(false);
   const cleanupQuery = useGetSavedPhotoCleanup(drink.id, {
     query: {
       queryKey: getGetSavedPhotoCleanupQueryKey(drink.id),
@@ -358,8 +378,9 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     return () => { cancelled = true; };
   }, [modelUrl]);
 
-  const choosePhoto = async (file?: File) => {
+  const choosePhoto = async (file?: File, buildRightAway = autoBuild) => {
     if (!file) return;
+    setCameraOpen(false);
     setError('');
     setNotice('');
     const looksHeic = /\\.hei[cf]$/i.test(file.name) || ['image/heic', 'image/heif'].includes(file.type.toLowerCase());
@@ -401,6 +422,10 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
       setChoosingNewPhoto(false);
       void cleanupQuery.refetch();
       setBusyMessage('');
+      if (buildRightAway) {
+        setApproved(true);
+        await generateFrom(result);
+      }
     } catch (cause) {
       setBusyMessage('');
       setError(messageFrom(cause, 'Could not prepare that photo. Try another.'));
@@ -409,15 +434,15 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     }
   };
 
-  const generate = async () => {
-    if (!savedDraft?.cleanedPhotoPath || savedDraft.status !== 'ready' || !approved) return;
+  const generateFrom = async (draft: SavedPhotoCleanup) => {
+    if (!draft.cleanedPhotoPath || draft.status !== 'ready') return;
     setError('');
     setNotice('');
     setBusyMessage('Starting the 3D build from your saved cutout…');
     try {
-      const sourcePhotoPath = savedDraft.sourcePhotoPath;
-      const cleanedPhotoPath = savedDraft.cleanedPhotoPath;
-      const cutoutSource = reviewAnalytics.source(savedDraft);
+      const sourcePhotoPath = draft.sourcePhotoPath;
+      const cleanedPhotoPath = draft.cleanedPhotoPath;
+      const cutoutSource = reviewAnalytics.source(draft);
       const result = await startGeneration.mutateAsync({ id: drink.id, data: { sourcePhotoPath, cleanedPhotoPath } });
       reviewAnalytics.generated(cutoutSource);
       queryClient.setQueryData(getGetDrinkGenerationQueryKey(drink.id), result);
@@ -429,6 +454,11 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
       setBusyMessage('');
       setError(messageFrom(cause, 'The 3D build could not start. Your photos are still here—try again.'));
     }
+  };
+
+  const generate = async () => {
+    if (!savedDraft || !approved) return;
+    await generateFrom(savedDraft);
   };
 
   const publish = () => {
@@ -445,8 +475,9 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
     });
   };
 
-  const reshoot = () => {
+  const reshoot = (withCamera = cameraSupported()) => {
     reviewAnalytics.retake(savedDraft);
+    setCameraOpen(withCamera);
     setSourceFile(null);
     setSavedDraft(null);
     setChoosingNewPhoto(true);
@@ -468,21 +499,33 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
           {cleanupQuery.isLoading && <p role="status">Checking for a saved cutout…</p>}
           {cleanupQuery.isError && <div role="alert">Could not check your saved cutout. <button onClick={() => void cleanupQuery.refetch()} className="underline">Try again</button></div>}
           {savedDraft?.status === 'processing' && <p role="status" data-testid="status-saved-cleanup">Your photo cleanup is still running. You can close the studio; the cutout will be saved here when ready.</p>}
-          {!hasPhoto && !active && !modelUrl && !cleanupQuery.isLoading && !cleanupQuery.isError && (
-            <label className="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-primary/40 bg-secondary/35 px-5 text-center transition-colors hover:bg-secondary/60">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-sm"><ImagePlus size={25} /></span>
-              <span className="mt-4 font-semibold">Choose a drink photo</span>
-              <span className="mt-1 text-sm text-muted-foreground">Use a camera shot or upload from your library.</span>
-              <span className="mt-2 text-xs text-muted-foreground">Selecting a photo starts paid OpenAI background removal. Meshy is charged separately when you approve and generate.</span>
-              <span className="mt-3 text-[11px] text-muted-foreground">JPG, PNG, WebP, HEIC or HEIF · up to 15 MB</span>
-              <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} data-testid="input-drink-photo" />
-            </label>
+          {cameraOpen && !busyMessage && !active && (
+            <CameraCapture subject={drink.name} accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" onCancel={() => setCameraOpen(false)} onCapture={(file) => void choosePhoto(file)} onPickFile={(file) => void choosePhoto(file)} />
+          )}
+          {!cameraOpen && !hasPhoto && !active && !modelUrl && !cleanupQuery.isLoading && !cleanupQuery.isError && (
+            <div className="rounded-[1.5rem] border border-dashed border-primary/40 bg-secondary/35 px-5 py-8 text-center" data-testid="panel-photo-picker">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-sm"><Camera size={25} /></span>
+              <p className="mt-4 font-semibold">Show us {drink.name}.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Point your phone at it on a plain surface in good light, or pick a photo you already have.</p>
+              <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+                {cameraSupported() && <button type="button" onClick={() => setCameraOpen(true)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground" data-testid="button-open-camera"><Camera size={17} /> Take a photo</button>}
+                <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 font-semibold hover:bg-muted" data-testid="button-choose-photo">
+                  <ImagePlus size={17} /> Choose from library
+                  <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} data-testid="input-drink-photo" />
+                </label>
+              </div>
+              <label className="mx-auto mt-5 flex max-w-md cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-3 py-3 text-left text-sm">
+                <input type="checkbox" checked={autoBuild} onChange={(event) => setAutoBuild(event.target.checked)} className="mt-0.5 h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-auto-build" />
+                <span><span className="font-semibold">Build the 3D model right away.</span> <span className="text-muted-foreground">Skips the cutout check. One photo, one model, no clicks in between.</span></span>
+              </label>
+              <p className="mt-3 text-[11px] text-muted-foreground">JPG, PNG, WebP, HEIC or HEIF · up to 15 MB · a photo starts paid background removal; the 3D build uses Meshy credits.</p>
+            </div>
           )}
           {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
-          {hasPhoto && !cleanedPreview && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button>}
+          {hasPhoto && !cleanedPreview && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={() => reshoot()} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button>}
           {hasPhoto && cleanedPreview && (
             <div>
-              <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={reshoot} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
+              <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={() => reshoot()} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <figure className="overflow-hidden rounded-2xl border border-border bg-muted"><div className="grid h-48 place-items-center sm:h-60"><img src={originalPreview} alt="Original drink photo" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Original photo</figcaption></figure>
                 <figure className="overflow-hidden rounded-2xl border border-border bg-card"><div className="checkerboard grid h-48 place-items-center sm:h-60" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}><img src={cleanedPreview} alt="Transparent background cutout preview" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Background removed <span className="ml-1 font-normal text-muted-foreground">· transparent</span></figcaption></figure>
@@ -504,7 +547,7 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
           )}
           {generation?.status === 'failed' && (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4" role="alert" data-testid="status-generation-error"><p className="font-semibold text-destructive">The model needs another go.</p><p className="mt-1 text-sm text-muted-foreground">{generation.error || drink.generationError || 'The 3D build did not finish.'}</p>
-              <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => savedDraft?.status === 'ready' ? void generate() : reshoot()} disabled={!!busyMessage || (savedDraft?.status === 'ready' && !approved)} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-retry-generation"><RefreshCw size={15} /> Retry build</button><button onClick={reshoot} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-reshoot-after-error">Reshoot photo</button></div>
+              <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => savedDraft?.status === 'ready' ? void generate() : reshoot()} disabled={!!busyMessage || (savedDraft?.status === 'ready' && !approved)} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-retry-generation"><RefreshCw size={15} /> Retry build</button><button onClick={() => reshoot()} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-reshoot-after-error">Reshoot photo</button></div>
             </div>
           )}
           {generationQuery.isError && !active && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive" role="alert">Couldn’t load the latest generation status. <button onClick={() => generationQuery.refetch()} className="font-semibold underline underline-offset-2">Try again</button></div>}
@@ -515,11 +558,11 @@ function PhotoTo3DStudio({ drink, onClose, onPublished }: { drink: Drink; onClos
               <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
             </div>
           )}
-          {modelUrl && !hasPhoto && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo starts paid OpenAI cleanup. Generating a new model uses Meshy credits separately.</p><label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a new photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div>}
+          {modelUrl && !hasPhoto && !cameraOpen && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo starts paid OpenAI cleanup. Generating a new model uses Meshy credits separately.</p><div className="flex flex-wrap gap-2">{cameraSupported() && <button type="button" onClick={() => setCameraOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-camera"><Camera size={15} /> Snap a new photo</button>}<label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a library photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div></div>}
           {notice && <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm" role="status" data-testid="status-studio-notice">{notice}</p>}
           {error && <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert" data-testid="status-studio-error"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div>}
-          {(generation?.status === 'ready' || modelUrl) && hasPhoto && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
-          {!hasPhoto && !active && !modelUrl && generation?.status === 'failed' && <button onClick={reshoot} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold"><Upload size={15} /> Choose a new photo</button>}
+          {(generation?.status === 'ready' || modelUrl) && hasPhoto && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
+          {!hasPhoto && !cameraOpen && !active && !modelUrl && generation?.status === 'failed' && <button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold"><Upload size={15} /> Choose a new photo</button>}
         </div>
       </section>
     </div>,
