@@ -9,19 +9,24 @@ import { db, drinksTable } from "@workspace/db";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 
 /**
- * Gives the demo bar's signature drink a real 3D model, so a fresh database still has one
- * display that shows something in AR (`/s/demobar1`, `/s/demotbl1`). The model ships with
- * the API in assets/demo and is copied into object storage once; nothing is generated.
+ * Gives the demo bar's drinks real 3D models, so a fresh database still shows something in
+ * AR (`/s/demobar1`, `/s/demotbl1`, the 3D library). The models ship with the API in
+ * assets/demo and are copied into object storage once per drink; nothing is generated.
+ * Each model was built from a photo through the app's own pipeline.
  */
 
-const DEMO_DRINK_ID = "demo-cocktail-1";
-const ASSET_BASE = "blood-orange-spritz";
+/** Demo drink id → asset base name in assets/demo (`<base>.glb`, `.usdz`, `.png`). */
+const DEMO_MODELS: ReadonlyArray<{ drinkId: string; base: string }> = [
+  { drinkId: "demo-cocktail-1", base: "blood-orange-spritz" },
+  { drinkId: "demo-cocktail-3", base: "last-word" },
+  { drinkId: "demo-cocktail-4", base: "garden-gimlet" },
+];
 
 /** The assets folder sits next to src/ in development and next to dist/ once built. */
 function assetsDir(): string | null {
   const here = path.dirname(fileURLToPath(import.meta.url));
   for (const candidate of [path.resolve(here, "../../assets/demo"), path.resolve(here, "../assets/demo")]) {
-    if (existsSync(path.join(candidate, `${ASSET_BASE}.glb`))) return candidate;
+    if (existsSync(candidate)) return candidate;
   }
   return null;
 }
@@ -47,23 +52,21 @@ async function store(bytes: Buffer, assetName: string, contentType: string): Pro
   return `/public-objects/${assetName}`;
 }
 
-export async function seedDemoModel(demoBarId: string): Promise<void> {
+async function seedOne(dir: string, demoBarId: string, drinkId: string, base: string): Promise<void> {
   const [drink] = await db
     .select({ id: drinksTable.id })
     .from(drinksTable)
-    .where(and(eq(drinksTable.id, DEMO_DRINK_ID), eq(drinksTable.barId, demoBarId), isNull(drinksTable.modelGlbUrl)))
+    .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, demoBarId), isNull(drinksTable.modelGlbUrl)))
     .limit(1);
   if (!drink) return;
 
-  const dir = assetsDir();
-  if (!dir) return;
+  const glbPath = path.join(dir, `${base}.glb`);
+  const pngPath = path.join(dir, `${base}.png`);
+  const usdzPath = path.join(dir, `${base}.usdz`);
+  if (!existsSync(glbPath) || !existsSync(pngPath)) return;
 
-  const folder = `argraphics/drinks/${DEMO_DRINK_ID}`;
-  const [glb, png] = await Promise.all([
-    readFile(path.join(dir, `${ASSET_BASE}.glb`)),
-    readFile(path.join(dir, `${ASSET_BASE}.png`)),
-  ]);
-  const usdzPath = path.join(dir, `${ASSET_BASE}.usdz`);
+  const folder = `argraphics/drinks/${drinkId}`;
+  const [glb, png] = await Promise.all([readFile(glbPath), readFile(pngPath)]);
   const usdz = existsSync(usdzPath) ? await readFile(usdzPath) : null;
 
   const [modelGlbUrl, thumbnailUrl, modelUsdzUrl] = await Promise.all([
@@ -81,7 +84,17 @@ export async function seedDemoModel(demoBarId: string): Promise<void> {
       generationStatus: "ready",
       generationProgress: 100,
       generationError: null,
+      // Everything with a model goes on the demo menu, so the guest page has a full round.
+      isPublished: true,
       updatedAt: new Date(),
     })
-    .where(and(eq(drinksTable.id, DEMO_DRINK_ID), eq(drinksTable.barId, demoBarId)));
+    .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, demoBarId)));
+}
+
+export async function seedDemoModel(demoBarId: string): Promise<void> {
+  const dir = assetsDir();
+  if (!dir) return;
+  for (const { drinkId, base } of DEMO_MODELS) {
+    await seedOne(dir, demoBarId, drinkId, base);
+  }
 }
