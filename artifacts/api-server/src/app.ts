@@ -1,4 +1,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
@@ -6,6 +9,15 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const isProduction = process.env.NODE_ENV === "production";
+
+/**
+ * In a hosted deployment the API also serves the built dashboard and guest page, so both
+ * live on one origin: no CORS, one domain on the printed codes. WEB_DIST points at the Vite
+ * output; by default it is the sibling artifact's dist/public next to this bundle.
+ */
+const webDist = process.env.WEB_DIST
+  || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "argraphics", "dist", "public");
+const serveWeb = isProduction && existsSync(path.join(webDist, "index.html"));
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -16,12 +28,23 @@ app.disable("x-powered-by");
  * Security headers. The API only ever answers JSON, so a locked-down CSP costs nothing.
  * HSTS is sent in production only: on a Mac the dashboard and phones talk plain http.
  */
-app.use(helmet({
+app.use("/api", helmet({
   contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
   crossOriginResourcePolicy: { policy: "same-site" },
   strictTransportSecurity: isProduction ? { maxAge: 60 * 60 * 24 * 365, includeSubDomains: true } : false,
   referrerPolicy: { policy: "no-referrer" },
 }));
+if (serveWeb) {
+  // The dashboard loads fonts from Google and 3D viewers from the model files it is given;
+  // keep the browser-side policy to the headers that do not need a per-asset allowlist.
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "same-site" },
+    strictTransportSecurity: { maxAge: 60 * 60 * 24 * 365, includeSubDomains: true },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  }));
+}
 
 app.use(
   pinoHttp({
@@ -60,6 +83,22 @@ app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 
 app.use("/api", router);
+
+if (serveWeb) {
+  // Apple reads this JSON without an extension; serve it before the catch-all.
+  app.get("/.well-known/apple-app-site-association", (_req, res) => {
+    res.type("application/json").sendFile(path.join(webDist, ".well-known", "apple-app-site-association"));
+  });
+  // Hashed assets are immutable; everything else (index.html) must revalidate so deploys show up.
+  app.use("/assets", express.static(path.join(webDist, "assets"), { immutable: true, maxAge: "1y", fallthrough: true }));
+  app.use(express.static(webDist, { index: false, maxAge: "1h" }));
+  app.get(/^(?!\/api(\/|$)).*/, (req, res, next) => {
+    if (req.method !== "GET" || !req.accepts("html")) return next();
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(webDist, "index.html"));
+  });
+  logger.info({ webDist }, "Serving the web app from the API");
+}
 
 /*
  * Anything a handler failed to catch ends here: logged with the request id, answered with
