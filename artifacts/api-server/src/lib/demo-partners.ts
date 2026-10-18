@@ -39,6 +39,12 @@ export async function seedDemoPartners(demoBarId: string) {
       passwordHash: await bcrypt.hash("ARGraphics-demo-2026!", 12), name: "Ana Ruiz",
     }).onConflictDoNothing();
   }
+  // An owner may already have made a display for a demo drink in the dashboard; never add a twin.
+  const taken = new Set(
+    (await db.select({ drinkId: displaysTable.drinkId }).from(displaysTable).where(eq(displaysTable.barId, demoBarId)))
+      .map((row) => row.drinkId)
+      .filter((id): id is string => Boolean(id)),
+  );
   await db.insert(displaysTable).values([
     {
       id: "demo-display-spritz", barId: demoBarId, type: "menu_item", placement: "table", status: "live",
@@ -71,7 +77,7 @@ export async function seedDemoPartners(demoBarId: string) {
       id: "demo-neighbor-tacos", barId: "demo-neighbor", type: "promo_offer", placement: "window", status: "live",
       title: "Taco Tuesday", offerTitle: "2-for-1 al pastor", offerDetails: "Before 7pm.",
     },
-  ]).onConflictDoNothing();
+  ].filter((display) => !("drinkId" in display && display.drinkId && taken.has(display.drinkId)))).onConflictDoNothing();
   await db.insert(qrCodesTable).values([
     ...Array.from({ length: 6 }, (_, index) => ({
       id: `demo-qr-table-${index + 1}`, barId: demoBarId, displayId: "demo-display-wednesday",
