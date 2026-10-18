@@ -44,7 +44,7 @@ describe("AI drink photo cleanup", () => {
   });
   it("reports a missing server key explicitly", async () => {
     vi.stubEnv("OPENAI_API_KEY", "");
-    await expect(cleanupDrinkPhoto(await image())).rejects.toThrow("OPENAI_API_KEY");
+    await expect(cleanupDrinkPhoto(await image())).rejects.toThrow("Photo cleanup isn't switched on");
     expect(mocks.edit).not.toHaveBeenCalled();
   });
   it("requests a transparent edit and returns the real provider image", async () => {

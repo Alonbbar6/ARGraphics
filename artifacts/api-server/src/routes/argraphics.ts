@@ -39,6 +39,7 @@ import {
 import { ObjectStorageService } from "../lib/objectStorage";
 import passwordRecoveryRouter from "./password-recovery";
 import { seedDemoPartners } from "../lib/demo-partners";
+import { seedDemoModel } from "../lib/demo-model";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -984,39 +985,46 @@ router.post("/v1/bars/:slug/events", async (req, res): Promise<void> => {
   res.status(201).json(CreatePublicEventResponse.parse({ message: "Event recorded." }));
 });
 
-async function seedDemoBar() {
-  await db.insert(barsTable).values({
-    id: demoBarId,
-    name: "Demo Bar",
-    slug: demoSlug,
-  }).onConflictDoNothing();
+/**
+ * Seeds the demo bar and returns its id. The bar may predate the ARGraphics rename, so it is
+ * looked up by its stable slug first; every row below hangs off whichever id it really has.
+ */
+async function seedDemoBar(): Promise<string> {
+  const [bySlug] = await db.select({ id: barsTable.id }).from(barsTable).where(eq(barsTable.slug, demoSlug)).limit(1);
+  const barId = bySlug?.id ?? demoBarId;
+  if (!bySlug) {
+    await db.insert(barsTable).values({ id: barId, name: "Demo Bar", slug: demoSlug }).onConflictDoNothing();
+  }
   const [demoUser] = await db.select().from(usersTable)
     .where(eq(usersTable.email, "demo@argraphics.app")).limit(1);
   if (!demoUser) {
     await db.insert(usersTable).values({
       id: randomUUID(),
-      barId: demoBarId,
+      barId,
       email: "demo@argraphics.app",
       passwordHash: await bcrypt.hash("ARGraphics-demo-2026!", 12),
       name: "Alex Morgan",
     });
   }
-  const existing = await db.select().from(drinksTable).where(eq(drinksTable.barId, demoBarId)).limit(1);
-  if (existing.length) return;
-  await db.insert(drinksTable).values([
-    { id: "demo-cocktail-1", barId: demoBarId, name: "Blood Orange Spritz", description: "Blood orange, prosecco, rosemary", priceCents: 1600, category: "signature", isPublished: true, sortOrder: 1 },
-    { id: "demo-cocktail-2", barId: demoBarId, name: "Velvet Negroni", description: "Gin, bitter orange, sweet vermouth", priceCents: 1800, category: "signature", isPublished: true, sortOrder: 2 },
-    { id: "demo-cocktail-3", barId: demoBarId, name: "Last Word", description: "Gin, green chartreuse, maraschino, lime", priceCents: 1700, category: "classic", isPublished: false, sortOrder: 3 },
-    { id: "demo-cocktail-4", barId: demoBarId, name: "Garden Gimlet", description: "Cucumber, basil, lime, house gin", priceCents: 1500, category: "seasonal", isPublished: false, sortOrder: 4 },
-  ]).onConflictDoNothing();
-  await db.insert(menuVersionTable).values({ barId: demoBarId, version: 1 }).onConflictDoNothing();
+  const existing = await db.select().from(drinksTable).where(eq(drinksTable.barId, barId)).limit(1);
+  if (!existing.length) {
+    await db.insert(drinksTable).values([
+      { id: "demo-cocktail-1", barId, name: "Blood Orange Spritz", description: "Blood orange, prosecco, rosemary", priceCents: 1600, category: "signature", isPublished: true, sortOrder: 1 },
+      { id: "demo-cocktail-2", barId, name: "Velvet Negroni", description: "Gin, bitter orange, sweet vermouth", priceCents: 1800, category: "signature", isPublished: true, sortOrder: 2 },
+      { id: "demo-cocktail-3", barId, name: "Last Word", description: "Gin, green chartreuse, maraschino, lime", priceCents: 1700, category: "classic", isPublished: false, sortOrder: 3 },
+      { id: "demo-cocktail-4", barId, name: "Garden Gimlet", description: "Cucumber, basil, lime, house gin", priceCents: 1500, category: "seasonal", isPublished: false, sortOrder: 4 },
+    ]).onConflictDoNothing();
+    await db.insert(menuVersionTable).values({ barId, version: 1 }).onConflictDoNothing();
+  }
+  // The signature drink gets a bundled 3D model so the demo scan page shows AR on day one.
+  await seedDemoModel(barId);
+  return barId;
 }
 
-if (process.env.NODE_ENV === "development") {
-  // The demo bar may predate the ARGraphics rename; its slug is stable even when its id is not.
+// Development always seeds; a hosted demo opts in with SEED_DEMO=true.
+if (process.env.NODE_ENV === "development" || process.env.SEED_DEMO === "true") {
   void seedDemoBar()
-    .then(() => db.select({ id: barsTable.id }).from(barsTable).where(eq(barsTable.slug, demoSlug)).limit(1))
-    .then(([bar]) => seedDemoPartners(bar?.id ?? demoBarId))
+    .then((barId) => seedDemoPartners(barId))
     .catch((error: unknown) => {
     process.stderr.write(`ARGraphics demo seed failed: ${String(error)}\n`);
   });

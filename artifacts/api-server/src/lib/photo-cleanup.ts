@@ -31,7 +31,7 @@ export async function cleanupDrinkPhoto(bytes: Buffer, signal?: AbortSignal): Pr
   const input = await prepareCleanupPhoto(bytes);
   signal?.throwIfAborted();
   if (!process.env.OPENAI_API_KEY) {
-    throw new PhotoCleanupError("AI photo cleanup is not configured. Add OPENAI_API_KEY in Secrets.", 503);
+    throw new PhotoCleanupError("Photo cleanup isn't switched on for this server yet. Ask your ARGraphics contact to enable it.", 503);
   }
   // Use the owner's key directly. Never use browser credentials or log provider payloads.
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 180_000, maxRetries: 0 });

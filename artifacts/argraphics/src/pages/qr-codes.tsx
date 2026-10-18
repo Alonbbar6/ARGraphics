@@ -13,8 +13,22 @@ import { createQrPrintPdf, fileSafe, numberedLabels, parseLabelList, PRINT_TEMPL
 import { countLabel, formatCount, plural, share } from '@/lib/traffic';
 import { toast } from '@/hooks/use-toast';
 
+/**
+ * Printed codes must point at an address guests' phones can reach. Prefer the configured
+ * public address; fall back to wherever the dashboard was opened.
+ */
+export function publicOrigin() {
+  const configured = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim();
+  return configured ? configured.replace(/\/+$/, '') : window.location.origin;
+}
+
+/** True when codes would point at this computer only (localhost or a private LAN address). */
+export function originIsPrivate(origin: string) {
+  return /^https?:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\])/i.test(origin);
+}
+
 function codeUrl(qr: Pick<QrCodeRecord, 'path'>) {
-  return scanUrl(window.location.origin, qr.path);
+  return scanUrl(publicOrigin(), qr.path);
 }
 
 export function QrCodesPage() {
@@ -63,9 +77,15 @@ export function QrCodesPage() {
 
   return (
     <div className="rise">
+      {originIsPrivate(publicOrigin()) ? (
+        <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm" role="status" data-testid="warning-private-origin">
+          <p className="font-semibold">These codes point at {publicOrigin()}, which only works on this network.</p>
+          <p className="mt-1 text-muted-foreground">Before printing, open the dashboard from your public address (for example the tunnel URL) so guests' phones can reach it.</p>
+        </div>
+      ) : null}
       <PageHeader
         title="Codes on every table"
-        lede={list.length ? <>Every code counts its own scans and walk-ins. This week: <strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong>, <strong className="font-semibold text-foreground">{countLabel(walkIns, 'walk-in')}</strong>{busiest && busiest.scansThisWeek > 0 ? <>, and {busiest.label} is your busiest spot ({share(busiest.scansThisWeek, scans)}% of scans).</> : '.'}</> : 'One code per table, window or poster. Guests scan with the ARGraphics app and see what you put there.'}
+        lede={list.length ? <>Every code counts its own scans and walk-ins. This week: <strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong>, <strong className="font-semibold text-foreground">{countLabel(walkIns, 'walk-in')}</strong>{busiest && busiest.scansThisWeek > 0 ? <>, and {busiest.label} is your busiest spot ({share(busiest.scansThisWeek, scans)}% of scans).</> : '.'}</> : 'One code per table, window or poster. Guests scan it with their phone camera and see what you put there.'}
         actions={<Button variant="primary" icon={Plus} onClick={() => setAdding(true)} data-testid="button-add-spots">Add spots</Button>}
       />
 

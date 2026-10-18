@@ -4,8 +4,8 @@ import { BrandMark } from '@/components/brand';
 import { ensureModelViewer } from '@/lib/model-viewer';
 import '@/components/partner.css';
 
-// TODO: replace with the real App Store listing once the ARGraphics iOS app is published.
-export const APP_STORE_URL = 'https://apps.apple.com/app/id0000000000';
+/** Set VITE_APP_STORE_URL once the iOS app is published; until then the link stays hidden. */
+export const APP_STORE_URL: string | null = ((import.meta.env.VITE_APP_STORE_URL as string | undefined) || '').trim() || null;
 
 /** Height used when the venue hasn't set one, matching the iOS app (ModelPreparation.itemHeight). */
 const DEFAULT_HEIGHT_CM = 16;
@@ -150,9 +150,11 @@ export function ScanPage({ code }: { code: string }) {
               </section>
             )}
 
-            <a href={APP_STORE_URL} className="mt-10 flex items-center justify-center gap-2 text-xs text-white/50 hover:text-white/80" data-testid="link-app-store">
-              <Apple size={14} aria-hidden="true" /> Get the ARGraphics iPhone app for table-card AR
-            </a>
+            {APP_STORE_URL ? (
+              <a href={APP_STORE_URL} className="mt-10 flex items-center justify-center gap-2 text-xs text-white/50 hover:text-white/80" data-testid="link-app-store">
+                <Apple size={14} aria-hidden="true" /> Get the ARGraphics iPhone app for table-card AR
+              </a>
+            ) : null}
           </>
         )}
       </div>

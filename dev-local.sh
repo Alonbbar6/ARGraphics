@@ -25,5 +25,7 @@ fi
 
 trap 'kill 0' INT TERM EXIT
 NODE_ENV=development PORT=8080 pnpm --filter @workspace/api-server run dev &
+# Printed QR codes point at the same address phones use for uploads (LAN IP or tunnel).
+export VITE_PUBLIC_APP_URL="$LOCAL_STORAGE_PUBLIC_URL"
 PORT=22674 BASE_PATH=/ API_PROXY_TARGET=http://localhost:8080 pnpm --filter @workspace/argraphics run dev &
 wait
