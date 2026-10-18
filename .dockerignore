@@ -19,4 +19,3 @@ artifacts/argraphics/.replit-artifact
 *.png
 !artifacts/argraphics/public/**
 !artifacts/api-server/assets/**
-!artifacts/api-server/assets/**
