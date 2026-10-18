@@ -179,7 +179,13 @@ export function DisplayView({ display, code }: { display: Display; code: string 
   return (
     <article className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-[#121212]">
       {display.modelGlbUrl ? (
-        <ArModel glbUrl={display.modelGlbUrl} title={display.title} heightCm={display.modelHeightCm ?? DEFAULT_HEIGHT_CM} />
+        <ArModel
+          glbUrl={display.modelGlbUrl}
+          // A real, pre-sized USDZ for iPhone: Chrome on iOS cannot open the one built in the page.
+          iosSrc={display.modelUsdzUrl ? `/api/v1/displays/${encodeURIComponent(display.id)}/model.usdz` : null}
+          title={display.title}
+          heightCm={display.modelHeightCm ?? DEFAULT_HEIGHT_CM}
+        />
       ) : image ? (
         <img src={image} alt={display.title} className="max-h-[60dvh] w-full bg-black object-contain" />
       ) : null}
@@ -219,7 +225,7 @@ const measuredHeights = new Map<string, number>();
  * on a loaded model outside an AR session. So the first load only measures the model, then
  * a fresh element loads it again (from the HTTP cache) with the scale already applied.
  */
-function ArModel({ glbUrl, title, heightCm }: { glbUrl: string; title: string; heightCm: number }) {
+function ArModel({ glbUrl, iosSrc, title, heightCm }: { glbUrl: string; iosSrc: string | null; title: string; heightCm: number }) {
   const ref = useRef<ModelViewerElement | null>(null);
   const [ready, setReady] = useState(false);
   const [authoredHeight, setAuthoredHeight] = useState(() => measuredHeights.get(glbUrl) ?? null);
@@ -261,6 +267,7 @@ function ArModel({ glbUrl, title, heightCm }: { glbUrl: string; title: string; h
           key: scale ? 'scaled' : 'measuring',
           ref: attach,
           src: glbUrl,
+          ...(iosSrc ? { 'ios-src': iosSrc } : {}),
           ...(scale ? { scale: `${scale} ${scale} ${scale}` } : {}),
           alt: `3D model of ${title}`,
           'camera-controls': true,

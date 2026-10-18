@@ -18,6 +18,8 @@ import {
   artworksTable, barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable, tableCardsTable,
 } from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { summarizeGlb } from "../lib/glb-quality";
+import { scaledUsdz } from "../lib/usdz";
 import {
   CLAIM_VALID_MS, distanceMeters, localParts, newConfirmationCode, priceLabel, safeTimeZone, visitorHash,
 } from "../lib/traffic";
@@ -258,6 +260,94 @@ router.get("/v1/artists/:slug", async (req, res): Promise<void> => {
       neighborhood: venue.neighborhood,
     }))),
   }));
+});
+
+/* ------------------------------------------------- USDZ at real size (iPhone AR) */
+
+/** Reads a stored object by the path form the database keeps (public or private). */
+async function storedBytes(objectPath: string): Promise<Buffer | null> {
+  try {
+    if (objectPath.startsWith("/public-objects/")) {
+      const file = await storage.searchPublicObject(objectPath.slice("/public-objects/".length));
+      if (!file) return null;
+      const [bytes] = await file.download();
+      return bytes;
+    }
+    const file = await storage.getObjectEntityFile(objectPath);
+    const [bytes] = await file.download();
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+/** Built files, keyed by model path and height. A handful of items per venue; bounded. */
+const usdzCache = new Map<string, Buffer>();
+const USDZ_CACHE_MAX = 24;
+
+/**
+ * The item's USDZ sized to its real height, for AR Quick Look. Chrome on iOS cannot open
+ * the USDZ model-viewer builds in the page, so the guest page points iPhones here instead.
+ * Public, like the model files themselves; no key, because Chrome fetches it outside the page.
+ */
+router.get("/v1/displays/:id/model.usdz", async (req, res): Promise<void> => {
+  const params = CreatePublicClaimParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(404).json({ error: "Model not found." });
+    return;
+  }
+  const [row] = await db.select().from(displaysTable)
+    .where(and(eq(displaysTable.id, params.data.id), eq(displaysTable.status, "live"))).limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Model not found." });
+    return;
+  }
+  let usdzPath: string | null = null;
+  let glbPath: string | null = null;
+  let heightCm: number | null = null;
+  if (row.artworkId) {
+    const [artwork] = await db.select().from(artworksTable).where(eq(artworksTable.id, row.artworkId)).limit(1);
+    usdzPath = artwork?.modelUsdzPath ?? null;
+    glbPath = artwork?.modelGlbPath ?? null;
+    heightCm = artwork?.realHeightCm ?? null;
+  } else if (row.drinkId) {
+    const [drink] = await db.select().from(drinksTable).where(eq(drinksTable.id, row.drinkId)).limit(1);
+    usdzPath = drink?.modelUsdzUrl ?? null;
+    glbPath = drink?.modelGlbUrl ?? null;
+    heightCm = drink?.realHeightCm ?? null;
+  }
+  if (!usdzPath || !glbPath) {
+    res.status(404).json({ error: "This item has no AR file." });
+    return;
+  }
+  // 16 cm matches the web viewer's and the iOS app's default when a venue has not set a height.
+  const targetMetres = (heightCm ?? 16) / 100;
+  const key = `${usdzPath}|${targetMetres}`;
+  let built = usdzCache.get(key);
+  if (!built) {
+    const [usdz, glb] = await Promise.all([storedBytes(usdzPath), storedBytes(glbPath)]);
+    if (!usdz || !glb) {
+      res.status(404).json({ error: "This item's AR file is unavailable." });
+      return;
+    }
+    try {
+      const authoredHeight = summarizeGlb(glb).extents.y;
+      built = scaledUsdz(usdz, authoredHeight > 0 ? targetMetres / authoredHeight : 1);
+    } catch (error) {
+      req.log.warn({ err: error }, "Could not build a sized USDZ");
+      res.status(500).json({ error: "This item's AR file could not be prepared." });
+      return;
+    }
+    if (usdzCache.size >= USDZ_CACHE_MAX) usdzCache.delete(usdzCache.keys().next().value as string);
+    usdzCache.set(key, built);
+  }
+  res.set({
+    "Content-Type": "model/vnd.usdz+zip",
+    "Content-Disposition": `inline; filename="${row.id}.usdz"`,
+    "Cache-Control": "public, max-age=3600",
+    "Content-Length": String(built.length),
+  });
+  res.end(built);
 });
 
 router.post("/v1/displays/:id/claims", async (req, res): Promise<void> => {
