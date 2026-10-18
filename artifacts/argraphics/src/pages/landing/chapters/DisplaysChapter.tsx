@@ -157,7 +157,9 @@ export function ArtistsStrip() {
         <Stagger as="ul" className="lp-pieces" ariaLabel="Example AR art pieces" gap={0.12}>
           {PIECES.map((piece, i) => (
             <li key={piece.title} className={`lp-piece lp-piece-${piece.hue}${piece.tall ? ' is-tall' : ''}`} style={{ ['--k' as string]: i % 2 ? -1 : 1 }}>
-              <div className="lp-piece-art" aria-hidden="true" />
+              <div className="lp-piece-art">
+                <img src={piece.photo} alt={piece.alt} loading="lazy" decoding="async" />
+              </div>
               <div className="lp-piece-meta">
                 <h3 className="lp-piece-title">{piece.title}</h3>
                 <p className="lp-piece-place">

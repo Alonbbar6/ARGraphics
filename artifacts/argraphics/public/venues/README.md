@@ -11,3 +11,15 @@ chapter. Swap them for your own venue photos (same file names, landscape or port
 | wall.jpg      | Virtual art piece card       | Madeline Liu, people at a bar with a large mural  |
 | event.jpg     | Event teaser card            | Felipe Galvan, crowd inside bar at night          |
 | empty-bar.jpg | "The problem" chapter backdrop | Andrea De Santis, a dimly lit bar with chairs    |
+
+## Artists strip (`art-a.jpg` … `art-d.jpg`)
+
+Example pieces shown in the "For artists" section. Replace with real partner artists'
+work (with their permission). Current placeholders, all Unsplash License:
+
+| file      | photo                                                             |
+|-----------|-------------------------------------------------------------------|
+| art-a.jpg | Jené Stephaniuk, abstract painting ("Cityscape" detail)           |
+| art-b.jpg | Dan Farrell, floral portrait graffiti                             |
+| art-c.jpg | Tim Mossholder, sunrise mural on the side of a building           |
+| art-d.jpg | Adam Bouse, pink and multicolored mural, Muncie, Indiana          |

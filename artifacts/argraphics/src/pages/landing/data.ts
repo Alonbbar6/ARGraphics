@@ -115,11 +115,12 @@ export const DISPLAY_TYPES: DisplayType[] = [
   },
 ];
 
+/** Example pieces for the artists strip. Photos live in public/venues/art-*.jpg. */
 export const PIECES = [
-  { title: 'Low Tide Neon', place: 'Back wall · taqueria', tall: true, hue: 'a' },
-  { title: 'Second Shift', place: 'Bar mirror · cocktail bar', tall: false, hue: 'b' },
-  { title: 'Abuela’s Garden', place: 'Patio fence · café', tall: false, hue: 'c' },
-  { title: 'Last Call Bloom', place: 'Hallway · wine bar', tall: true, hue: 'd' },
+  { title: 'Low Tide Neon', place: 'Back wall · taqueria', tall: true, hue: 'a', photo: VENUE('art-a'), alt: 'Thick strokes of coral, teal and violet paint on canvas.' },
+  { title: 'Second Shift', place: 'Bar mirror · cocktail bar', tall: false, hue: 'b', photo: VENUE('art-b'), alt: 'A painted face with wide blue eyes framed by flowers.' },
+  { title: 'Abuela’s Garden', place: 'Patio fence · café', tall: false, hue: 'c', photo: VENUE('art-c'), alt: 'A mural of a sunrise over mountains in flat yellow, blue and green.' },
+  { title: 'Last Call Bloom', place: 'Hallway · wine bar', tall: true, hue: 'd', photo: VENUE('art-d'), alt: 'Black branches over pink, orange and sky-blue shapes across a building.' },
 ];
 
 export const FUNNEL = [
