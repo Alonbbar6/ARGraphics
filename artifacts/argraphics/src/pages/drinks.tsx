@@ -194,11 +194,11 @@ export function DrinksPage() {
       ) : drinks.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center"><p className="font-medium">No drinks in that round.</p><button onClick={() => { setQuery(''); setCategory('all'); }} className="mt-3 min-h-11 px-4 text-sm text-primary underline underline-offset-4" data-testid="button-clear-filter">Clear filters</button></div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border border-border bg-card">
+        <div className="rounded-3xl border border-border bg-card">
           <div className="owner-drink-grid hidden gap-3 border-b border-border px-5 py-3 text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground sm:grid">
             <span>Drink</span><span>Style</span><span>Price</span><span>On the menu</span><span />
           </div>
-          {drinks.map((drink) => (
+          {drinks.map((drink, index) => (
             <article key={drink.id} className="owner-drink-grid grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 border-b border-border/70 px-4 py-4 last:border-0 sm:items-center sm:px-5" data-testid={`row-drink-${drink.id}`}>
               <div className="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
                 <div className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl ${drink.thumbnailUrl ? 'bg-cover bg-center' : 'last-call text-[#26151d]'}`} style={drink.thumbnailUrl ? { backgroundImage: `url(${drink.thumbnailUrl})` } : undefined}>
@@ -225,11 +225,11 @@ export function DrinksPage() {
               </div>
               <div className="relative flex justify-end">
                 <button onClick={() => setMenuFor(menuFor === drink.id ? null : drink.id)} className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted" aria-label={`More for ${drink.name}`} data-testid={`button-more-${drink.id}`}><MoreHorizontal size={19} /></button>
-                {menuFor === drink.id && <div className="absolute right-0 top-12 z-20 min-w-48 rounded-2xl border border-border bg-card p-1.5 shadow-xl">
-                  <button onClick={() => openEdit(drink)} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted"><Pencil size={15} /> Edit details</button>
-                  <button onClick={() => openStudio(drink)} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted"><Sparkles size={15} /> {drink.modelGlbUrl ? 'Review 3D preview' : 'Make 3D preview'}</button>
+                {menuFor === drink.id && <div className={`absolute right-0 z-20 w-max min-w-52 rounded-2xl border border-border bg-card p-1.5 shadow-xl ${index >= drinks.length - 2 && drinks.length > 2 ? 'bottom-12' : 'top-12'}`}>
+                  <button onClick={() => openEdit(drink)} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm hover:bg-muted"><Pencil size={15} /> Edit details</button>
+                  <button onClick={() => openStudio(drink)} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm hover:bg-muted"><Sparkles size={15} /> {drink.modelGlbUrl ? 'Review 3D preview' : 'Make 3D preview'}</button>
                   <button onClick={() => toggleDrink(drink, 'isPublished')} disabled={!drink.isPublished && !drink.modelGlbUrl} title={!drink.isPublished && !drink.modelGlbUrl ? 'A generated 3D model is required before publishing.' : undefined} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45"><Check size={15} /> {drink.isPublished ? 'Hide from menu' : drink.modelGlbUrl ? 'Publish to menu' : 'Generate model to publish'}</button>
-                  <button onClick={() => removeDrink(drink)} disabled={deleteDrink.isPending} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-destructive hover:bg-muted"><Trash2 size={15} /> Remove drink</button>
+                  <button onClick={() => removeDrink(drink)} disabled={deleteDrink.isPending} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm text-destructive hover:bg-muted"><Trash2 size={15} /> Remove drink</button>
                 </div>}
               </div>
               <div className="col-span-2 flex items-center gap-2 pl-[60px] sm:hidden">
