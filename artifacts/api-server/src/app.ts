@@ -87,7 +87,7 @@ app.use("/api", router);
 if (serveWeb) {
   // Apple reads this JSON without an extension; serve it before the catch-all.
   app.get("/.well-known/apple-app-site-association", (_req, res) => {
-    res.type("application/json").sendFile(path.join(webDist, ".well-known", "apple-app-site-association"));
+    res.type("application/json").sendFile(path.join(webDist, ".well-known", "apple-app-site-association"), { dotfiles: "allow" });
   });
   // Hashed assets are immutable; everything else (index.html) must revalidate so deploys show up.
   app.use("/assets", express.static(path.join(webDist, "assets"), { immutable: true, maxAge: "1y", fallthrough: true }));

@@ -3,6 +3,27 @@
 What has to be true before a venue, food stand or artist relies on this. Development on a
 Mac is covered by `dev-local.sh`; this page is about a hosted deployment.
 
+## Where it runs today: Railway
+
+Project `argraphics` on Railway (owner alonbbar@gmail.com), one environment, `production`:
+
+| Service | What it is |
+|---|---|
+| `argraphics` | The `Dockerfile` in this repo: builds the web app and the API, runs migrations on start, serves everything at **https://argraphics-production.up.railway.app** (health check `/api/healthz`). One replica. |
+| `Postgres` | Managed Postgres on the private network (`postgres.railway.internal`), referenced as `${{Postgres.DATABASE_URL}}`. Private network has no TLS, so `DATABASE_SSL=disable` is set. Turn on point-in-time recovery in the Railway dashboard before real data. |
+| volume `/data` | Uploaded photos, models and artwork, kept by `LOCAL_STORAGE_DIR=/data/storage` with signed links served by the API. This is pilot-grade storage: it works, it persists, but it pins the service to one replica and has no bucket versioning. Move to a GCS bucket (`GCS_SERVICE_ACCOUNT_JSON` and friends, then unset `LOCAL_STORAGE_*`) before scaling out. |
+
+Deploy from this directory with `railway up -s argraphics --detach`; the CLI uploads the working
+tree (respecting `.gitignore`), so commit first. Variables: `railway variable list -s argraphics`.
+Logs: `railway logs -s argraphics`. The first deploy was 2026-10-18.
+
+Custom domain: `railway domain yourdomain.com -s argraphics` prints the DNS record to add
+(Cloudflare DNS is fine in front of it). Then set `LOCAL_STORAGE_PUBLIC_URL` and
+`VITE_PUBLIC_APP_URL` to the new origin and redeploy, **before** printing QR codes.
+
+Not yet configured there: password-reset email (`PASSWORD_RESET_FROM` / `PASSWORD_RESET_APP_URL`
+need a non-Replit sender first) and an App Store link (`VITE_APP_STORE_URL`).
+
 ## The shape of a deployment
 
 | Piece | What it needs |
