@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { lazy, Suspense, type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -21,6 +21,10 @@ import { ForgotPasswordPage, ResetPasswordPage } from '@/pages/password-recovery
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
+
+// Dev only: the frame baker for the landing page's image sequences. Vite drops this
+// branch (and three.js with it) from production builds.
+const BakeFramesPage = import.meta.env.DEV ? lazy(() => import('@/pages/dev/bake-frames')) : null;
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -49,6 +53,15 @@ function Router() {
         <Route path="/drinks">{() => <Shell><DrinksPage /></Shell>}</Route>
         <Route path="/table-cards">{() => <Shell><TableCardsPage /></Shell>}</Route>
         <Route path="/settings">{() => <Shell><SettingsPage /></Shell>}</Route>
+        {BakeFramesPage ? (
+          <Route path="/dev/bake">
+            {() => (
+              <Suspense fallback={null}>
+                <BakeFramesPage />
+              </Suspense>
+            )}
+          </Route>
+        ) : null}
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

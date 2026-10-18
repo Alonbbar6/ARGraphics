@@ -1,0 +1,36 @@
+{
+  "name": "hero",
+  "version": 1,
+  "poster": "poster.webp",
+  "intro": {
+    "endFrame": 26,
+    "durationMs": 1200
+  },
+  "sets": {
+    "desktop": {
+      "dir": "desktop",
+      "count": 120,
+      "width": 1920,
+      "height": 1080,
+      "format": "webp",
+      "pad": 4
+    },
+    "mobile": {
+      "dir": "mobile",
+      "count": 80,
+      "width": 1080,
+      "height": 1350,
+      "format": "webp",
+      "pad": 4
+    }
+  },
+  "source": {
+    "model": "9279f5c5-0aa5-47ef-8aa4-ee690c63b87d.glb",
+    "story": "assemble",
+    "quality": 0.82,
+    "background": "transparent",
+    "modelHeight": 1.6,
+    "exposure": 1.05,
+    "bakedAt": "2026-10-18T10:02:52.473Z"
+  }
+}
