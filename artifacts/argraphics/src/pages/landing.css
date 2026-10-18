@@ -1436,3 +1436,240 @@
     transition: none;
   }
 }
+
+/* ================================================================== */
+/* Motion layer (pairs with landing-motion.tsx)                        */
+/* ================================================================== */
+
+/* Headline words animate individually; wrappers keep natural wrapping. */
+.landing-root .lp-word-wrap {
+  display: inline;
+}
+.landing-root .lp-word {
+  display: inline-block;
+  will-change: transform, opacity, filter;
+}
+
+/* The highlighted phrase slowly sweeps its gradient. */
+.landing-root .lp-gradient-text {
+  background-size: 220% 100%;
+  animation: lp-shimmer 5s ease-in-out infinite;
+}
+
+/* Hero backdrop drifts and breathes. */
+.landing-root .lp-hero-bg {
+  animation: lp-aurora 16s ease-in-out infinite alternate;
+  transform-origin: 70% 30%;
+}
+
+/* Tilting cards carry a cursor spotlight. */
+.landing-root .lp-tilt {
+  transform-style: preserve-3d;
+  --mx: 50%;
+  --my: 50%;
+}
+.landing-root .lp-tilt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 350ms ease;
+  background: radial-gradient(260px circle at var(--mx) var(--my), rgba(168, 85, 247, 0.22), transparent 65%);
+}
+.landing-root .lp-tilt:hover::after {
+  opacity: 1;
+}
+
+/* Magnetic buttons. */
+.landing-root .lp-magnetic {
+  display: inline-flex;
+}
+
+/* Rotating light beam around the offer card's border. */
+@property --lp-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.landing-root .lp-type.is-offer::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--lp-angle),
+    transparent 0deg,
+    transparent 260deg,
+    var(--tangerine) 300deg,
+    var(--coral) 330deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: lp-beam 4s linear infinite;
+}
+
+/* Line that draws across the three steps as they appear. */
+.landing-root .lp-steps {
+  position: relative;
+}
+.landing-root .lp-steps-line {
+  display: none;
+  position: absolute;
+  top: 36px;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--violet), var(--orchid), var(--coral));
+  opacity: 0.55;
+  z-index: 0;
+}
+@media (min-width: 900px) {
+  .landing-root .lp-steps-line {
+    display: block;
+  }
+}
+.landing-root .lp-step {
+  z-index: 1;
+}
+
+/* Step icons pop on hover. */
+.landing-root .lp-step:hover .lp-step-icon,
+.landing-root .lp-type:hover .lp-type-icon {
+  animation: lp-pop 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Nav tightens up once the page scrolls. */
+.landing-root .lp-nav {
+  transition: background-color 300ms ease, box-shadow 300ms ease;
+}
+.landing-root .lp-nav.is-scrolled {
+  background: rgba(11, 11, 20, 0.9);
+  box-shadow: 0 10px 30px -20px rgba(0, 0, 0, 0.9);
+}
+
+/* Scroll cue under the hero. */
+.landing-root .lp-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--glass);
+}
+.landing-root .lp-scroll-cue:hover {
+  color: var(--white);
+}
+@media (min-width: 900px) {
+  .landing-root .lp-scroll-cue {
+    display: inline-flex;
+  }
+}
+
+/* Dashboard tiles glow briefly when their number lands. */
+.landing-root .lp-tile {
+  position: relative;
+}
+.landing-root .lp-heat-cell {
+  transform-origin: center;
+}
+
+/* Art pieces: the artwork itself slowly shifts. */
+.landing-root .lp-piece-art {
+  background-size: 160% 160%;
+  animation: lp-drift 12s ease-in-out infinite alternate;
+}
+.landing-root .lp-piece:nth-child(2n) .lp-piece-art {
+  animation-delay: -6s;
+}
+
+/* FAQ answers slide open. */
+.landing-root .lp-faq-panel-motion {
+  overflow: hidden;
+}
+
+/* Final card: slowly turning glow. */
+.landing-root .lp-final-glow {
+  animation: lp-turn 28s linear infinite;
+}
+
+@keyframes lp-aurora {
+  0% {
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    transform: scale(1.08) translate3d(-2%, 1%, 0);
+    filter: hue-rotate(28deg);
+  }
+}
+@keyframes lp-beam {
+  to {
+    --lp-angle: 360deg;
+  }
+}
+@keyframes lp-pop {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    transform: scale(1.25) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+@keyframes lp-drift {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
+}
+@keyframes lp-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-root .lp-gradient-text,
+  .landing-root .lp-hero-bg,
+  .landing-root .lp-type.is-offer::before,
+  .landing-root .lp-piece-art,
+  .landing-root .lp-final-glow,
+  .landing-root .lp-step:hover .lp-step-icon,
+  .landing-root .lp-type:hover .lp-type-icon {
+    animation: none;
+  }
+  .landing-root .lp-tilt::after {
+    display: none;
+  }
+}
+
+/* Tilt cards sit inside stagger list items: let them fill the row, and drop the glass
+   blur while tilting (3D transforms + backdrop-filter rasterize text soft). */
+.landing-root .lp-pain-grid > li,
+.landing-root .lp-types > li {
+  display: grid;
+}
+.landing-root .lp-tilt {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(42, 27, 94, 0.5);
+}
