@@ -6,7 +6,7 @@ import {
   useUpdateArtwork, useUpdateLicense, type Artwork, type ArtworkLicense, type ArtworkMedium,
 } from '@workspace/api-client-react';
 import { Box, Check, CircleDollarSign, Eye, EyeOff, ImagePlus, LoaderCircle, Palette, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
-import { Badge, Button, buttonClass, ConfirmDialog, EmptyState, ErrorPanel, Field, inputClass, Skeleton, StatTile } from '@/components/partner-ui';
+import { Badge, Button, ConfirmDialog, EmptyState, ErrorPanel, Field, inputClass, Skeleton } from '@/components/partner-ui';
 import { earnings, formatCents, LICENSE_LABEL, MEDIUM_LABEL } from '@/lib/artworks';
 import { imageProblem, modelProblem, uploadImage, uploadModel } from '@/lib/upload';
 import { toast } from '@/hooks/use-toast';
@@ -263,9 +263,9 @@ export function LicensesSection() {
       <div>
         <h2 id="earnings-heading" className="mb-3 text-base font-semibold">Earnings</h2>
         <div className="grid grid-cols-3 gap-3">
-          <StatTile index={0} icon={CircleDollarSign} label="Paid" value={money.paidCents / 100} emphasis />
-          <StatTile index={1} icon={CircleDollarSign} label="Owed to you" value={money.owedCents / 100} />
-          <StatTile index={2} icon={Palette} label="Licences" value={money.count} />
+          <MoneyTile label="Paid" value={formatCents(money.paidCents)} emphasis testId="stat-paid" />
+          <MoneyTile label="Owed to you" value={formatCents(money.owedCents)} testId="stat-owed" />
+          <MoneyTile label="Licences" value={String(money.count)} testId="stat-licences" />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">Amounts in USD. Venues pay you directly for now; mark a licence paid when the money lands.</p>
       </div>
@@ -320,4 +320,11 @@ export function LicensesSection() {
   );
 }
 
-export const galleryLinkClass = buttonClass('ghost', 'sm');
+function MoneyTile({ label, value, emphasis, testId }: { label: string; value: string; emphasis?: boolean; testId: string }) {
+  return (
+    <div className={cn('pa-card p-4', emphasis && 'border-primary/40')} data-testid={testId}>
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CircleDollarSign size={13} aria-hidden="true" /> {label}</p>
+      <p className={cn('mt-2 text-2xl font-light tabular-nums', emphasis && 'text-primary')}>{value === 'Free to host' ? '$0.00' : value}</p>
+    </div>
+  );
+}
