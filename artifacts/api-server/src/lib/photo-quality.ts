@@ -66,13 +66,13 @@ export async function assessPhotoQuality(png: Buffer): Promise<PhotoIssue[]> {
   if (edgeContrast < MIN_EDGE_CONTRAST) {
     issues.push({
       code: "blurry",
-      message: "This photo looks out of focus. Hold the phone still, tap the drink to focus, and take it again.",
+      message: "This photo looks out of focus. Hold the phone still, tap the item to focus, and take it again.",
     });
   }
   if (mean < MIN_MEAN_LUMINANCE && bright / total < 0.01) {
     issues.push({
       code: "dark",
-      message: "This photo is too dark to build from. Move the drink under a light or turn on the flash, then take it again.",
+      message: "This photo is too dark to build from. Move it under a light or turn on the flash, then take it again.",
     });
   }
   return issues;

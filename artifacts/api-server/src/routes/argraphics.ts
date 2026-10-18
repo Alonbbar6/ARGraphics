@@ -332,7 +332,7 @@ router.post("/storage/drink-photos/request-url", requireOwner, async (req, res):
   const [drink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, input.drinkId), eq(drinksTable.barId, barId))).limit(1);
   if (!drink) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   try {
@@ -557,7 +557,7 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
   if (verdict) {
     await db.update(drinksTable).set({
       generationStatus: "failed",
-      generationError: `The 3D build ${verdict}. Try a sharper photo of the whole drink on a plain background.`,
+      generationError: `The 3D build ${verdict}. Try a sharper photo of the whole item on a plain background.`,
       updatedAt: new Date(),
     }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
     return true;
@@ -670,7 +670,7 @@ router.get("/storage/public-objects/*filePath", async (req, res): Promise<void> 
 router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
   const params = GetDrinkGenerationParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: "Drink not found." });
+    res.status(400).json({ error: "Item not found." });
     return;
   }
   const barId = req.owner?.barId;
@@ -681,7 +681,7 @@ router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
   const [drink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
   if (!drink) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   if (drink.generationStatus === "processing" && drink.meshyTaskId) {
@@ -705,7 +705,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
   const [drink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
   if (!drink) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   if (drink.generationStatus === "processing") {
@@ -741,7 +741,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
         const file = await objectStorage.getObjectEntityFile(path);
         await validateRasterImage(file, {
           subject: `${label} photo`, maxBytes: MAX_PHOTO_SIZE,
-          limitLabel: "15 MB", stillImageLabel: "drink photos",
+          limitLabel: "15 MB", stillImageLabel: "item photos",
         });
       } catch (error) {
         const message = error instanceof InvalidArtworkError ? error.message : `The ${label} photo could not be read. Upload it again.`;
@@ -801,7 +801,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
       return saved;
     });
     if (!updated) {
-      res.status(404).json({ error: "Drink not found." });
+      res.status(404).json({ error: "Item not found." });
       return;
     }
     startBackgroundPolling(drink.id, drink.barId, result.result);
@@ -849,13 +849,13 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
   const params = UpdateDrinkParams.safeParse(req.params);
   const body = UpdateDrinkBody.safeParse(req.body);
   if (!params.success || !body.success) {
-    res.status(400).json({ error: "Check the drink details and try again." });
+    res.status(400).json({ error: "Check the item details and try again." });
     return;
   }
   const [existing] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
   if (!existing) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   if (body.data.isPublished === true && !existing.modelGlbUrl) {
@@ -874,7 +874,7 @@ router.patch("/drinks/:id", async (req, res): Promise<void> => {
     return updated;
   });
   if (!drink) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   res.json(asDrink(req, drink));
@@ -899,7 +899,7 @@ router.delete("/drinks/:id", async (req, res): Promise<void> => {
     return deleted;
   });
   if (!drink) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   res.json({ message: "Drink deleted." });
@@ -1010,7 +1010,7 @@ router.post("/v1/bars/:slug/events", async (req, res): Promise<void> => {
   const params = CreatePublicEventParams.safeParse(req.params);
   const body = CreatePublicEventBody.safeParse(req.body);
   if (!params.success || !body.success) {
-    res.status(400).json({ error: "Provide a valid bar, drink, and event type." });
+    res.status(400).json({ error: "Provide a valid venue, item, and event type." });
     return;
   }
   const [bar] = await db.select({ id: barsTable.id }).from(barsTable)
@@ -1022,7 +1022,7 @@ router.post("/v1/bars/:slug/events", async (req, res): Promise<void> => {
   const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
     .where(and(eq(drinksTable.id, body.data.drinkId), eq(drinksTable.barId, bar.id)));
   if (!drink) {
-    res.status(404).json({ error: "Drink not found." });
+    res.status(404).json({ error: "Item not found." });
     return;
   }
   await db.insert(arEventsTable).values({

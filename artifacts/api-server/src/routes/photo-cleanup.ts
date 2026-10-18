@@ -26,7 +26,7 @@ function readPhoto(req: Request, res: Response, signal: AbortSignal): Promise<vo
 router.use(savedPhotoCleanupRouter);
 router.post(["/drinks/photo-cleanup", "/drinks/:id/photo-cleanup"], async (req, res): Promise<void> => {
   const owner = req.owner;
-  if (!owner) { res.status(401).json({ error: "Sign in to clean up a drink photo." }); return; }
+  if (!owner) { res.status(401).json({ error: "Sign in to clean up a photo." }); return; }
   if (!["image/jpeg", "image/png", "image/webp"].includes(req.get("content-type")?.split(";")[0] ?? "")) {
     res.status(415).json({ error: "Choose a JPEG, PNG, or WebP photo." }); return;
   }

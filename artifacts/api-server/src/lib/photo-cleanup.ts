@@ -159,13 +159,13 @@ async function snapAndVerify(output: Buffer): Promise<Buffer> {
   const crowdedEdges = [edgeHits.top > width * 0.02, edgeHits.bottom > width * 0.02, edgeHits.left > height * 0.02, edgeHits.right > height * 0.02].filter(Boolean).length;
   if (crowdedEdges >= 3) {
     // Opaque on nearly every side: the background was kept, not the drink cropped.
-    throw new PhotoCleanupError("The cutout still has a background around the edges. Try a photo with the drink clearly in front of a plain surface.", 502);
+    throw new PhotoCleanupError("The cutout still has a background around the edges. Try a photo with the item clearly in front of a plain surface.", 502);
   }
   if (crowdedEdges > 0) {
-    throw new PhotoCleanupError("Part of the drink is cut off at the edge of the photo. Step back so the whole drink, base included, is in the frame.");
+    throw new PhotoCleanupError("Part of the item is cut off at the edge of the photo. Step back so the whole item, base included, is in the frame.");
   }
   if (foreground < width * height * 0.04) {
-    throw new PhotoCleanupError("The drink is too small in this photo. Get closer so it fills most of the frame.");
+    throw new PhotoCleanupError("The item is too small in this photo. Get closer so it fills most of the frame.");
   }
 
   const corner = Math.max(1, Math.floor(Math.min(width, height) * 0.06));
@@ -178,7 +178,7 @@ async function snapAndVerify(output: Buffer): Promise<Buffer> {
   };
   const corners = [meanAlpha(0, 0), meanAlpha(width - corner, 0), meanAlpha(0, height - corner), meanAlpha(width - corner, height - corner)];
   if (corners.some((mean) => mean > 24)) {
-    throw new PhotoCleanupError("The cutout still has a background around the edges. Try a photo with the drink clearly in front of a plain surface.", 502);
+    throw new PhotoCleanupError("The cutout still has a background around the edges. Try a photo with the item clearly in front of a plain surface.", 502);
   }
 
   return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();

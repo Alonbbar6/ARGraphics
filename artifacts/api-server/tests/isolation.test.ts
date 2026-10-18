@@ -249,7 +249,7 @@ test("cross-bar updates and deletes return not found and preserve drinks, events
         body: method === "PATCH" ? { name: "Stolen", priceCents: 1, isAvailable: false, barId: attacker.barId } : undefined,
       });
       assert.equal(response.status, 404);
-      assert.deepEqual(response.body, { error: "Drink not found." });
+      assert.deepEqual(response.body, { error: "Item not found." });
     }
     assert.deepEqual(await db.select().from(drinksTable).where(eq(drinksTable.barId, victim.barId)), beforeDrinks);
     assert.deepEqual(await db.select().from(arEventsTable).where(eq(arEventsTable.barId, victim.barId)), beforeEvents);
@@ -330,7 +330,7 @@ test("public events cannot attach another bar's drink to the requested bar's ins
       body: { drinkId: owners[1 - index].drinks[0], eventType: "view" },
     });
     assert.equal(response.status, 404);
-    assert.deepEqual(response.body, { error: "Drink not found." });
+    assert.deepEqual(response.body, { error: "Item not found." });
   }
   assert.deepEqual(await db.select().from(arEventsTable), beforeEvents);
 });

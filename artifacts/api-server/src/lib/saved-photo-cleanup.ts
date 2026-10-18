@@ -19,7 +19,7 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
   signal?.throwIfAborted();
   const [ownedDrink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).limit(1);
-  if (!ownedDrink) throw new PhotoCleanupError("Drink not found.", 404);
+  if (!ownedDrink) throw new PhotoCleanupError("Item not found.", 404);
   const source = await prepareCleanupPhoto(input);
   signal?.throwIfAborted();
   const id = randomUUID();
@@ -31,7 +31,7 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
     await db.transaction(async (tx) => {
       const [drink] = await tx.select().from(drinksTable)
         .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).for("update");
-      if (!drink) throw new PhotoCleanupError("Drink not found.", 404);
+      if (!drink) throw new PhotoCleanupError("Item not found.", 404);
       const pending = await tx.select().from(photoCleanupsTable)
         .where(and(eq(photoCleanupsTable.drinkId, drinkId), eq(photoCleanupsTable.status, "processing")));
       if (pending.length) throw new PhotoCleanupError("A saved cleanup is still running. Reopen the studio to check it.", 409);

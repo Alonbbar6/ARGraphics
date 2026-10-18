@@ -186,7 +186,7 @@ function checkDisplayRules(display: {
   type: string; drinkId: string | null; offerTitle: string | null; eventStartsAt: Date | null;
 }) {
   if (display.type === "menu_item" && !display.drinkId) {
-    throw new DisplayRuleError("Pick the dish or drink this 3D menu item shows.");
+    throw new DisplayRuleError("Pick the item this 3D menu item shows.");
   }
   if (display.type === "promo_offer" && !display.offerTitle) {
     throw new DisplayRuleError("Add the offer guests can claim.");
@@ -200,7 +200,7 @@ async function ownedDrink(barId: string, drinkId: string | null | undefined) {
   if (!drinkId) return null;
   const [drink] = await db.select({ id: drinksTable.id }).from(drinksTable)
     .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).limit(1);
-  if (!drink) throw new DisplayRuleError("That dish or drink isn't on your menu.");
+  if (!drink) throw new DisplayRuleError("That item isn't on your menu.");
   return drink.id;
 }
 

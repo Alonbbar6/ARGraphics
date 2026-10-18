@@ -13,7 +13,7 @@ router.get("/drinks/:id/photo-cleanup", async (req, res): Promise<void> => {
   res.set("Cache-Control", "private, no-store");
   const [drink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, String(req.params.id)), eq(drinksTable.barId, req.owner.barId)));
-  if (!drink) { res.status(404).json({ error: "Drink not found." }); return; }
+  if (!drink) { res.status(404).json({ error: "Item not found." }); return; }
   let [draft] = await db.select().from(photoCleanupsTable)
     .where(and(eq(photoCleanupsTable.drinkId, drink.id), eq(photoCleanupsTable.ownerId, req.owner.id),
       ne(photoCleanupsTable.status, "discarded")))

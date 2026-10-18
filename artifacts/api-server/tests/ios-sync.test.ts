@@ -332,12 +332,12 @@ describe("iOS key protection and sync", () => {
     const cookie = await signIn();
     for (const id of ["missing-drink", "other-drink"]) {
       await request(app).patch(`/api/drinks/${id}`).set("Cookie", cookie)
-        .send({ name: "Not allowed" }).expect(404, { error: "Drink not found." });
+        .send({ name: "Not allowed" }).expect(404, { error: "Item not found." });
       await request(app).delete(`/api/drinks/${id}`).set("Cookie", cookie)
-        .expect(404, { error: "Drink not found." });
+        .expect(404, { error: "Item not found." });
       await request(app).post(`/api/drinks/${id}/generation`).set("Cookie", cookie)
         .send({ sourcePhotoPath: artworkPath, cleanedPhotoPath: artworkPath })
-        .expect(404, { error: "Drink not found." });
+        .expect(404, { error: "Item not found." });
     }
     await request(app).patch("/api/drinks/fixture-drink").set("Cookie", cookie)
       .send({ isPublished: true }).expect(400, { error: "Generate a 3D preview before publishing this drink." });

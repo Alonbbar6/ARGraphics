@@ -122,10 +122,10 @@ export function DrinksPage() {
       createDrink.mutate({ data: input }, {
         onSuccess: (created) => {
           closeOnSuccess();
-          // "Snap a dish": straight from the name to the camera, no second menu.
+          // "Snap a photo": straight from the name to the camera, no second menu.
           if (snapAfterCreate) openStudio(created, true);
         },
-        onError: () => setFormError('Could not add that drink. Try again in a moment.'),
+        onError: () => setFormError('Could not add that item. Try again in a moment.'),
       });
     }
   };
@@ -164,7 +164,7 @@ export function DrinksPage() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button onClick={() => openCreate(true)} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-lg shadow-primary/15" data-testid="button-snap-drink">
-            <Camera size={18} /> Snap a dish
+            <Camera size={18} /> Snap a photo
           </button>
           <button onClick={() => openCreate()} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 font-semibold hover:bg-muted" data-testid="button-add-drink">
             <CirclePlus size={18} /> Add without a photo
@@ -174,12 +174,12 @@ export function DrinksPage() {
       <div className="owner-toolbar mb-5 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row sm:items-center">
         <label className="owner-search flex min-h-11 flex-1 items-center gap-3 rounded-xl bg-muted/60 px-3">
           <Search size={17} className="text-muted-foreground" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder="Find a drink..." aria-label="Search drinks" data-testid="input-search-drinks" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder="Find an item..." aria-label="Search items" data-testid="input-search-drinks" />
         </label>
         <div className="flex max-w-full gap-1 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="Filter by category">
           {categories.map((item) => (
             <button key={item} onClick={() => setCategory(item)} className={`min-h-10 shrink-0 rounded-xl px-3 text-xs font-semibold capitalize ${category === item ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted'}`} data-testid={`filter-category-${item}`}>
-              {item === 'all' ? 'All drinks' : item.replace('-', ' ')}
+              {item === 'all' ? 'All items' : item.replace('-', ' ')}
             </button>
           ))}
         </div>
@@ -188,15 +188,15 @@ export function DrinksPage() {
         <section className="rounded-3xl border border-dashed border-border bg-card/60 px-6 py-14 text-center">
           <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-secondary text-secondary-foreground"><GlassWater size={25} /></span>
           <h2 className="text-xl font-semibold">First round’s on you.</h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">Add the drinks your guests ask for most. You can tune the list as the shift goes.</p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">Add the dishes, drinks and products your guests ask for most. You can tune the list as the shift goes.</p>
           <button onClick={() => openCreate(true)} className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground" data-testid="button-add-first-drink"><Camera size={18} /> Snap your first dish</button>
         </section>
       ) : drinks.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center"><p className="font-medium">No drinks in that round.</p><button onClick={() => { setQuery(''); setCategory('all'); }} className="mt-3 min-h-11 px-4 text-sm text-primary underline underline-offset-4" data-testid="button-clear-filter">Clear filters</button></div>
+        <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center"><p className="font-medium">Nothing in that group.</p><button onClick={() => { setQuery(''); setCategory('all'); }} className="mt-3 min-h-11 px-4 text-sm text-primary underline underline-offset-4" data-testid="button-clear-filter">Clear filters</button></div>
       ) : (
         <div className="rounded-3xl border border-border bg-card">
           <div className="owner-drink-grid hidden gap-3 border-b border-border px-5 py-3 text-[10px] font-bold uppercase tracking-[.15em] text-muted-foreground sm:grid">
-            <span>Drink</span><span>Style</span><span>Price</span><span>On the menu</span><span />
+            <span>Item</span><span>Style</span><span>Price</span><span>On the menu</span><span />
           </div>
           {drinks.map((drink, index) => (
             <article key={drink.id} className="owner-drink-grid grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 border-b border-border/70 px-4 py-4 last:border-0 sm:items-center sm:px-5" data-testid={`row-drink-${drink.id}`}>
@@ -229,7 +229,7 @@ export function DrinksPage() {
                   <button onClick={() => openEdit(drink)} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm hover:bg-muted"><Pencil size={15} /> Edit details</button>
                   <button onClick={() => openStudio(drink)} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm hover:bg-muted"><Sparkles size={15} /> {drink.modelGlbUrl ? 'Review 3D preview' : 'Make 3D preview'}</button>
                   <button onClick={() => toggleDrink(drink, 'isPublished')} disabled={!drink.isPublished && !drink.modelGlbUrl} title={!drink.isPublished && !drink.modelGlbUrl ? 'A generated 3D model is required before publishing.' : undefined} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45"><Check size={15} /> {drink.isPublished ? 'Hide from menu' : drink.modelGlbUrl ? 'Publish to menu' : 'Generate model to publish'}</button>
-                  <button onClick={() => removeDrink(drink)} disabled={deleteDrink.isPending} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm text-destructive hover:bg-muted"><Trash2 size={15} /> Remove drink</button>
+                  <button onClick={() => removeDrink(drink)} disabled={deleteDrink.isPending} className="flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 text-left text-sm text-destructive hover:bg-muted"><Trash2 size={15} /> Remove item</button>
                 </div>}
               </div>
               <div className="col-span-2 flex items-center gap-2 pl-[60px] sm:hidden">
@@ -247,7 +247,7 @@ export function DrinksPage() {
             <button onClick={() => setModalOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-muted" aria-label="Close form"><X size={19} /></button>
           </div>
           <form onSubmit={submitDrink} className="space-y-4">
-            <label className="block text-sm font-medium">Drink name<input required maxLength={80} name="name" defaultValue={editing?.name || ''} className="mt-1.5 min-h-12 w-full rounded-xl border border-input bg-background px-3 outline-none focus:border-primary" placeholder="e.g. House Paloma" data-testid="input-drink-name" /></label>
+            <label className="block text-sm font-medium">Item name<input required maxLength={80} name="name" defaultValue={editing?.name || ''} className="mt-1.5 min-h-12 w-full rounded-xl border border-input bg-background px-3 outline-none focus:border-primary" placeholder="e.g. House Paloma" data-testid="input-drink-name" /></label>
             <label className="block text-sm font-medium">A line about it<textarea name="description" rows={3} defaultValue={editing?.description || ''} className="mt-1.5 w-full resize-y rounded-xl border border-input bg-background px-3 py-3 outline-none focus:border-primary" placeholder="What makes this one special?" data-testid="input-drink-description" /></label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm font-medium">Price<input required min="0" step="0.01" type="number" name="price" defaultValue={editing ? (editing.priceCents / 100).toFixed(2) : ''} className="mt-1.5 min-h-12 w-full rounded-xl border border-input bg-background px-3 outline-none focus:border-primary" placeholder="14.00" data-testid="input-drink-price" /></label>
@@ -472,7 +472,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
         setNotice('Published to your menu.');
         onPublished();
       },
-      onError: () => setError('Could not publish this drink. Try again.'),
+      onError: () => setError('Could not publish this item. Try again.'),
     });
   };
 
@@ -519,7 +519,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
                 <input type="checkbox" checked={autoBuild} onChange={(event) => setAutoBuild(event.target.checked)} className="mt-0.5 h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-auto-build" />
                 <span><span className="font-semibold">Build the 3D model right away.</span> <span className="text-muted-foreground">Skips the cutout check. One photo, one model, no clicks in between.</span></span>
               </label>
-              <p className="mt-3 text-[11px] text-muted-foreground">Best results: phone camera, up close, the whole drink in frame on a plain surface, in good light. JPG, PNG, WebP, HEIC or HEIF · up to 15 MB · we cut the background out for you; only the 3D build uses Meshy credits.</p>
+              <p className="mt-3 text-[11px] text-muted-foreground">Best results: phone camera, up close, the whole item in frame on a plain surface, in good light. JPG, PNG, WebP, HEIC or HEIF · up to 15 MB · we cut the background out for you; only the 3D build uses Meshy credits.</p>
             </div>
           )}
           {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
@@ -528,7 +528,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
             <div>
               <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={() => reshoot()} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <figure className="overflow-hidden rounded-2xl border border-border bg-muted"><div className="grid h-48 place-items-center sm:h-60"><img src={originalPreview} alt="Original drink photo" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Original photo</figcaption></figure>
+                <figure className="overflow-hidden rounded-2xl border border-border bg-muted"><div className="grid h-48 place-items-center sm:h-60"><img src={originalPreview} alt="Original photo" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Original photo</figcaption></figure>
                 <figure className="overflow-hidden rounded-2xl border border-border bg-card"><div className="checkerboard grid h-48 place-items-center sm:h-60" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}><img src={cleanedPreview} alt="Transparent background cutout preview" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Background removed <span className="ml-1 font-normal text-muted-foreground">· transparent</span></figcaption></figure>
               </div>
               <label className="mt-4 flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-background px-3 text-sm">
@@ -556,7 +556,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
             <div className="overflow-hidden rounded-[1.5rem] border border-border bg-background" data-testid="panel-model-review">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Ready for a closer look</p><p className="text-sm text-muted-foreground">Drag to rotate · pinch or scroll to zoom</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">3D ready</span></div>
               <div className="checkerboard flex h-72 items-center justify-center sm:h-96" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}>{viewerError ? <div className="max-w-[30rem] rounded-2xl border border-border bg-card p-5 text-center text-sm" role="alert" data-testid="status-3d-browser-unavailable"><AlertCircle className="mx-auto mb-3 text-primary" /><p>{viewerError}</p><a href={modelUrl} download className="mt-3 inline-flex min-h-11 items-center px-3 font-semibold text-primary underline">Download saved 3D model</a></div> : createElement('model-viewer', { src: modelUrl, 'camera-controls': true, 'auto-rotate': true, 'rotation-per-second': '18deg', 'shadow-intensity': '0.7', 'environment-image': 'neutral', 'alt': `Interactive 3D preview of ${drink.name}`, style: { width: '100%', height: '100%', backgroundColor: 'transparent' } })}</div>
-              <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-reviewed-model" /> I turned it all the way around and it looks like the real drink</label>}{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError || !reviewed} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
+              <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-reviewed-model" /> I turned it all the way around and it looks like the real thing</label>}{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError || !reviewed} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
             </div>
           )}
           {modelUrl && !hasPhoto && !cameraOpen && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo replaces the cutout. Building a new model uses Meshy credits.</p><div className="flex flex-wrap gap-2">{cameraSupported() && <button type="button" onClick={() => setCameraOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-camera"><Camera size={15} /> Snap a new photo</button>}<label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a library photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div></div>}

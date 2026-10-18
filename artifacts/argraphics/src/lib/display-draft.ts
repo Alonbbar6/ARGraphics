@@ -93,7 +93,7 @@ export function draftProblems(draft: DisplayDraft, now = new Date()) {
   if (!draft.title.trim()) problems.push({ step: 'media', message: 'Give it a name guests will see.' });
   if (draft.title.trim().length > 80) problems.push({ step: 'media', message: 'Keep the name under 80 characters.' });
   if (draft.description.length > 600) problems.push({ step: 'media', message: 'Keep the description under 600 characters.' });
-  if (draft.type === 'menu_item' && !draft.drinkId) problems.push({ step: 'media', message: 'Choose the dish or drink from your 3D menu library.' });
+  if (draft.type === 'menu_item' && !draft.drinkId) problems.push({ step: 'media', message: 'Choose the item from your 3D menu library.' });
   if (draft.type === 'promo_offer' && !draft.offerTitle.trim()) problems.push({ step: 'media', message: 'Say what the offer is, like “2-for-1 tacos until 9”.' });
   if (draft.type === 'promo_offer' && draft.offerEndsAt) {
     const ends = localInputToIso(draft.offerEndsAt);
