@@ -27,6 +27,9 @@ sees says ARGraphics.
 - Run workspace checks with `pnpm run typecheck`.
 - Check committed API output freshness with `pnpm run check:api-codegen`.
 - Apply development schema changes with `pnpm --filter @workspace/db run push`.
+- For a hosted database, use versioned migrations instead: `pnpm --filter @workspace/db run generate`
+  after a schema change, then `pnpm --filter @workspace/db run migrate` on deploy. Hosting,
+  environment, backups and data protection are covered in [OPERATIONS.md](OPERATIONS.md).
 
 
 ## Generated API checks

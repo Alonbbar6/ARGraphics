@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { ReplitConnectors } from "@replit/connectors-sdk";
-import { db, recoveryRateLimitsTable, usersTable } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
+import { allowAttempt } from "./throttle";
 
 export const recoveryMessage = "If an account exists for that email, you will receive a password-reset link. Check your inbox and spam folder.";
 export const invalidResetMessage = "This reset link is invalid, expired, or already used. Request a new link.";
@@ -25,18 +26,7 @@ export function recoveryConfig() {
 // Database-backed buckets apply across server instances and restarts. No raw
 // email addresses or client addresses are retained in the rate-limit table.
 export async function allowRecoveryAttempt(scope: string, value: string, limit: number, now = new Date()) {
-  const windowMs = 60 * 60 * 1000;
-  const bucket = Math.floor(now.getTime() / windowMs);
-  const key = hashResetToken(`${scope}:${value}:${bucket}`);
-  await db.delete(recoveryRateLimitsTable).where(lt(recoveryRateLimitsTable.expiresAt, now));
-  const [entry] = await db.insert(recoveryRateLimitsTable).values({
-    key, count: 1, expiresAt: new Date((bucket + 1) * windowMs),
-  }).onConflictDoUpdate({
-    target: recoveryRateLimitsTable.key,
-    set: { count: sql`${recoveryRateLimitsTable.count} + 1` },
-    setWhere: lt(recoveryRateLimitsTable.count, limit),
-  }).returning({ count: recoveryRateLimitsTable.count });
-  return Boolean(entry);
+  return allowAttempt(scope, value, limit, { now });
 }
 
 export async function issuePasswordReset(email: string, now = new Date()) {

@@ -139,6 +139,13 @@
   line-height: 1.3;
 }
 
+.landing-root .lp-sample-note {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
+
 .landing-root .lp-lede {
   color: var(--muted);
   font-size: clamp(1.05rem, 1.4vw, 1.25rem);

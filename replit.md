@@ -10,6 +10,7 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas, run generated-validator runtime contracts and their typecheck, then check library types
 - `pnpm --filter @workspace/api-zod test` — isolated generated table-card validator contracts; no database, storage, or credentials needed (also included in root `pnpm test`)
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run generate` / `run migrate` — versioned SQL migrations for any database holding real partner data (see OPERATIONS.md)
 - `pnpm --filter @workspace/api-server test -- tests/password-recovery.test.ts` — password-recovery regressions against isolated in-memory PostgreSQL; mocks email delivery and never opens the workspace database
 - `pnpm --filter @workspace/api-server exec vitest run tests/photo-cleanup.test.ts` — shared cleanup admission, timeout, disconnect, and provider regressions; mocks OpenAI and never spends credits
 - `pnpm --filter @workspace/api-server run test:isolation` — isolated real-PostgreSQL checks, including simultaneous cleanup admissions across connections and retained quotas after reconnects; no paid provider calls

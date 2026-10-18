@@ -1,26 +1,37 @@
-import { lazy, Suspense, type ReactNode, useEffect, useState } from 'react';
+import { lazy, Suspense, type ComponentType, type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
-import { Shell } from '@/components/shell';
-import { Landing } from '@/pages/landing';
-import { DrinksPage } from '@/pages/drinks';
-import { HomePage } from '@/pages/home';
-import { QrCodesPage } from '@/pages/qr-codes';
-import { AnalyticsPage } from '@/pages/analytics';
-import { DisplaysPage } from '@/pages/displays';
-import { EditDisplayPage, NewDisplayPage } from '@/pages/display-editor';
-import { ArtistPage } from '@/pages/artist';
-import { OnboardingPage } from '@/pages/onboarding';
-import { ScanPage } from '@/pages/scan';
-import { TableCardsPage, SettingsPage } from '@/pages/blocked';
-import { LoginPage, RegisterPage } from '@/pages/login';
-import { ForgotPasswordPage, ResetPasswordPage } from '@/pages/password-recovery';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
+
+/*
+ * Every page is its own chunk. The public guest page (/s/:code) is opened on bar wifi
+ * from a printed code, so it must not pay for the landing story (GSAP, frame sequences)
+ * or the partner dashboard; the landing likewise never loads the dashboard, and the
+ * dashboard never loads the landing.
+ */
+const Landing = lazy(() => import('@/pages/landing').then((m) => ({ default: m.Landing })));
+const ScanPage = lazy(() => import('@/pages/scan').then((m) => ({ default: m.ScanPage })));
+const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.RegisterPage })));
+const ForgotPasswordPage = lazy(() => import('@/pages/password-recovery').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('@/pages/password-recovery').then((m) => ({ default: m.ResetPasswordPage })));
+const OnboardingPage = lazy(() => import('@/pages/onboarding').then((m) => ({ default: m.OnboardingPage })));
+const Shell = lazy(() => import('@/components/shell').then((m) => ({ default: m.Shell })));
+const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.HomePage })));
+const ArtistPage = lazy(() => import('@/pages/artist').then((m) => ({ default: m.ArtistPage })));
+const DisplaysPage = lazy(() => import('@/pages/displays').then((m) => ({ default: m.DisplaysPage })));
+const NewDisplayPage = lazy(() => import('@/pages/display-editor').then((m) => ({ default: m.NewDisplayPage })));
+const EditDisplayPage = lazy(() => import('@/pages/display-editor').then((m) => ({ default: m.EditDisplayPage })));
+const QrCodesPage = lazy(() => import('@/pages/qr-codes').then((m) => ({ default: m.QrCodesPage })));
+const AnalyticsPage = lazy(() => import('@/pages/analytics').then((m) => ({ default: m.AnalyticsPage })));
+const DrinksPage = lazy(() => import('@/pages/drinks').then((m) => ({ default: m.DrinksPage })));
+const TableCardsPage = lazy(() => import('@/pages/blocked').then((m) => ({ default: m.TableCardsPage })));
+const SettingsPage = lazy(() => import('@/pages/blocked').then((m) => ({ default: m.SettingsPage })));
 
 // Dev only: the frame baker for the landing page's image sequences. Vite drops this
 // branch (and three.js with it) from production builds.
@@ -31,39 +42,38 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
+/** Dashboard pages share the signed-in shell (tabs, profile menu). */
+function InShell({ page: Page, ...props }: { page: ComponentType<any>; [key: string]: unknown }) {
+  return <Shell><Page {...props} /></Shell>;
+}
+
 function Router() {
   return (
     <RoutedErrorBoundary>
-      <Switch>
-        <Route path="/" component={Landing} />
-        <Route path="/login" component={LoginPage} />
-        <Route path="/register" component={RegisterPage} />
-        <Route path="/forgot-password" component={ForgotPasswordPage} />
-        <Route path="/reset-password" component={ResetPasswordPage} />
-        <Route path="/welcome" component={OnboardingPage} />
-        <Route path="/s/:code">{(params) => <ScanPage code={params.code} />}</Route>
-        <Route path="/home">{() => <Shell><HomePage /></Shell>}</Route>
-        <Route path="/artist">{() => <Shell><ArtistPage /></Shell>}</Route>
-        <Route path="/displays">{() => <Shell><DisplaysPage /></Shell>}</Route>
-        <Route path="/displays/new">{() => <Shell><NewDisplayPage /></Shell>}</Route>
-        <Route path="/displays/:id">{(params) => <Shell><EditDisplayPage id={params.id} /></Shell>}</Route>
-        <Route path="/qr-codes">{() => <Shell><QrCodesPage /></Shell>}</Route>
-        <Route path="/analytics">{() => <Shell><AnalyticsPage /></Shell>}</Route>
-        <Route path="/insights"><Redirect to="/analytics" replace /></Route>
-        <Route path="/drinks">{() => <Shell><DrinksPage /></Shell>}</Route>
-        <Route path="/table-cards">{() => <Shell><TableCardsPage /></Shell>}</Route>
-        <Route path="/settings">{() => <Shell><SettingsPage /></Shell>}</Route>
-        {BakeFramesPage ? (
-          <Route path="/dev/bake">
-            {() => (
-              <Suspense fallback={null}>
-                <BakeFramesPage />
-              </Suspense>
-            )}
-          </Route>
-        ) : null}
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<div className="min-h-[100dvh]" aria-busy="true" />}>
+        <Switch>
+          <Route path="/" component={Landing} />
+          <Route path="/login" component={LoginPage} />
+          <Route path="/register" component={RegisterPage} />
+          <Route path="/forgot-password" component={ForgotPasswordPage} />
+          <Route path="/reset-password" component={ResetPasswordPage} />
+          <Route path="/welcome" component={OnboardingPage} />
+          <Route path="/s/:code">{(params) => <ScanPage code={params.code} />}</Route>
+          <Route path="/home">{() => <InShell page={HomePage} />}</Route>
+          <Route path="/artist">{() => <InShell page={ArtistPage} />}</Route>
+          <Route path="/displays">{() => <InShell page={DisplaysPage} />}</Route>
+          <Route path="/displays/new">{() => <InShell page={NewDisplayPage} />}</Route>
+          <Route path="/displays/:id">{(params) => <InShell page={EditDisplayPage} id={params.id} />}</Route>
+          <Route path="/qr-codes">{() => <InShell page={QrCodesPage} />}</Route>
+          <Route path="/analytics">{() => <InShell page={AnalyticsPage} />}</Route>
+          <Route path="/insights"><Redirect to="/analytics" replace /></Route>
+          <Route path="/drinks">{() => <InShell page={DrinksPage} />}</Route>
+          <Route path="/table-cards">{() => <InShell page={TableCardsPage} />}</Route>
+          <Route path="/settings">{() => <InShell page={SettingsPage} />}</Route>
+          {BakeFramesPage ? <Route path="/dev/bake" component={BakeFramesPage} /> : null}
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </RoutedErrorBoundary>
   );
 }

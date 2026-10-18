@@ -53,7 +53,12 @@ export function LoginPage() {
         queryClient.setQueryData(getGetSessionQueryKey(), result);
         setLocation(result.partnerKind === 'artist' ? '/artist' : '/home');
       },
-      onError: () => setErrorMessage('That sign-in didn’t work. Check your details and try again.'),
+      onError: (error) => {
+        const status = 'status' in error ? error.status : undefined;
+        setErrorMessage(status === 429
+          ? 'Too many sign-in attempts. Wait an hour, or reset your password below.'
+          : 'That sign-in didn’t work. Check your details and try again.');
+      },
     });
   };
 

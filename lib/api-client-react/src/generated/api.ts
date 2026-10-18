@@ -376,7 +376,7 @@ return customFetch<Session>(getLoginUrl(),
 
 export const getLoginMutationKey = () => ['login'] as const;
 
-export const getLoginMutationOptions = <TError = ErrorType<unknown>,
+export const getLoginMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext> => {
 
@@ -405,10 +405,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
     export type LoginMutationBody = BodyType<LoginInput>
-    export type LoginMutationError = ErrorType<unknown>
+    export type LoginMutationError = ErrorType<void>
     export type LoginMutationVariables = {data: BodyType<LoginInput>}
 
-    export const useLogin = <TError = ErrorType<unknown>,
+    export const useLogin = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof login>>,
@@ -1415,7 +1415,7 @@ return customFetch<DrinkGeneration>(getStartDrinkGenerationUrl(id),
 
 export const getStartDrinkGenerationMutationKey = () => ['startDrinkGeneration'] as const;
 
-export const getStartDrinkGenerationMutationOptions = <TError = ErrorType<unknown>,
+export const getStartDrinkGenerationMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startDrinkGeneration>>, TError,StartDrinkGenerationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof startDrinkGeneration>>, TError,StartDrinkGenerationMutationVariables, TContext> => {
 
@@ -1444,10 +1444,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type StartDrinkGenerationMutationResult = NonNullable<Awaited<ReturnType<typeof startDrinkGeneration>>>
     export type StartDrinkGenerationMutationBody = BodyType<DrinkGenerationInput>
-    export type StartDrinkGenerationMutationError = ErrorType<unknown>
+    export type StartDrinkGenerationMutationError = ErrorType<void>
     export type StartDrinkGenerationMutationVariables = {id: string;data: BodyType<DrinkGenerationInput>}
 
-    export const useStartDrinkGeneration = <TError = ErrorType<unknown>,
+    export const useStartDrinkGeneration = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startDrinkGeneration>>, TError,StartDrinkGenerationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof startDrinkGeneration>>,

@@ -90,6 +90,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Session"
+        "400":
+          description: Invalid email or password format
+        "401":
+          description: Email or password did not match
+        "429":
+          description: Too many sign-in attempts from this address or for this account
   /auth/password-reset/request:
     post:
       operationId: requestPasswordReset
@@ -379,6 +385,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DrinkGeneration"
+        "429":
+          description: The partner's daily limit of paid 3D generations is reached
   /drinks/{id}/photos/{kind}:
     get:
       operationId: getDrinkPhoto

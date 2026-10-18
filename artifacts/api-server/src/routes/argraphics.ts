@@ -41,6 +41,9 @@ import passwordRecoveryRouter from "./password-recovery";
 import { seedDemoPartners } from "../lib/demo-partners";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
+import {
+  allowAttempt, attemptsSoFar, clientAddress, DAY_MS, generationDailyLimit, LOGIN_FAILURE_LIMIT, LOGIN_IP_LIMIT, recordAttempt,
+} from "../lib/throttle";
 
 const router: IRouter = Router();
 const demoBarId = "argraphics-demo-bar";
@@ -266,14 +269,29 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Enter a valid email and password." });
     return;
   }
-  const [user] = await db.select().from(usersTable)
-    .where(eq(usersTable.email, parsed.data.email.trim().toLowerCase())).limit(1);
+  const email = parsed.data.email.trim().toLowerCase();
+  // Password guessing is throttled per address and, for a targeted account, per email.
+  // Both counters live in the database, so every server instance enforces the same ceiling
+  // and the guarded account stays guarded across restarts.
+  if (!(await allowAttempt("login-ip", clientAddress(req), LOGIN_IP_LIMIT))) {
+    res.setHeader("Retry-After", "3600");
+    res.status(429).json({ error: "Too many sign-in attempts from this connection. Try again in an hour." });
+    return;
+  }
+  if ((await attemptsSoFar("login-fail", email)) >= LOGIN_FAILURE_LIMIT) {
+    res.setHeader("Retry-After", "3600");
+    res.status(429).json({ error: "Too many failed sign-ins for this account. Wait an hour or reset your password." });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (!user || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+    await recordAttempt("login-fail", email);
     res.status(401).json({ error: "Email or password did not match." });
     return;
   }
@@ -658,6 +676,12 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) {
     res.status(503).json({ error: "3D generation is not configured. Check the Meshy connection." });
+    return;
+  }
+  // Each generation spends platform credits; cap what one partner can start in a day.
+  if (!(await allowAttempt("generation", barId, generationDailyLimit(), { windowMs: DAY_MS }))) {
+    res.setHeader("Retry-After", String(DAY_MS / 1000));
+    res.status(429).json({ error: `You've reached today's limit of ${generationDailyLimit()} 3D previews. Try again tomorrow.` });
     return;
   }
   try {

@@ -1,6 +1,6 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { Apple, Box, Check, Loader2, ScanLine } from 'lucide-react';
-import { BrandMark } from '@/components/shell';
+import { BrandMark } from '@/components/brand';
 import { ensureModelViewer } from '@/lib/model-viewer';
 import '@/components/partner.css';
 

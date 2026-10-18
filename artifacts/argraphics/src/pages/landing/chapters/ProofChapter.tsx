@@ -45,6 +45,7 @@ export function ProofChapter() {
               “Is this putting bodies in seats?”
             </SplitReveal>
             <p className="lp-lede">Here is exactly how we count. Every claimed offer is a guest in a seat.</p>
+            <p className="lp-sample-note">Sample week below. These are illustrative numbers, not a customer’s results.</p>
 
             <ol className="lp-funnel" aria-label="How a scan becomes a walk-in">
               {FUNNEL.map((row, i) => (
