@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
@@ -40,6 +41,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import passwordRecoveryRouter from "./password-recovery";
 import { seedDemoPartners } from "../lib/demo-partners";
 import { seedDemoModel } from "../lib/demo-model";
+import { judgeDrinkModel, summarizeGlb } from "../lib/glb-quality";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -442,14 +444,44 @@ async function saveMeshyDownload(
   }
   const declaredSize = Number(response.headers.get("content-length") || 0);
   if (declaredSize > 200 * 1024 * 1024) throw new Error("The generated model is larger than App Storage allows.");
+  return storeMeshyAsset(Readable.fromWeb(response.body as ReadableStream<Uint8Array>), drinkId, extension, contentType);
+}
 
+/** The model itself is fetched whole so it can be inspected before anything is stored. */
+async function fetchMeshyAsset(sourceUrl: string): Promise<Buffer> {
+  const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(5 * 60_000) });
+  if (!response.ok) throw new Error(`Meshy asset download failed (${response.status}).`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > 200 * 1024 * 1024) throw new Error("The generated model is larger than App Storage allows.");
+  return bytes;
+}
+
+/** Height over width of the cutout the model was built from, when it can be read. */
+async function cutoutAspect(cleanedPhotoPath: string | null): Promise<number | undefined> {
+  if (!cleanedPhotoPath) return undefined;
+  try {
+    const file = await objectStorage.getObjectEntityFile(cleanedPhotoPath);
+    const [bytes] = await file.download();
+    const meta = await sharp(bytes).metadata();
+    return meta.width && meta.height ? meta.height / meta.width : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function storeMeshyAsset(
+  body: Readable,
+  drinkId: string,
+  extension: string,
+  contentType: string,
+): Promise<string> {
   const assetName = `argraphics/drinks/${drinkId}/${randomUUID()}.${extension}`;
   for (const searchPath of objectStorage.getPublicObjectSearchPaths()) {
     const target = storageTarget(searchPath, assetName);
     const file = objectStorageClient.bucket(target.bucketName).file(target.objectName);
     try {
       await pipeline(
-        Readable.fromWeb(response.body as ReadableStream<Uint8Array>),
+        body,
         file.createWriteStream({
           metadata: {
             contentType,
@@ -513,8 +545,25 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
   if (!glbSource || !thumbnailSource) {
     throw new Error("Meshy finished without returning the model and preview image.");
   }
+  // Inspect the model before saving it. A build that is flat, untextured, nearly empty or
+  // out of proportion with the photo is marked failed, so no customer ever sees it.
+  const glbBytes = await fetchMeshyAsset(glbSource);
+  let verdict: string | null;
+  try {
+    verdict = judgeDrinkModel(summarizeGlb(glbBytes), await cutoutAspect(drink.cleanedPhotoUrl));
+  } catch {
+    verdict = "could not be read";
+  }
+  if (verdict) {
+    await db.update(drinksTable).set({
+      generationStatus: "failed",
+      generationError: `The 3D build ${verdict}. Try a sharper photo of the whole drink on a plain background.`,
+      updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
+    return true;
+  }
   const [glbPath, thumbnailPath, usdzPath] = await Promise.all([
-    saveMeshyDownload(glbSource, drinkId, "glb", "model/gltf-binary"),
+    storeMeshyAsset(Readable.from(glbBytes), drinkId, "glb", "model/gltf-binary"),
     saveMeshyDownload(thumbnailSource, drinkId, "png", "image/png"),
     result.model_urls?.usdz
       ? saveMeshyDownload(result.model_urls.usdz, drinkId, "usdz", "model/vnd.usdz+zip")

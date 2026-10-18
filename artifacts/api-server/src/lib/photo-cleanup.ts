@@ -1,5 +1,6 @@
 import OpenAI, { toFile } from "openai";
 import sharp, { type Metadata, type Sharp } from "sharp";
+import { assessPhotoQuality } from "./photo-quality";
 
 export class PhotoCleanupError extends Error {
   constructor(message: string, public status = 400) {
@@ -142,6 +143,31 @@ async function snapAndVerify(output: Buffer): Promise<Buffer> {
     throw new PhotoCleanupError("The cleanup did not produce a usable transparent cutout. Try a clearer photo.", 502);
   }
 
+  // Where the drink sits in the frame: cut off at an edge, or too small to carry detail.
+  let foreground = 0;
+  const edgeHits = { top: 0, bottom: 0, left: 0, right: 0 };
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] <= 127) continue;
+      foreground++;
+      if (y === 0) edgeHits.top++;
+      if (y === height - 1) edgeHits.bottom++;
+      if (x === 0) edgeHits.left++;
+      if (x === width - 1) edgeHits.right++;
+    }
+  }
+  const crowdedEdges = [edgeHits.top > width * 0.02, edgeHits.bottom > width * 0.02, edgeHits.left > height * 0.02, edgeHits.right > height * 0.02].filter(Boolean).length;
+  if (crowdedEdges >= 3) {
+    // Opaque on nearly every side: the background was kept, not the drink cropped.
+    throw new PhotoCleanupError("The cutout still has a background around the edges. Try a photo with the drink clearly in front of a plain surface.", 502);
+  }
+  if (crowdedEdges > 0) {
+    throw new PhotoCleanupError("Part of the drink is cut off at the edge of the photo. Step back so the whole drink, base included, is in the frame.");
+  }
+  if (foreground < width * height * 0.04) {
+    throw new PhotoCleanupError("The drink is too small in this photo. Get closer so it fills most of the frame.");
+  }
+
   const corner = Math.max(1, Math.floor(Math.min(width, height) * 0.06));
   const meanAlpha = (left: number, top: number) => {
     let sum = 0;
@@ -185,6 +211,9 @@ export async function finishCutout(output: Buffer): Promise<Buffer> {
 export async function cleanupDrinkPhoto(bytes: Buffer, signal?: AbortSignal): Promise<Buffer> {
   signal?.throwIfAborted();
   const input = await prepareCleanupPhoto(bytes);
+  signal?.throwIfAborted();
+  const [issue] = await assessPhotoQuality(input);
+  if (issue) throw new PhotoCleanupError(issue.message);
   signal?.throwIfAborted();
 
   let output: Buffer;

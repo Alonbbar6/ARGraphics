@@ -72,6 +72,27 @@ describe("AI drink photo cleanup", () => {
     expect(alpha.min).toBe(0);
     expect(alpha.max).toBe(255);
   });
+  it("rejects a cutout where the drink is cut off at the edge of the photo", async () => {
+    const cutOff = await sharp({ create: { width: 480, height: 480, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: { create: { width: 120, height: 200, channels: 4, background: { r: 200, g: 40, b: 30, alpha: 1 } } }, left: 180, top: 280 }])
+      .png().toBuffer();
+    mocks.edit.mockResolvedValue({ data: [{ b64_json: cutOff.toString("base64") }] });
+    await expect(cleanupDrinkPhoto(await image())).rejects.toThrow("cut off");
+  });
+  it("rejects a cutout where the drink is too small to carry detail", async () => {
+    const tiny = await sharp({ create: { width: 480, height: 480, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: { create: { width: 40, height: 60, channels: 4, background: { r: 200, g: 40, b: 30, alpha: 1 } } }, left: 220, top: 210 }])
+      .png().toBuffer();
+    mocks.edit.mockResolvedValue({ data: [{ b64_json: tiny.toString("base64") }] });
+    await expect(cleanupDrinkPhoto(await image())).rejects.toThrow("too small in this photo");
+  });
+  it("rejects an out-of-focus photo before any paid call", async () => {
+    const blurred = await sharp({ create: { width: 640, height: 640, channels: 3, background: "white" } })
+      .composite([{ input: { create: { width: 220, height: 300, channels: 4, background: { r: 190, g: 30, b: 40, alpha: 1 } } }, left: 210, top: 200 }])
+      .png().toBuffer();
+    await expect(cleanupDrinkPhoto(await sharp(blurred).blur(12).jpeg().toBuffer())).rejects.toThrow("focus");
+    expect(mocks.edit).not.toHaveBeenCalled();
+  });
   it("rejects a cutout whose edges are still opaque", async () => {
     // Opaque everywhere except a small transparent hole, so the simple min/max check passes.
     const size = 480;
