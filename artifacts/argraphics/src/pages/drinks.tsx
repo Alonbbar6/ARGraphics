@@ -330,10 +330,10 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
     setOriginalPreview(savedCleanupImageUrl(draft, 'source'));
     setCleanedPreview(draft.status === 'ready' ? savedCleanupImageUrl(draft, 'cleaned') : '');
     setApproved(false);
-    if (draft.status === 'ready') setNotice('Your paid cutout is saved. Review and approve it before building; no new cleanup is needed.');
+    if (draft.status === 'ready') setNotice('Your cutout is saved. Review and approve it before building; no new cleanup is needed.');
     if (latest?.status === 'failed') {
       setError(draft.status === 'ready'
-        ? 'The replacement cleanup failed. Your earlier paid cutout is still saved below; you can review and build from it without another cleanup.'
+        ? 'The replacement cleanup failed. Your earlier cutout is still saved below; you can review and build from it without another cleanup.'
         : latest.error || 'The cleanup was interrupted.');
     }
   }, [cleanupQuery.data, choosingNewPhoto, busyMessage, reviewAnalytics]);
@@ -518,7 +518,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
                 <input type="checkbox" checked={autoBuild} onChange={(event) => setAutoBuild(event.target.checked)} className="mt-0.5 h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-auto-build" />
                 <span><span className="font-semibold">Build the 3D model right away.</span> <span className="text-muted-foreground">Skips the cutout check. One photo, one model, no clicks in between.</span></span>
               </label>
-              <p className="mt-3 text-[11px] text-muted-foreground">JPG, PNG, WebP, HEIC or HEIF · up to 15 MB · a photo starts paid background removal; the 3D build uses Meshy credits.</p>
+              <p className="mt-3 text-[11px] text-muted-foreground">JPG, PNG, WebP, HEIC or HEIF · up to 15 MB · we cut the background out for you; only the 3D build uses Meshy credits.</p>
             </div>
           )}
           {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
@@ -558,7 +558,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
               <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
             </div>
           )}
-          {modelUrl && !hasPhoto && !cameraOpen && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo starts paid OpenAI cleanup. Generating a new model uses Meshy credits separately.</p><div className="flex flex-wrap gap-2">{cameraSupported() && <button type="button" onClick={() => setCameraOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-camera"><Camera size={15} /> Snap a new photo</button>}<label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a library photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div></div>}
+          {modelUrl && !hasPhoto && !cameraOpen && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo replaces the cutout. Building a new model uses Meshy credits.</p><div className="flex flex-wrap gap-2">{cameraSupported() && <button type="button" onClick={() => setCameraOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-camera"><Camera size={15} /> Snap a new photo</button>}<label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a library photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div></div>}
           {notice && <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm" role="status" data-testid="status-studio-notice">{notice}</p>}
           {error && <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert" data-testid="status-studio-error"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div>}
           {(generation?.status === 'ready' || modelUrl) && hasPhoto && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}

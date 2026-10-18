@@ -21,11 +21,16 @@ vi.mock("openai", () => {
 import { cleanupDrinkPhoto, prepareCleanupPhoto } from "../src/lib/photo-cleanup";
 import cleanupRouter from "../src/routes/photo-cleanup";
 
-const image = () => sharp({ create: { width: 20, height: 20, channels: 4, background: { r: 200, g: 100, b: 10, alpha: 0.5 } } }).png().toBuffer();
+/** A camera-sized photo: a solid rectangle "drink" on a transparent canvas. Also a valid cutout. */
+const image = (size = 480) => sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+  .composite([{ input: { create: { width: 120, height: 160, channels: 4, background: { r: 200, g: 40, b: 30, alpha: 1 } } }, left: 180, top: 160 }])
+  .png().toBuffer();
 
 beforeEach(() => {
   mocks.edit.mockReset();
   vi.stubEnv("OPENAI_API_KEY", "unit-test-not-a-real-key");
+  // The provider path is what these tests mock; the local model has its own test below.
+  vi.stubEnv("PHOTO_CUTOUT", "openai");
 });
 
 describe("AI drink photo cleanup", () => {
@@ -47,14 +52,47 @@ describe("AI drink photo cleanup", () => {
     await expect(cleanupDrinkPhoto(await image())).rejects.toThrow("Photo cleanup isn't switched on");
     expect(mocks.edit).not.toHaveBeenCalled();
   });
-  it("requests a transparent edit and returns the real provider image", async () => {
+  it("rejects photos too small to model, before any paid call", async () => {
+    await expect(cleanupDrinkPhoto(await image(300))).rejects.toThrow("too small");
+    expect(mocks.edit).not.toHaveBeenCalled();
+  });
+  it("requests a transparent edit and returns the provider's cutout framed around the subject", async () => {
     const png = await image();
     mocks.edit.mockResolvedValue({ data: [{ b64_json: png.toString("base64") }] });
-    expect(await cleanupDrinkPhoto(png)).toEqual(png);
+    const output = await cleanupDrinkPhoto(png);
     expect(mocks.edit).toHaveBeenCalledWith(expect.objectContaining({
       model: "gpt-image-1", background: "transparent", output_format: "png", n: 1,
     }), { signal: undefined });
+    // Trimmed to the 120×160 subject plus padding, still transparent around it.
+    const meta = await sharp(output).metadata();
+    expect(meta.width).toBeGreaterThan(120);
+    expect(meta.width).toBeLessThan(200);
+    expect(meta.height).toBeLessThan(240);
+    const alpha = (await sharp(output).ensureAlpha().stats()).channels[3];
+    expect(alpha.min).toBe(0);
+    expect(alpha.max).toBe(255);
   });
+  it("rejects a cutout whose edges are still opaque", async () => {
+    // Opaque everywhere except a small transparent hole, so the simple min/max check passes.
+    const size = 480;
+    const raw = Buffer.alloc(size * size * 4, 255);
+    for (let y = 220; y < 260; y++) for (let x = 220; x < 260; x++) raw[(y * size + x) * 4 + 3] = 0;
+    const halo = await sharp(raw, { raw: { width: size, height: size, channels: 4 } }).png().toBuffer();
+    mocks.edit.mockResolvedValue({ data: [{ b64_json: halo.toString("base64") }] });
+    await expect(cleanupDrinkPhoto(await image())).rejects.toThrow("around the edges");
+  });
+  it("cuts a photo out with the local model, keeping the subject and clearing the background", async () => {
+    vi.stubEnv("PHOTO_CUTOUT", "local");
+    // A red tumbler on a plain white table.
+    const photo = await sharp({ create: { width: 640, height: 640, channels: 3, background: "white" } })
+      .composite([{ input: { create: { width: 220, height: 300, channels: 4, background: { r: 190, g: 30, b: 40, alpha: 1 } } }, left: 210, top: 200 }])
+      .jpeg().toBuffer();
+    const output = await cleanupDrinkPhoto(photo);
+    expect(mocks.edit).not.toHaveBeenCalled();
+    const alpha = (await sharp(output).ensureAlpha().stats()).channels[3];
+    expect(alpha.min).toBe(0);
+    expect(alpha.max).toBe(255);
+  }, 60_000);
   it("does not start a paid call with a cancelled request", async () => {
     const controller = new AbortController();
     controller.abort();

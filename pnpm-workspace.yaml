@@ -75,9 +75,12 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
   - msw
+  - onnxruntime-node
   - unrs-resolver
 
 overrides:
+  # The background-removal model declares an old sharp; one libvips in the process, not two.
+  "@imgly/background-removal-node>sharp": "^0.35.5"
   # replit uses linux-x64 only, we can exclude all other platforms (darwin-arm64 kept for local Mac dev)
   "esbuild>@esbuild/darwin-x64": "-"
   "esbuild>@esbuild/freebsd-arm64": "-"

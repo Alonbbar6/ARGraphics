@@ -17,15 +17,21 @@ vi.mock("openai", () => {
   }
   return { default: OpenAI, toFile: vi.fn(async (bytes) => bytes) };
 });
+import { finishCutout } from "../src/lib/photo-cleanup";
 
 const endpoint = "/api/drinks/fixture-drink/photo-cleanup";
-const png = () => sharp({ create: { width: 12, height: 12, channels: 4, background: { r: 120, g: 30, b: 10, alpha: 0.5 } } }).png().toBuffer();
+/** A camera-sized photo with a solid subject on a transparent canvas; also a valid cutout. */
+const png = () => sharp({ create: { width: 480, height: 480, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+  .composite([{ input: { create: { width: 120, height: 160, channels: 4, background: { r: 120, g: 30, b: 10, alpha: 1 } } }, left: 180, top: 160 }])
+  .png().toBuffer();
 let rateWindow = Date.UTC(2026, 0, 1);
 
 beforeEach(async () => {
   rateWindow += 600_001;
   vi.spyOn(Date, "now").mockReturnValue(rateWindow);
   vi.stubEnv("OPENAI_API_KEY", "mocked-openai-key");
+  // These tests exercise the provider path and its billing guarantees.
+  vi.stubEnv("PHOTO_CUTOUT", "openai");
   mocks.edit.mockReset();
   mocks.edit.mockResolvedValue({ data: [{ b64_json: (await png()).toString("base64") }] });
 });
@@ -36,7 +42,7 @@ describe("saved paid cutout lifecycle", () => {
     const response = await request(app).post(endpoint).set("Cookie", cookie).type("png").send(await png()).expect(200);
     const draft = response.body.draft;
     expect(draft.status).toBe("ready");
-    expect(objects.get(draft.cleanedPhotoPath)?.bytes).toEqual(await png());
+    expect(objects.get(draft.cleanedPhotoPath)?.bytes).toEqual(await finishCutout(await png()));
     expect(storage.savePrivateImage).toHaveBeenCalledWith(expect.any(Buffer), "owner", draft.cleanedPhotoPath);
     const [saved] = await db.select().from(schema.photoCleanupsTable);
     expect(saved.ownerId).toBe("owner");
@@ -158,7 +164,7 @@ describe("saved paid cutout lifecycle", () => {
       const [draft] = await db.select().from(schema.photoCleanupsTable);
       expect(draft.status).toBe("processing");
       expect(draft.cleanedSize).toBeNull();
-      expect(objects.get(draft.cleanedPhotoPath!)?.bytes).toEqual(bytes);
+      expect(objects.get(draft.cleanedPhotoPath!)?.bytes).toEqual(await finishCutout(bytes));
       // Also repair drafts incorrectly marked failed by previous server versions.
       await db.update(schema.photoCleanupsTable).set({
         status, error: status === "failed" ? "Cleanup could not be saved." : null,
@@ -191,9 +197,9 @@ describe("saved paid cutout lifecycle", () => {
         draft.cleanedPhotoPath, { owner: "owner", visibility: "private" },
       );
       const [persisted] = await db.select().from(schema.photoCleanupsTable);
-      expect(persisted.cleanedSize).toBe(bytes.length);
+      expect(persisted.cleanedSize).toBe((await finishCutout(bytes)).length);
       const image = await request(app).get(`${endpoint}/${draft.id}/cleaned`).set("Cookie", cookie).expect(200);
-      expect(image.body).toEqual(bytes);
+      expect(image.body).toEqual(await finishCutout(bytes));
       await request(app).get(`${endpoint}/${draft.id}/cleaned`).set("Cookie", other).expect(404);
       expect(mocks.edit).toHaveBeenCalledTimes(1);
     },

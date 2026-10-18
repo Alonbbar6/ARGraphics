@@ -30,6 +30,9 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      // Background-removal model: native ONNX runtime plus model files read from its own folder.
+      "@imgly/background-removal-node",
+      "onnxruntime-node",
       "better-sqlite3",
       "sqlite3",
       "canvas",
