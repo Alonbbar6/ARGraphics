@@ -6,6 +6,7 @@ import tableCardsRouter from "./table-cards";
 import partnersRouter from "./partners";
 import publicV1Router from "./public-v1";
 import localStorageRouter from "./local-storage";
+import artworksRouter from "./artworks";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use(storageRouter);
 router.use(tableCardsRouter);
 router.use(partnersRouter);
 router.use(publicV1Router);
+router.use(artworksRouter);
 router.use(localStorageRouter);
 
 export default router;

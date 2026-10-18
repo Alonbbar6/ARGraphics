@@ -43,4 +43,9 @@ export interface DisplayUpdate {
      * @nullable
      */
   artistSlug?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  artworkId?: string | null;
 }

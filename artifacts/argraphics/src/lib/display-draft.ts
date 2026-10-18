@@ -41,6 +41,9 @@ export type DisplayDraft = {
   eventStartsAt: string; // datetime-local
   artistName: string;
   artistSlug: string | null;
+  /** A licensed artwork; media and credit come from it and cannot be edited here. */
+  artworkId: string | null;
+  artworkTitle: string;
 };
 
 export function emptyDraft(type: DisplayType | null = null): DisplayDraft {
@@ -57,6 +60,8 @@ export function emptyDraft(type: DisplayType | null = null): DisplayDraft {
     eventStartsAt: '',
     artistName: '',
     artistSlug: null,
+    artworkId: null,
+    artworkTitle: '',
   };
 }
 
@@ -74,6 +79,8 @@ export function draftFromDisplay(display: Display): DisplayDraft {
     eventStartsAt: isoToLocalInput(display.eventStartsAt),
     artistName: display.artist?.name ?? '',
     artistSlug: display.artist?.slug ?? null,
+    artworkId: display.artworkId,
+    artworkTitle: display.artwork?.title ?? '',
   };
 }
 
@@ -106,8 +113,11 @@ function offerFromDraft(draft: DisplayDraft) {
 }
 
 function artistFromDraft(draft: DisplayDraft) {
+  if (draft.artworkId) return { artworkId: draft.artworkId, artistName: null, artistSlug: null };
   const name = draft.artistName.trim().slice(0, 80);
-  return draft.type === 'art_piece' && name ? { artistName: name, artistSlug: draft.artistSlug } : { artistName: null, artistSlug: null };
+  return draft.type === 'art_piece' && name
+    ? { artworkId: null, artistName: name, artistSlug: draft.artistSlug }
+    : { artworkId: null, artistName: null, artistSlug: null };
 }
 
 export function toDisplayInput(draft: DisplayDraft, status: 'draft' | 'live'): DisplayInput {
@@ -119,7 +129,7 @@ export function toDisplayInput(draft: DisplayDraft, status: 'draft' | 'live'): D
     title: draft.title.trim(),
     description: draft.description.trim(),
     drinkId: draft.drinkId, // any type may show a 3D library model; switching type resets it
-    mediaObjectPath: draft.mediaObjectPath ?? null,
+    mediaObjectPath: draft.artworkId ? null : draft.mediaObjectPath ?? null,
     offer: offerFromDraft(draft),
     eventStartsAt: draft.type === 'event_teaser' ? localInputToIso(draft.eventStartsAt) : null,
     ...artistFromDraft(draft),

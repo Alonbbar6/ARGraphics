@@ -32,6 +32,7 @@ const AnalyticsPage = lazy(() => import('@/pages/analytics').then((m) => ({ defa
 const DrinksPage = lazy(() => import('@/pages/drinks').then((m) => ({ default: m.DrinksPage })));
 const TableCardsPage = lazy(() => import('@/pages/blocked').then((m) => ({ default: m.TableCardsPage })));
 const SettingsPage = lazy(() => import('@/pages/blocked').then((m) => ({ default: m.SettingsPage })));
+const GalleryPage = lazy(() => import('@/pages/gallery').then((m) => ({ default: m.GalleryPage })));
 
 // Dev only: the frame baker for the landing page's image sequences. Vite drops this
 // branch (and three.js with it) from production builds.
@@ -70,6 +71,7 @@ function Router() {
           <Route path="/drinks">{() => <InShell page={DrinksPage} />}</Route>
           <Route path="/table-cards">{() => <InShell page={TableCardsPage} />}</Route>
           <Route path="/settings">{() => <InShell page={SettingsPage} />}</Route>
+          <Route path="/gallery">{() => <InShell page={GalleryPage} />}</Route>
           {BakeFramesPage ? <Route path="/dev/bake" component={BakeFramesPage} /> : null}
           <Route component={NotFound} />
         </Switch>

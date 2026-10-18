@@ -15,6 +15,14 @@ sees says ARGraphics.
 - `bars` are partners: `kind` is `venue` or `artist`, with bio, neighborhood, location and timezone.
 - `displays` (menu item, promo offer, art piece, event teaser) at a placement (table, wall, window, poster).
 - `qr_codes` are placed spots with short codes; scans resolve `/s/{code}`. Retired codes keep their history.
+- `artworks` are pieces artists upload themselves: a photo or file of 2D work, or their own 3D model
+  (GLB, optional USDZ) with a preview image, a licence fee and the artist's statement that it is their
+  own work. The AI photo-to-3D pipeline is never applied to artworks; ARGraphics does not list
+  AI-generated pieces. Enforcement is by attestation and takedown, not automated detection.
+- `artwork_licenses` record a venue's request to show a piece, the artist's answer, the agreed fee and
+  whether it has been paid. Accepting one creates a draft `art_piece` display in the venue's room with
+  `artworkId` set; the venue places and publishes it but cannot change the media or the credit.
+  Payment happens outside the app for now; the artist marks a licence paid.
 - `scans` and `redemptions` hold a keyed hash of the app's anonymous install ID, never the ID itself.
   A redemption is one claim per guest, offer and partner-local day, valid for 15 minutes.
 - In development the API seeds a demo venue, a demo artist (`demo-artist@argraphics.app`), a nearby

@@ -4,6 +4,7 @@ import addFormats from "ajv-formats";
 import { parse } from "yaml";
 import { expect } from "vitest";
 import {
+  CreateArtworkResponse, ListGalleryResponse, RequestArtworkLicenseResponse, UpdateLicenseResponse,
   CreateDisplayResponse, CreatePublicClaimResponse, CreatePublicScanResponse, CreateQrCodesResponse,
   CreateTableCardResponse, DeleteTableCardResponse, GetAnalyticsResponse, GetPartnerProfileResponse,
   GetPublicArtistResponse, GetPublicMenuResponse, GetPublicMenuVersionResponse, GetPublicNearbyResponse,
@@ -39,6 +40,10 @@ const generated = {
   getPublicVenue: GetPublicVenueResponse,
   getPublicNearby: GetPublicNearbyResponse,
   getPublicArtist: GetPublicArtistResponse,
+  createArtwork: CreateArtworkResponse,
+  listGallery: ListGalleryResponse,
+  requestArtworkLicense: RequestArtworkLicenseResponse,
+  updateLicense: UpdateLicenseResponse,
 };
 type Operation = keyof typeof generated;
 type ResponseSpec = { content?: { "application/json"?: { schema: object } } };

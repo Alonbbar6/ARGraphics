@@ -24,6 +24,10 @@ import type {
   ArEventInput,
   ArtistPlacement,
   ArtistSearchResult,
+  Artwork,
+  ArtworkInput,
+  ArtworkLicense,
+  ArtworkUpdate,
   BadRequestResponse,
   Claim,
   ClaimInput,
@@ -38,13 +42,18 @@ import type {
   DrinkPhotoUploadInput,
   DrinkUpdate,
   Error,
+  GalleryArtwork,
   GetAnalyticsParams,
   GetSavedPhotoCleanup200,
   HealthStatus,
   Insights,
+  LicenseRequestInput,
+  LicenseUpdate,
+  ListGalleryParams,
   LoginInput,
   MenuVersion,
   Message,
+  ModelUploadUrlRequest,
   NearbySpot,
   NotFoundResponse,
   OwnerRegistrationInput,
@@ -3278,6 +3287,825 @@ export function useListArtistPlacements<TData = Awaited<ReturnType<typeof listAr
 
 
 
+
+export const getListArtworksUrl = () => {
+
+
+
+
+  return `/api/artworks`
+}
+
+/**
+ * @summary The signed-in artist's own works
+ */
+export const listArtworks = async ( options?: Parameters<typeof customFetch>[1]): Promise<Artwork[]> => {
+
+  return customFetch<Artwork[]>(getListArtworksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListArtworksQueryKey = () => {
+    return [
+    `/api/artworks`
+    ] as const;
+    }
+
+
+export const getListArtworksQueryOptions = <TData = Awaited<ReturnType<typeof listArtworks>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArtworks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListArtworksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listArtworks>>> = ({ signal }) => listArtworks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listArtworks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListArtworksQueryResult = NonNullable<Awaited<ReturnType<typeof listArtworks>>>
+export type ListArtworksQueryError = ErrorType<void>
+
+
+/**
+ * @summary The signed-in artist's own works
+ */
+
+export function useListArtworks<TData = Awaited<ReturnType<typeof listArtworks>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArtworks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListArtworksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateArtworkUrl = () => {
+
+
+
+
+  return `/api/artworks`
+}
+
+/**
+ * @summary Save an uploaded work (artists only, own work only)
+ */
+export const createArtwork = async (artworkInput: ArtworkInput, options?: Parameters<typeof customFetch>[1]): Promise<Artwork> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Artwork>(getCreateArtworkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(artworkInput)
+  }
+);}
+
+
+
+
+
+export const getCreateArtworkMutationKey = () => ['createArtwork'] as const;
+
+export const getCreateArtworkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createArtwork>>, TError,CreateArtworkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createArtwork>>, TError,CreateArtworkMutationVariables, TContext> => {
+
+const mutationKey = getCreateArtworkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createArtwork>>, CreateArtworkMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createArtwork(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateArtworkMutationResult = NonNullable<Awaited<ReturnType<typeof createArtwork>>>
+    export type CreateArtworkMutationBody = BodyType<ArtworkInput>
+    export type CreateArtworkMutationError = ErrorType<void>
+    export type CreateArtworkMutationVariables = {data: BodyType<ArtworkInput>}
+
+    /**
+ * @summary Save an uploaded work (artists only, own work only)
+ */
+export const useCreateArtwork = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createArtwork>>, TError,CreateArtworkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createArtwork>>,
+        TError,
+        CreateArtworkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateArtworkMutationOptions(options));
+    }
+
+export const getUpdateArtworkUrl = (id: string,) => {
+
+
+
+
+  return `/api/artworks/${id}`
+}
+
+export const updateArtwork = async (id: string,
+    artworkUpdate: ArtworkUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Artwork> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Artwork>(getUpdateArtworkUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(artworkUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateArtworkMutationKey = () => ['updateArtwork'] as const;
+
+export const getUpdateArtworkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateArtwork>>, TError,UpdateArtworkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateArtwork>>, TError,UpdateArtworkMutationVariables, TContext> => {
+
+const mutationKey = getUpdateArtworkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateArtwork>>, UpdateArtworkMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateArtwork(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateArtworkMutationResult = NonNullable<Awaited<ReturnType<typeof updateArtwork>>>
+    export type UpdateArtworkMutationBody = BodyType<ArtworkUpdate>
+    export type UpdateArtworkMutationError = ErrorType<void>
+    export type UpdateArtworkMutationVariables = {id: string;data: BodyType<ArtworkUpdate>}
+
+    export const useUpdateArtwork = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateArtwork>>, TError,UpdateArtworkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateArtwork>>,
+        TError,
+        UpdateArtworkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateArtworkMutationOptions(options));
+    }
+
+export const getDeleteArtworkUrl = (id: string,) => {
+
+
+
+
+  return `/api/artworks/${id}`
+}
+
+export const deleteArtwork = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+  return customFetch<Message>(getDeleteArtworkUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteArtworkMutationKey = () => ['deleteArtwork'] as const;
+
+export const getDeleteArtworkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteArtwork>>, TError,DeleteArtworkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteArtwork>>, TError,DeleteArtworkMutationVariables, TContext> => {
+
+const mutationKey = getDeleteArtworkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteArtwork>>, DeleteArtworkMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteArtwork(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteArtworkMutationResult = NonNullable<Awaited<ReturnType<typeof deleteArtwork>>>
+
+    export type DeleteArtworkMutationError = ErrorType<void>
+    export type DeleteArtworkMutationVariables = {id: string}
+
+    export const useDeleteArtwork = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteArtwork>>, TError,DeleteArtworkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteArtwork>>,
+        TError,
+        DeleteArtworkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteArtworkMutationOptions(options));
+    }
+
+export const getGetArtworkMediaUrl = (id: string,
+    kind: 'image' | 'glb' | 'usdz',) => {
+
+
+
+
+  return `/api/artworks/${id}/media/${kind}`
+}
+
+/**
+ * @summary Stream an artwork file to the artist, a licensee, or any signed-in partner when listed
+ */
+export const getArtworkMedia = async (id: string,
+    kind: 'image' | 'glb' | 'usdz', options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetArtworkMediaUrl(id,kind),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetArtworkMediaQueryKey = (id: string,
+    kind: 'image' | 'glb' | 'usdz',) => {
+    return [
+    `/api/artworks/${id}/media/${kind}`
+    ] as const;
+    }
+
+
+export const getGetArtworkMediaQueryOptions = <TData = Awaited<ReturnType<typeof getArtworkMedia>>, TError = ErrorType<void>>(id: string,
+    kind: 'image' | 'glb' | 'usdz', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArtworkMedia>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetArtworkMediaQueryKey(id,kind);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArtworkMedia>>> = ({ signal }) => getArtworkMedia(id,kind, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && kind !== null && kind !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getArtworkMedia>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetArtworkMediaQueryResult = NonNullable<Awaited<ReturnType<typeof getArtworkMedia>>>
+export type GetArtworkMediaQueryError = ErrorType<void>
+
+
+/**
+ * @summary Stream an artwork file to the artist, a licensee, or any signed-in partner when listed
+ */
+
+export function useGetArtworkMedia<TData = Awaited<ReturnType<typeof getArtworkMedia>>, TError = ErrorType<void>>(
+ id: string,
+    kind: 'image' | 'glb' | 'usdz', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArtworkMedia>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetArtworkMediaQueryOptions(id,kind,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestArtworkLicenseUrl = (id: string,) => {
+
+
+
+
+  return `/api/artworks/${id}/license-requests`
+}
+
+/**
+ * @summary A venue asks to show a listed artwork
+ */
+export const requestArtworkLicense = async (id: string,
+    licenseRequestInput?: LicenseRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<ArtworkLicense> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ArtworkLicense>(getRequestArtworkLicenseUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(licenseRequestInput)
+  }
+);}
+
+
+
+
+
+export const getRequestArtworkLicenseMutationKey = () => ['requestArtworkLicense'] as const;
+
+export const getRequestArtworkLicenseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestArtworkLicense>>, TError,RequestArtworkLicenseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestArtworkLicense>>, TError,RequestArtworkLicenseMutationVariables, TContext> => {
+
+const mutationKey = getRequestArtworkLicenseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestArtworkLicense>>, RequestArtworkLicenseMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  requestArtworkLicense(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestArtworkLicenseMutationResult = NonNullable<Awaited<ReturnType<typeof requestArtworkLicense>>>
+    export type RequestArtworkLicenseMutationBody = BodyType<LicenseRequestInput> | undefined
+    export type RequestArtworkLicenseMutationError = ErrorType<void>
+    export type RequestArtworkLicenseMutationVariables = {id: string;data?: BodyType<LicenseRequestInput>}
+
+    /**
+ * @summary A venue asks to show a listed artwork
+ */
+export const useRequestArtworkLicense = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestArtworkLicense>>, TError,RequestArtworkLicenseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestArtworkLicense>>,
+        TError,
+        RequestArtworkLicenseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestArtworkLicenseMutationOptions(options));
+    }
+
+export const getListGalleryUrl = (params?: ListGalleryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gallery?${stringifiedParams}` : `/api/gallery`
+}
+
+/**
+ * @summary Listed artworks from every artist, for venues to browse
+ */
+export const listGallery = async (params?: ListGalleryParams, options?: Parameters<typeof customFetch>[1]): Promise<GalleryArtwork[]> => {
+
+  return customFetch<GalleryArtwork[]>(getListGalleryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGalleryQueryKey = (params?: ListGalleryParams,) => {
+    return [
+    `/api/gallery`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGalleryQueryOptions = <TData = Awaited<ReturnType<typeof listGallery>>, TError = ErrorType<void>>(params?: ListGalleryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGallery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGalleryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGallery>>> = ({ signal }) => listGallery(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGallery>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGalleryQueryResult = NonNullable<Awaited<ReturnType<typeof listGallery>>>
+export type ListGalleryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Listed artworks from every artist, for venues to browse
+ */
+
+export function useListGallery<TData = Awaited<ReturnType<typeof listGallery>>, TError = ErrorType<void>>(
+ params?: ListGalleryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGallery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGalleryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLicensesUrl = () => {
+
+
+
+
+  return `/api/licenses`
+}
+
+/**
+ * @summary Licences where the signed-in partner is the artist or the venue
+ */
+export const listLicenses = async ( options?: Parameters<typeof customFetch>[1]): Promise<ArtworkLicense[]> => {
+
+  return customFetch<ArtworkLicense[]>(getListLicensesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLicensesQueryKey = () => {
+    return [
+    `/api/licenses`
+    ] as const;
+    }
+
+
+export const getListLicensesQueryOptions = <TData = Awaited<ReturnType<typeof listLicenses>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLicenses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLicensesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLicenses>>> = ({ signal }) => listLicenses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLicenses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLicensesQueryResult = NonNullable<Awaited<ReturnType<typeof listLicenses>>>
+export type ListLicensesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Licences where the signed-in partner is the artist or the venue
+ */
+
+export function useListLicenses<TData = Awaited<ReturnType<typeof listLicenses>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLicenses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLicensesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateLicenseUrl = (id: string,) => {
+
+
+
+
+  return `/api/licenses/${id}`
+}
+
+export const updateLicense = async (id: string,
+    licenseUpdate: LicenseUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ArtworkLicense> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ArtworkLicense>(getUpdateLicenseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(licenseUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateLicenseMutationKey = () => ['updateLicense'] as const;
+
+export const getUpdateLicenseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLicense>>, TError,UpdateLicenseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLicense>>, TError,UpdateLicenseMutationVariables, TContext> => {
+
+const mutationKey = getUpdateLicenseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLicense>>, UpdateLicenseMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLicense(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLicenseMutationResult = NonNullable<Awaited<ReturnType<typeof updateLicense>>>
+    export type UpdateLicenseMutationBody = BodyType<LicenseUpdate>
+    export type UpdateLicenseMutationError = ErrorType<void>
+    export type UpdateLicenseMutationVariables = {id: string;data: BodyType<LicenseUpdate>}
+
+    export const useUpdateLicense = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLicense>>, TError,UpdateLicenseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLicense>>,
+        TError,
+        UpdateLicenseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateLicenseMutationOptions(options));
+    }
+
+export const getRequestModelUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/model-uploads/request-url`
+}
+
+/**
+ * @summary Signed upload URL for an artist's own GLB or USDZ model
+ */
+export const requestModelUploadUrl = async (modelUploadUrlRequest: ModelUploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<UploadUrlResponse>(getRequestModelUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(modelUploadUrlRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestModelUploadUrlMutationKey = () => ['requestModelUploadUrl'] as const;
+
+export const getRequestModelUploadUrlMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestModelUploadUrl>>, TError,RequestModelUploadUrlMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestModelUploadUrl>>, TError,RequestModelUploadUrlMutationVariables, TContext> => {
+
+const mutationKey = getRequestModelUploadUrlMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestModelUploadUrl>>, RequestModelUploadUrlMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestModelUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestModelUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestModelUploadUrl>>>
+    export type RequestModelUploadUrlMutationBody = BodyType<ModelUploadUrlRequest>
+    export type RequestModelUploadUrlMutationError = ErrorType<void>
+    export type RequestModelUploadUrlMutationVariables = {data: BodyType<ModelUploadUrlRequest>}
+
+    /**
+ * @summary Signed upload URL for an artist's own GLB or USDZ model
+ */
+export const useRequestModelUploadUrl = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestModelUploadUrl>>, TError,RequestModelUploadUrlMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestModelUploadUrl>>,
+        TError,
+        RequestModelUploadUrlMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestModelUploadUrlMutationOptions(options));
+    }
 
 export const getSearchArtistsUrl = (params?: SearchArtistsParams,) => {
   const normalizedParams = new URLSearchParams();

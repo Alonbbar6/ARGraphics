@@ -5,7 +5,7 @@ import {
   getGetDisplayQueryKey, getListDisplaysQueryKey, getSearchArtistsQueryKey, useCreateDisplay, useGetDisplay,
   useGetPartnerProfile, useGetSession, useListDrinks, useSearchArtists, useUpdateDisplay, type Display, type Drink,
 } from '@workspace/api-client-react';
-import { ArrowLeft, ArrowRight, Box, Camera, Check, CircleCheck, ExternalLink, QrCode, Search, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Box, Camera, Check, CircleCheck, ExternalLink, Palette, QrCode, Search, ShieldCheck, X } from 'lucide-react';
 import { CameraCapture } from '@/components/camera-capture';
 import { cameraSupported } from '@/lib/camera';
 import { Button, buttonClass, Dropzone, ErrorPanel, Field, inputClass, PageHeader, PhoneFrame, SegmentedControl, Skeleton, StepIndicator } from '@/components/partner-ui';
@@ -210,7 +210,7 @@ function DisplayEditor({ initial, existing, startStep }: { initial: DisplayDraft
                   </div>
                   {drinks.isLoading ? <Skeleton className="h-32" /> : drinkList.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
-                      Your library is empty. Snap a photo of the dish in the <Link href="/drinks" className="font-semibold text-primary underline">3D menu library</Link> and we’ll turn it into 3D in about a day.
+                      Your library is empty. Snap a photo of the dish in the <Link href="/drinks" className="font-semibold text-primary underline">3D menu library</Link> and it becomes a 3D model in a few minutes.
                     </div>
                   ) : (
                     <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -243,7 +243,16 @@ function DisplayEditor({ initial, existing, startStep }: { initial: DisplayDraft
               ) : (
                 <section>
                   <h2 className="mb-2 text-sm font-medium">{draft.type === 'art_piece' ? 'The piece' : draft.type === 'event_teaser' ? 'Poster or photo for the night' : 'A photo that sells it'}</h2>
-                  {cameraOpen ? (
+                  {draft.artworkId ? (
+                    <div className="pa-card flex items-center gap-4 p-4" data-testid="panel-licensed-artwork">
+                      {existing?.mediaUrl && <img src={existing.mediaUrl} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
+                      <div className="min-w-0 flex-1 text-sm">
+                        <p className="flex items-center gap-1.5 font-semibold"><ShieldCheck size={15} className="text-primary" aria-hidden="true" /> Licensed from {draft.artistName || 'the artist'}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{draft.artworkTitle || 'This piece'} is the artist’s own file. It shows exactly as they made it, with their name on it. Choose where it goes and publish.</p>
+                        <Link href="/gallery" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary"><Palette size={13} aria-hidden="true" /> Browse more local art</Link>
+                      </div>
+                    </div>
+                  ) : cameraOpen ? (
                     <CameraCapture subject={draft.title || 'display'} accept="image/png,image/jpeg,image/webp" onCancel={() => setCameraOpen(false)} onCapture={(file) => { setCameraOpen(false); void chooseFile(file); }} onPickFile={(file) => { setCameraOpen(false); void chooseFile(file); }} />
                   ) : (
                     <>
@@ -301,7 +310,10 @@ function DisplayEditor({ initial, existing, startStep }: { initial: DisplayDraft
                 </Field>
               )}
 
-              {draft.type === 'art_piece' && <ArtistCredit draft={draft} onChange={update} />}
+              {draft.type === 'art_piece' && !draft.artworkId && <ArtistCredit draft={draft} onChange={update} />}
+              {draft.type === 'art_piece' && !draft.artworkId && !existing && session.data?.partnerKind !== 'artist' && (
+                <p className="mt-3 text-xs text-muted-foreground">Want a real artist’s piece instead of a photo? <Link href="/gallery" className="font-semibold text-primary underline underline-offset-4">Browse local artists</Link> and ask to show their work; it lands here as a draft when they accept.</p>
+              )}
             </div>
           )}
 

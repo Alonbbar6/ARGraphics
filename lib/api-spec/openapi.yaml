@@ -853,6 +853,235 @@ paths:
                   $ref: "#/components/schemas/ArtistPlacement"
         "401":
           description: Sign-in required
+  /artworks:
+    get:
+      operationId: listArtworks
+      tags: [artworks]
+      summary: The signed-in artist's own works
+      responses:
+        "200":
+          description: Works, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Artwork"
+        "401":
+          description: Sign-in required
+    post:
+      operationId: createArtwork
+      tags: [artworks]
+      summary: Save an uploaded work (artists only, own work only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtworkInput"
+      responses:
+        "201":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artwork"
+        "400":
+          description: Invalid work, missing attestation, or invalid files
+        "401":
+          description: Sign-in required
+        "403":
+          description: Only artist accounts can list works
+  /artworks/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, maxLength: 120 }
+    patch:
+      operationId: updateArtwork
+      tags: [artworks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtworkUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artwork"
+        "400":
+          description: Invalid update
+        "401":
+          description: Sign-in required
+        "404":
+          description: Not the signed-in artist's work
+    delete:
+      operationId: deleteArtwork
+      tags: [artworks]
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          description: Sign-in required
+        "404":
+          description: Not the signed-in artist's work
+        "409":
+          description: Venues hold an accepted licence; end those first
+  /artworks/{id}/media/{kind}:
+    get:
+      operationId: getArtworkMedia
+      tags: [artworks]
+      summary: Stream an artwork file to the artist, a licensee, or any signed-in partner when listed
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, maxLength: 120 }
+        - in: path
+          name: kind
+          required: true
+          schema: { type: string, enum: [image, glb, usdz] }
+      responses:
+        "200":
+          description: The file
+          content:
+            "*/*":
+              schema: { type: string, format: binary }
+        "401":
+          description: Sign-in required
+        "404":
+          description: No such file or no access
+  /artworks/{id}/license-requests:
+    post:
+      operationId: requestArtworkLicense
+      tags: [artworks]
+      summary: A venue asks to show a listed artwork
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, maxLength: 120 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LicenseRequestInput"
+      responses:
+        "201":
+          description: Request sent to the artist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtworkLicense"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Only venues request licences
+        "404":
+          description: Artwork is not listed
+        "409":
+          description: A request or licence already exists
+  /gallery:
+    get:
+      operationId: listGallery
+      tags: [artworks]
+      summary: Listed artworks from every artist, for venues to browse
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+      responses:
+        "200":
+          description: Listed artworks, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GalleryArtwork"
+        "401":
+          description: Sign-in required
+  /licenses:
+    get:
+      operationId: listLicenses
+      tags: [artworks]
+      summary: Licences where the signed-in partner is the artist or the venue
+      responses:
+        "200":
+          description: Licences, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArtworkLicense"
+        "401":
+          description: Sign-in required
+  /licenses/{id}:
+    patch:
+      operationId: updateLicense
+      tags: [artworks]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, maxLength: 120 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LicenseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtworkLicense"
+        "400":
+          description: That action is not available in the licence's current state
+        "401":
+          description: Sign-in required
+        "403":
+          description: Not this partner's action to take
+        "404":
+          description: Licence not found
+  /storage/model-uploads/request-url:
+    post:
+      operationId: requestModelUploadUrl
+      tags: [storage]
+      summary: Signed upload URL for an artist's own GLB or USDZ model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelUploadUrlRequest"
+      responses:
+        "200":
+          description: Signed upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Unsupported file
+        "401":
+          description: Sign-in required
   /artists:
     get:
       operationId: searchArtists
@@ -1530,11 +1759,25 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ArtistCredit"
             - type: "null"
+        artworkId: { type: ["string", "null"] }
+        artwork:
+          oneOf:
+            - $ref: "#/components/schemas/DisplayArtwork"
+            - type: "null"
         scansThisWeek: { type: integer }
         redemptionsThisWeek: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, type, placement, status, title, description, drinkId, drink, mediaUrl, offer, eventStartsAt, artist, scansThisWeek, redemptionsThisWeek, createdAt, updatedAt]
+      required: [id, type, placement, status, title, description, drinkId, drink, mediaUrl, offer, eventStartsAt, artist, artworkId, artwork, scansThisWeek, redemptionsThisWeek, createdAt, updatedAt]
+    DisplayArtwork:
+      type: object
+      description: The licensed artwork a display shows; media and credit come from it.
+      properties:
+        id: { type: string }
+        title: { type: string }
+        medium: { $ref: "#/components/schemas/ArtworkMedium" }
+        modelGlbUrl: { type: ["string", "null"] }
+      required: [id, title, medium, modelGlbUrl]
     DisplayInput:
       type: object
       additionalProperties: false
@@ -1553,6 +1796,7 @@ components:
         eventStartsAt: { type: ["string", "null"], format: date-time }
         artistName: { type: ["string", "null"], maxLength: 80 }
         artistSlug: { type: ["string", "null"], maxLength: 120 }
+        artworkId: { type: ["string", "null"], maxLength: 120 }
       required: [type, placement, title]
     DisplayUpdate:
       type: object
@@ -1572,6 +1816,7 @@ components:
         eventStartsAt: { type: ["string", "null"], format: date-time }
         artistName: { type: ["string", "null"], maxLength: 80 }
         artistSlug: { type: ["string", "null"], maxLength: 120 }
+        artworkId: { type: ["string", "null"], maxLength: 120 }
     QrCode:
       type: object
       properties:
@@ -1697,6 +1942,144 @@ components:
         name: { type: string }
         neighborhood: { type: string }
       required: [slug, name, neighborhood]
+    ArtworkMedium:
+      type: string
+      description: image is flat work (painting, print, photo, digital art); model is the artist's own 3D file.
+      enum: [image, model]
+    ArtworkStatus:
+      type: string
+      enum: [listed, hidden]
+    Artwork:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        medium: { $ref: "#/components/schemas/ArtworkMedium" }
+        imageUrl: { type: string }
+        modelGlbUrl: { type: ["string", "null"] }
+        modelUsdzUrl: { type: ["string", "null"] }
+        realHeightCm: { type: ["number", "null"] }
+        priceCents: { type: integer }
+        licenseNote: { type: string }
+        status: { $ref: "#/components/schemas/ArtworkStatus" }
+        originalWorkAttestedAt: { type: string, format: date-time }
+        licensedVenues: { type: integer, description: Venues with an accepted licence }
+        pendingRequests: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, title, description, medium, imageUrl, modelGlbUrl, modelUsdzUrl, realHeightCm, priceCents, licenseNote, status, originalWorkAttestedAt, licensedVenues, pendingRequests, createdAt, updatedAt]
+    ArtworkInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 80, pattern: "\\S" }
+        description: { type: string, maxLength: 600 }
+        medium: { $ref: "#/components/schemas/ArtworkMedium" }
+        imageObjectPath: { type: string, pattern: "^/objects/uploads/[a-f0-9-]{36}$" }
+        modelGlbObjectPath: { type: ["string", "null"], pattern: "^/objects/uploads/[a-f0-9-]{36}$" }
+        modelUsdzObjectPath: { type: ["string", "null"], pattern: "^/objects/uploads/[a-f0-9-]{36}$" }
+        realHeightCm: { type: ["number", "null"], minimum: 1, maximum: 500 }
+        priceCents: { type: integer, minimum: 0, maximum: 10000000 }
+        licenseNote: { type: string, maxLength: 400 }
+        status: { $ref: "#/components/schemas/ArtworkStatus" }
+        originalWork:
+          type: boolean
+          description: The artist's statement that this is their own work and not AI-generated. Must be true.
+      required: [title, medium, imageObjectPath, originalWork]
+    ArtworkUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 80, pattern: "\\S" }
+        description: { type: string, maxLength: 600 }
+        realHeightCm: { type: ["number", "null"], minimum: 1, maximum: 500 }
+        priceCents: { type: integer, minimum: 0, maximum: 10000000 }
+        licenseNote: { type: string, maxLength: 400 }
+        status: { $ref: "#/components/schemas/ArtworkStatus" }
+    ModelUploadUrlRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        size: { type: integer, minimum: 1, maximum: 31457280 }
+        contentType: { type: string, enum: [model/gltf-binary, model/vnd.usdz+zip] }
+      required: [name, size, contentType]
+    GalleryArtist:
+      type: object
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        neighborhood: { type: string }
+        bio: { type: string }
+      required: [slug, name, neighborhood, bio]
+    LicenseStatus:
+      type: string
+      enum: [requested, accepted, declined, ended]
+    GalleryLicense:
+      type: object
+      properties:
+        id: { type: string }
+        status: { $ref: "#/components/schemas/LicenseStatus" }
+        displayId: { type: ["string", "null"] }
+      required: [id, status, displayId]
+    GalleryArtwork:
+      type: object
+      description: A listed artwork as a venue sees it, with this venue's licence if any.
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        medium: { $ref: "#/components/schemas/ArtworkMedium" }
+        imageUrl: { type: string }
+        modelGlbUrl: { type: ["string", "null"] }
+        realHeightCm: { type: ["number", "null"] }
+        priceCents: { type: integer }
+        licenseNote: { type: string }
+        artist: { $ref: "#/components/schemas/GalleryArtist" }
+        license:
+          oneOf:
+            - $ref: "#/components/schemas/GalleryLicense"
+            - type: "null"
+      required: [id, title, description, medium, imageUrl, modelGlbUrl, realHeightCm, priceCents, licenseNote, artist, license]
+    LicenseRequestInput:
+      type: object
+      additionalProperties: false
+      properties:
+        message: { type: string, maxLength: 600 }
+    ArtworkLicense:
+      type: object
+      properties:
+        id: { type: string }
+        status: { $ref: "#/components/schemas/LicenseStatus" }
+        artworkId: { type: string }
+        artworkTitle: { type: string }
+        artworkImageUrl: { type: string }
+        medium: { $ref: "#/components/schemas/ArtworkMedium" }
+        artist: { $ref: "#/components/schemas/GalleryArtist" }
+        venue: { $ref: "#/components/schemas/GalleryArtist" }
+        priceCents: { type: integer }
+        message: { type: string }
+        reply: { type: string }
+        displayId: { type: ["string", "null"] }
+        displayStatus:
+          oneOf:
+            - $ref: "#/components/schemas/DisplayStatus"
+            - type: "null"
+        requestedAt: { type: string, format: date-time }
+        respondedAt: { type: ["string", "null"], format: date-time }
+        paidAt: { type: ["string", "null"], format: date-time }
+      required: [id, status, artworkId, artworkTitle, artworkImageUrl, medium, artist, venue, priceCents, message, reply, displayId, displayStatus, requestedAt, respondedAt, paidAt]
+    LicenseUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          description: accept and decline answer a request (artist). mark_paid records the fee as received (artist). end stops the licence (either side).
+          enum: [accept, decline, mark_paid, end]
+        reply: { type: string, maxLength: 600 }
+      required: [action]
     PublicVenueSummary:
       type: object
       properties:

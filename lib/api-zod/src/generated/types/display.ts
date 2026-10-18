@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ArtistCredit } from './artistCredit';
+import type { DisplayArtwork } from './displayArtwork';
 import type { DisplayDrink } from './displayDrink';
 import type { DisplayStatus } from './displayStatus';
 import type { DisplayType } from './displayType';
@@ -28,6 +29,9 @@ export interface Display {
   /** @nullable */
   eventStartsAt: Date | null;
   artist: ArtistCredit | null;
+  /** @nullable */
+  artworkId: string | null;
+  artwork: DisplayArtwork | null;
   scansThisWeek: number;
   redemptionsThisWeek: number;
   createdAt: Date;

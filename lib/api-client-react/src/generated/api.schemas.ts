@@ -531,6 +531,28 @@ export interface DisplayDrink {
   generationStatus: string;
 }
 
+/**
+ * image is flat work (painting, print, photo, digital art); model is the artist's own 3D file.
+ */
+export type ArtworkMedium = typeof ArtworkMedium[keyof typeof ArtworkMedium];
+
+
+export const ArtworkMedium = {
+  image: 'image',
+  model: 'model',
+} as const;
+
+/**
+ * The licensed artwork a display shows; media and credit come from it.
+ */
+export interface DisplayArtwork {
+  id: string;
+  title: string;
+  medium: ArtworkMedium;
+  /** @nullable */
+  modelGlbUrl: string | null;
+}
+
 export interface Display {
   id: string;
   type: DisplayType;
@@ -547,6 +569,9 @@ export interface Display {
   /** @nullable */
   eventStartsAt: string | null;
   artist: ArtistCredit | null;
+  /** @nullable */
+  artworkId: string | null;
+  artwork: DisplayArtwork | null;
   scansThisWeek: number;
   redemptionsThisWeek: number;
   createdAt: string;
@@ -596,6 +621,11 @@ export interface DisplayInput {
      * @nullable
      */
   artistSlug?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  artworkId?: string | null;
 }
 
 export interface DisplayUpdate {
@@ -632,6 +662,11 @@ export interface DisplayUpdate {
      * @nullable
      */
   artistSlug?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  artworkId?: string | null;
 }
 
 export interface QrCode {
@@ -763,6 +798,214 @@ export interface ArtistSearchResult {
   slug: string;
   name: string;
   neighborhood: string;
+}
+
+export type ArtworkStatus = typeof ArtworkStatus[keyof typeof ArtworkStatus];
+
+
+export const ArtworkStatus = {
+  listed: 'listed',
+  hidden: 'hidden',
+} as const;
+
+export interface Artwork {
+  id: string;
+  title: string;
+  description: string;
+  medium: ArtworkMedium;
+  imageUrl: string;
+  /** @nullable */
+  modelGlbUrl: string | null;
+  /** @nullable */
+  modelUsdzUrl: string | null;
+  /** @nullable */
+  realHeightCm: number | null;
+  priceCents: number;
+  licenseNote: string;
+  status: ArtworkStatus;
+  originalWorkAttestedAt: string;
+  /** Venues with an accepted licence */
+  licensedVenues: number;
+  pendingRequests: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArtworkInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     * @pattern \S
+     */
+  title: string;
+  /** @maxLength 600 */
+  description?: string;
+  medium: ArtworkMedium;
+  /** @pattern ^/objects/uploads/[a-f0-9-]{36}$ */
+  imageObjectPath: string;
+  /**
+     * @nullable
+     * @pattern ^/objects/uploads/[a-f0-9-]{36}$
+     */
+  modelGlbObjectPath?: string | null;
+  /**
+     * @nullable
+     * @pattern ^/objects/uploads/[a-f0-9-]{36}$
+     */
+  modelUsdzObjectPath?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 500
+     * @nullable
+     */
+  realHeightCm?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 10000000
+     */
+  priceCents?: number;
+  /** @maxLength 400 */
+  licenseNote?: string;
+  status?: ArtworkStatus;
+  /** The artist's statement that this is their own work and not AI-generated. Must be true. */
+  originalWork: boolean;
+}
+
+export interface ArtworkUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     * @pattern \S
+     */
+  title?: string;
+  /** @maxLength 600 */
+  description?: string;
+  /**
+     * @minimum 1
+     * @maximum 500
+     * @nullable
+     */
+  realHeightCm?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 10000000
+     */
+  priceCents?: number;
+  /** @maxLength 400 */
+  licenseNote?: string;
+  status?: ArtworkStatus;
+}
+
+export type ModelUploadUrlRequestContentType = typeof ModelUploadUrlRequestContentType[keyof typeof ModelUploadUrlRequestContentType];
+
+
+export const ModelUploadUrlRequestContentType = {
+  'model/gltf-binary': 'model/gltf-binary',
+  'model/vndusdz+zip': 'model/vnd.usdz+zip',
+} as const;
+
+export interface ModelUploadUrlRequest {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 31457280
+     */
+  size: number;
+  contentType: ModelUploadUrlRequestContentType;
+}
+
+export interface GalleryArtist {
+  slug: string;
+  name: string;
+  neighborhood: string;
+  bio: string;
+}
+
+export type LicenseStatus = typeof LicenseStatus[keyof typeof LicenseStatus];
+
+
+export const LicenseStatus = {
+  requested: 'requested',
+  accepted: 'accepted',
+  declined: 'declined',
+  ended: 'ended',
+} as const;
+
+export interface GalleryLicense {
+  id: string;
+  status: LicenseStatus;
+  /** @nullable */
+  displayId: string | null;
+}
+
+/**
+ * A listed artwork as a venue sees it, with this venue's licence if any.
+ */
+export interface GalleryArtwork {
+  id: string;
+  title: string;
+  description: string;
+  medium: ArtworkMedium;
+  imageUrl: string;
+  /** @nullable */
+  modelGlbUrl: string | null;
+  /** @nullable */
+  realHeightCm: number | null;
+  priceCents: number;
+  licenseNote: string;
+  artist: GalleryArtist;
+  license: GalleryLicense | null;
+}
+
+export interface LicenseRequestInput {
+  /** @maxLength 600 */
+  message?: string;
+}
+
+export interface ArtworkLicense {
+  id: string;
+  status: LicenseStatus;
+  artworkId: string;
+  artworkTitle: string;
+  artworkImageUrl: string;
+  medium: ArtworkMedium;
+  artist: GalleryArtist;
+  venue: GalleryArtist;
+  priceCents: number;
+  message: string;
+  reply: string;
+  /** @nullable */
+  displayId: string | null;
+  displayStatus: DisplayStatus | null;
+  requestedAt: string;
+  /** @nullable */
+  respondedAt: string | null;
+  /** @nullable */
+  paidAt: string | null;
+}
+
+/**
+ * accept and decline answer a request (artist). mark_paid records the fee as received (artist). end stops the licence (either side).
+ */
+export type LicenseUpdateAction = typeof LicenseUpdateAction[keyof typeof LicenseUpdateAction];
+
+
+export const LicenseUpdateAction = {
+  accept: 'accept',
+  decline: 'decline',
+  mark_paid: 'mark_paid',
+  end: 'end',
+} as const;
+
+export interface LicenseUpdate {
+  /** accept and decline answer a request (artist). mark_paid records the fee as received (artist). end stops the licence (either side). */
+  action: LicenseUpdateAction;
+  /** @maxLength 600 */
+  reply?: string;
 }
 
 export interface PublicVenueSummary {
@@ -930,6 +1173,13 @@ export const GetAnalyticsRange = {
   month: 'month',
   season: 'season',
 } as const;
+
+export type ListGalleryParams = {
+/**
+ * @maxLength 80
+ */
+q?: string;
+};
 
 export type SearchArtistsParams = {
 /**

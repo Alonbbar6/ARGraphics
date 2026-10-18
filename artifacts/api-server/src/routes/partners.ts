@@ -30,7 +30,7 @@ import {
   UpdateQrCodeParams,
   UpdateQrCodeResponse,
 } from "@workspace/api-zod";
-import { barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable } from "@workspace/db";
+import { artworkLicensesTable, artworksTable, barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable } from "@workspace/db";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import { InvalidArtworkError, MAX_ARTWORK_BYTES, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -46,6 +46,7 @@ type Bar = typeof barsTable.$inferSelect;
 type DisplayRow = typeof displaysTable.$inferSelect;
 type DrinkRow = typeof drinksTable.$inferSelect;
 type DisplayType = "menu_item" | "promo_offer" | "art_piece" | "event_teaser";
+type ArtworkRow = typeof artworksTable.$inferSelect;
 type Placement = "table" | "wall" | "window" | "poster";
 
 class DisplayRuleError extends Error {}
@@ -106,10 +107,14 @@ async function serializeDisplays(req: Request, barId: string, rows: DisplayRow[]
     ? await db.select().from(drinksTable).where(inArray(drinksTable.id, drinkIds)) : [];
   const artists = artistIds.length
     ? await db.select().from(barsTable).where(inArray(barsTable.id, artistIds)) : [];
+  const artworkIds = rows.map((row) => row.artworkId).filter((id): id is string => Boolean(id));
+  const artworks = artworkIds.length
+    ? await db.select().from(artworksTable).where(inArray(artworksTable.id, artworkIds)) : [];
   const counts = await weeklyCounts(barId, "displayId");
   return rows.map((row) => {
     const drink = drinks.find((item) => item.id === row.drinkId);
     const artist = artists.find((item) => item.id === row.artistBarId);
+    const artwork = artworks.find((item) => item.id === row.artworkId);
     return {
       id: row.id,
       type: row.type as DisplayType,
@@ -119,7 +124,8 @@ async function serializeDisplays(req: Request, barId: string, rows: DisplayRow[]
       description: row.description,
       drinkId: row.drinkId,
       drink: drink ? displayDrink(req, drink) : null,
-      mediaUrl: privateMediaUrl(row.mediaPath),
+      // A licensed artwork supplies the picture; the venue never uploads one for it.
+      mediaUrl: artwork ? `/api/artworks/${artwork.id}/media/image` : privateMediaUrl(row.mediaPath),
       offer: row.offerTitle
         ? { title: row.offerTitle, details: row.offerDetails ?? "", endsAt: row.offerEndsAt }
         : null,
@@ -127,12 +133,40 @@ async function serializeDisplays(req: Request, barId: string, rows: DisplayRow[]
       artist: artist
         ? { name: artist.name, slug: artist.slug }
         : row.artistName ? { name: row.artistName, slug: null } : null,
+      artworkId: artwork?.id ?? null,
+      artwork: artwork ? displayArtwork(artwork) : null,
       scansThisWeek: counts.scans.get(row.id) ?? 0,
       redemptionsThisWeek: counts.redemptions.get(row.id) ?? 0,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   });
+}
+
+function displayArtwork(artwork: ArtworkRow) {
+  return {
+    id: artwork.id,
+    title: artwork.title,
+    medium: artwork.medium as "image" | "model",
+    modelGlbUrl: artwork.modelGlbPath ? `/api/artworks/${artwork.id}/media/glb` : null,
+  };
+}
+
+/**
+ * A venue may show an artwork it holds an accepted licence for; an artist may show their own.
+ * Returns the artwork so the display can be credited to its maker.
+ */
+async function licensedArtwork(barId: string, artworkId: string | null | undefined) {
+  if (!artworkId) return null;
+  const [artwork] = await db.select().from(artworksTable).where(eq(artworksTable.id, artworkId)).limit(1);
+  if (!artwork) throw new DisplayRuleError("We couldn't find that piece.");
+  if (artwork.artistBarId === barId) return artwork;
+  const [license] = await db.select({ id: artworkLicensesTable.id }).from(artworkLicensesTable).where(and(
+    eq(artworkLicensesTable.artworkId, artwork.id), eq(artworkLicensesTable.venueBarId, barId),
+    eq(artworkLicensesTable.status, "accepted"),
+  )).limit(1);
+  if (!license) throw new DisplayRuleError("Ask the artist for a licence before showing this piece.");
+  return artwork;
 }
 
 function displayDrink(req: Request, drink: DrinkRow) {
@@ -274,7 +308,8 @@ router.post("/displays", async (req, res): Promise<void> => {
   try {
     // Any display may show a 3D library model; menu items must (see checkDisplayRules).
     const drinkId = await ownedDrink(bar.id, input.drinkId);
-    const artist = await artistBySlug(input.artistSlug);
+    const artwork = await licensedArtwork(bar.id, input.artworkId);
+    const artist = artwork ? null : await artistBySlug(input.artistSlug);
     const values = {
       id: randomUUID(),
       barId: bar.id,
@@ -288,11 +323,12 @@ router.post("/displays", async (req, res): Promise<void> => {
       offerDetails: input.offer ? input.offer.details?.trim() ?? "" : null,
       offerEndsAt: input.offer?.endsAt ?? null,
       eventStartsAt: input.eventStartsAt ?? null,
-      artistBarId: artist?.id ?? null,
-      artistName: artist ? null : input.artistName?.trim() || null,
+      artistBarId: artwork?.artistBarId ?? artist?.id ?? null,
+      artistName: artwork || artist ? null : input.artistName?.trim() || null,
+      artworkId: artwork?.id ?? null,
     };
     checkDisplayRules(values);
-    if (input.mediaObjectPath) mediaPath = await acceptMedia(input.mediaObjectPath);
+    if (input.mediaObjectPath && !artwork) mediaPath = await acceptMedia(input.mediaObjectPath);
     const [created] = await db.insert(displaysTable).values({ ...values, mediaPath }).returning();
     committed = true;
     const [display] = await serializeDisplays(req, bar.id, [created]);
@@ -353,13 +389,22 @@ router.patch("/displays/:id", async (req, res): Promise<void> => {
       changes.offerEndsAt = input.offer?.endsAt ?? null;
     }
     if (input.eventStartsAt !== undefined) changes.eventStartsAt = input.eventStartsAt;
-    if (input.artistSlug !== undefined || input.artistName !== undefined) {
+    if (input.artworkId !== undefined) {
+      const artwork = await licensedArtwork(bar.id, input.artworkId);
+      changes.artworkId = artwork?.id ?? null;
+      if (artwork) {
+        changes.artistBarId = artwork.artistBarId;
+        changes.artistName = null;
+      }
+    }
+    const artworkId = changes.artworkId === undefined ? existing.artworkId : changes.artworkId;
+    if (!artworkId && (input.artistSlug !== undefined || input.artistName !== undefined)) {
       const artist = await artistBySlug(input.artistSlug);
       changes.artistBarId = artist?.id ?? null;
       changes.artistName = artist ? null : input.artistName?.trim() || null;
     }
     checkDisplayRules({ ...existing, ...changes });
-    if (input.mediaObjectPath) {
+    if (input.mediaObjectPath && !artworkId) {
       newMedia = await acceptMedia(input.mediaObjectPath);
       changes.mediaPath = newMedia;
     } else if (input.mediaObjectPath === null) {

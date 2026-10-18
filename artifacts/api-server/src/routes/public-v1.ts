@@ -15,7 +15,7 @@ import {
   GetPublicVenueResponse,
 } from "@workspace/api-zod";
 import {
-  barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable, tableCardsTable,
+  artworksTable, barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable, tableCardsTable,
 } from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
@@ -63,23 +63,30 @@ async function publicDisplays(req: Request, rows: DisplayRow[]) {
   const artistIds = rows.map((row) => row.artistBarId).filter((id): id is string => Boolean(id));
   const drinks = drinkIds.length ? await db.select().from(drinksTable).where(inArray(drinksTable.id, drinkIds)) : [];
   const artists = artistIds.length ? await db.select().from(barsTable).where(inArray(barsTable.id, artistIds)) : [];
+  const artworkIds = rows.map((row) => row.artworkId).filter((id): id is string => Boolean(id));
+  const artworks = artworkIds.length ? await db.select().from(artworksTable).where(inArray(artworksTable.id, artworkIds)) : [];
   const now = new Date(Date.now());
   return Promise.all(rows.map(async (row) => {
     const drink = drinks.find((item) => item.id === row.drinkId);
     const artist = artists.find((item) => item.id === row.artistBarId);
+    const artwork = artworks.find((item) => item.id === row.artworkId);
+    // A licensed artwork is the artist's own file, served through short-lived signed links.
+    const artworkMedia = artwork ? await signedMedia(req, artwork.mediaPath) : null;
+    const artworkGlb = artwork?.modelGlbPath ? await signedMedia(req, artwork.modelGlbPath) : null;
+    const artworkUsdz = artwork?.modelUsdzPath ? await signedMedia(req, artwork.modelUsdzPath) : null;
     return {
       id: row.id,
       type: row.type as "menu_item" | "promo_offer" | "art_piece" | "event_teaser",
       placement: row.placement as "table" | "wall" | "window" | "poster",
       title: row.title,
       description: row.description,
-      mediaUrl: await signedMedia(req, row.mediaPath),
-      thumbnailUrl: drink ? publicAssetUrl(req, drink.thumbnailUrl) : null,
-      modelUsdzUrl: drink ? publicAssetUrl(req, drink.modelUsdzUrl) : null,
-      modelGlbUrl: drink ? publicAssetUrl(req, drink.modelGlbUrl) : null,
-      modelHeightCm: drink?.realHeightCm ?? null,
+      mediaUrl: artwork ? artworkMedia : await signedMedia(req, row.mediaPath),
+      thumbnailUrl: artwork ? artworkMedia : drink ? publicAssetUrl(req, drink.thumbnailUrl) : null,
+      modelUsdzUrl: artwork ? artworkUsdz : drink ? publicAssetUrl(req, drink.modelUsdzUrl) : null,
+      modelGlbUrl: artwork ? artworkGlb : drink ? publicAssetUrl(req, drink.modelGlbUrl) : null,
+      modelHeightCm: artwork ? artwork.realHeightCm : drink?.realHeightCm ?? null,
       // A library model on an art piece or event is decor, not something to order.
-      price: drink && row.type === "menu_item" ? priceLabel(drink.priceCents) : null,
+      price: drink && !artwork && row.type === "menu_item" ? priceLabel(drink.priceCents) : null,
       // An ended offer is simply no longer shown.
       offer: offerIsOpen(row, now)
         ? { title: row.offerTitle as string, details: row.offerDetails ?? "", endsAt: row.offerEndsAt }
@@ -237,7 +244,9 @@ router.get("/v1/artists/:slug", async (req, res): Promise<void> => {
       displayId: display.id,
       title: display.title,
       description: display.description,
-      mediaUrl: await signedMedia(req, display.mediaPath),
+      mediaUrl: await signedMedia(req, display.artworkId
+        ? (await db.select({ mediaPath: artworksTable.mediaPath }).from(artworksTable).where(eq(artworksTable.id, display.artworkId)).limit(1))[0]?.mediaPath ?? null
+        : display.mediaPath),
       venueName: venue.name,
       venueSlug: venue.slug,
       neighborhood: venue.neighborhood,

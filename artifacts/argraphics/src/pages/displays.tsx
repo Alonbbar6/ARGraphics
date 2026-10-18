@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListDisplaysQueryKey, useDeleteDisplay, useListDisplays, useUpdateDisplay, type Display } from '@workspace/api-client-react';
-import { Box, Pause, Pencil, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Box, Palette, Pause, Pencil, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { Badge, Button, buttonClass, ConfirmDialog, EmptyState, ErrorPanel, PageHeader, SegmentedControl, Skeleton, StatusBadge } from '@/components/partner-ui';
 import { DisplayThumb, PLACEMENT_ICONS, TYPE_ICONS } from '@/components/display-parts';
 import { placementLabel, typeLabel } from '@/lib/display-draft';
@@ -60,6 +60,7 @@ export function DisplaysPage() {
         title="What guests see in your room"
         lede={list.length ? <><strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong> and <strong className="font-semibold text-foreground">{countLabel(walkIns, 'walk-in')}</strong> this week across {liveCount} live {plural(liveCount, 'display')}.</> : 'Each display is something people can only see when they’re in your room.'}
         actions={<>
+          <Link href="/gallery" className={buttonClass('ghost')} data-testid="link-gallery"><Palette size={16} aria-hidden="true" /> Local artists</Link>
           <Link href="/drinks" className={buttonClass('ghost')}><Box size={16} aria-hidden="true" /> 3D menu library</Link>
           <Link href="/displays/new" className={buttonClass('hero')} data-testid="button-new-display"><Plus size={17} aria-hidden="true" /> Create AR display</Link>
         </>}

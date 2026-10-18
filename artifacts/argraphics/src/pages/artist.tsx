@@ -8,6 +8,7 @@ import { DisplayThumb, PLACEMENT_ICONS } from '@/components/display-parts';
 import { placementLabel } from '@/lib/display-draft';
 import { countLabel, formatCount, initials, inviteVenueMailto, plural } from '@/lib/traffic';
 import { toast } from '@/hooks/use-toast';
+import { LicensesSection, WorksSection } from './artist-works';
 
 export function ArtistPage() {
   const profile = useGetPartnerProfile();
@@ -55,9 +56,14 @@ export function ArtistPage() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)]">
+        <WorksSection />
+        <LicensesSection />
+      </div>
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)]">
         <section aria-labelledby="pieces-heading">
           <div className="mb-3 flex items-end justify-between">
-            <h2 id="pieces-heading" className="text-base font-semibold">Pieces</h2>
+            <h2 id="pieces-heading" className="text-base font-semibold">Showcase placements</h2>
             <Link href="/displays/new?type=art_piece" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary"><Plus size={15} aria-hidden="true" /> Add a piece</Link>
           </div>
           {displays.isLoading ? <Skeleton className="h-64" /> : displays.isError ? <ErrorPanel onRetry={() => void displays.refetch()} /> : pieces.length === 0 ? (

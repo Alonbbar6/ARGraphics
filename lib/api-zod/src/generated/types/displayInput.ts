@@ -45,4 +45,9 @@ export interface DisplayInput {
      * @nullable
      */
   artistSlug?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  artworkId?: string | null;
 }

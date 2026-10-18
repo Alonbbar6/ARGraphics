@@ -82,6 +82,33 @@ export const menuVersionTable = pgTable("menu_version", {
   version: integer("version").notNull().default(1),
 });
 
+/**
+ * A piece an artist made and uploaded themselves: a photo or scan of 2D work, or their own
+ * 3D model (GLB, optionally USDZ) with a preview image. Nothing here is generated; the artist
+ * attests to that on upload and the platform's AI pipeline is never applied to artworks.
+ */
+export const artworksTable = pgTable("artworks", {
+  id: text("id").primaryKey(),
+  artistBarId: text("artist_bar_id").notNull().references(() => barsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  // "image": flat work shown on a wall. "model": the artist's own 3D file, placed in the room.
+  medium: text("medium").notNull().default("image"),
+  // Accepted (server-owned) copies, never the raw upload paths.
+  mediaPath: text("media_path").notNull(),
+  modelGlbPath: text("model_glb_path"),
+  modelUsdzPath: text("model_usdz_path"),
+  realHeightCm: real("real_height_cm"),
+  // Licence fee a venue pays the artist to show this piece; 0 means free to host.
+  priceCents: integer("price_cents").notNull().default(0),
+  licenseNote: text("license_note").notNull().default(""),
+  // listed: venues can find and request it. hidden: only the artist sees it.
+  status: text("status").notNull().default("listed"),
+  originalWorkAttestedAt: timestamp("original_work_attested_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("artworks_artist_idx").on(table.artistBarId)]);
+
 /** An AR experience a partner places in their space. */
 export const displaysTable = pgTable("displays", {
   id: text("id").primaryKey(),
@@ -99,9 +126,37 @@ export const displaysTable = pgTable("displays", {
   eventStartsAt: timestamp("event_starts_at", { withTimezone: true }),
   artistName: text("artist_name"),
   artistBarId: text("artist_bar_id").references(() => barsTable.id, { onDelete: "set null" }),
+  // A licensed artwork supplies the media and credit; the venue cannot swap the image.
+  artworkId: text("artwork_id").references(() => artworksTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("displays_bar_idx").on(table.barId), index("displays_artist_idx").on(table.artistBarId)]);
+
+/**
+ * A venue's agreement to show an artwork, and what the artist earns for it. One row per
+ * artwork and venue: a declined request can be asked again, an ended licence re-requested.
+ * Money moves outside the app for now; the artist marks a licence paid when it is.
+ */
+export const artworkLicensesTable = pgTable("artwork_licenses", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull().references(() => artworksTable.id, { onDelete: "cascade" }),
+  artistBarId: text("artist_bar_id").notNull().references(() => barsTable.id, { onDelete: "cascade" }),
+  venueBarId: text("venue_bar_id").notNull().references(() => barsTable.id, { onDelete: "cascade" }),
+  // requested | accepted | declined | ended
+  status: text("status").notNull().default("requested"),
+  // The fee at the time of the request; the artist can reprice the artwork later.
+  priceCents: integer("price_cents").notNull().default(0),
+  message: text("message").notNull().default(""),
+  reply: text("reply").notNull().default(""),
+  displayId: text("display_id").references(() => displaysTable.id, { onDelete: "set null" }),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+}, (table) => [
+  index("artwork_licenses_artist_idx").on(table.artistBarId),
+  index("artwork_licenses_venue_idx").on(table.venueBarId),
+  uniqueIndex("artwork_licenses_once_per_venue").on(table.artworkId, table.venueBarId),
+]);
 
 /** A printed code at one spot. Retired codes keep their history but stop resolving. */
 export const qrCodesTable = pgTable("qr_codes", {

@@ -599,6 +599,13 @@ export const ListDisplaysResponseItem = zod.object({
   "name": zod.string(),
   "slug": zod.string().nullable()
 }),zod.null()]),
+  "artworkId": zod.string().nullable(),
+  "artwork": zod.union([zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "modelGlbUrl": zod.string().nullable()
+}).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
   "createdAt": zod.coerce.date(),
@@ -626,6 +633,8 @@ export const createDisplayBodyArtistNameMax = 80;
 
 export const createDisplayBodyArtistSlugMax = 120;
 
+export const createDisplayBodyArtworkIdMax = 120;
+
 
 
 export const CreateDisplayBody = zod.object({
@@ -643,7 +652,8 @@ export const CreateDisplayBody = zod.object({
 }),zod.null()]).optional(),
   "eventStartsAt": zod.coerce.date().nullish(),
   "artistName": zod.string().max(createDisplayBodyArtistNameMax).nullish(),
-  "artistSlug": zod.string().max(createDisplayBodyArtistSlugMax).nullish()
+  "artistSlug": zod.string().max(createDisplayBodyArtistSlugMax).nullish(),
+  "artworkId": zod.string().max(createDisplayBodyArtworkIdMax).nullish()
 })
 
 export const CreateDisplayResponse = zod.object({
@@ -674,6 +684,13 @@ export const CreateDisplayResponse = zod.object({
   "name": zod.string(),
   "slug": zod.string().nullable()
 }),zod.null()]),
+  "artworkId": zod.string().nullable(),
+  "artwork": zod.union([zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "modelGlbUrl": zod.string().nullable()
+}).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
   "createdAt": zod.coerce.date(),
@@ -716,6 +733,13 @@ export const GetDisplayResponse = zod.object({
   "name": zod.string(),
   "slug": zod.string().nullable()
 }),zod.null()]),
+  "artworkId": zod.string().nullable(),
+  "artwork": zod.union([zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "modelGlbUrl": zod.string().nullable()
+}).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
   "createdAt": zod.coerce.date(),
@@ -749,6 +773,8 @@ export const updateDisplayBodyArtistNameMax = 80;
 
 export const updateDisplayBodyArtistSlugMax = 120;
 
+export const updateDisplayBodyArtworkIdMax = 120;
+
 
 
 export const UpdateDisplayBody = zod.object({
@@ -765,7 +791,8 @@ export const UpdateDisplayBody = zod.object({
 }),zod.null()]).optional(),
   "eventStartsAt": zod.coerce.date().nullish(),
   "artistName": zod.string().max(updateDisplayBodyArtistNameMax).nullish(),
-  "artistSlug": zod.string().max(updateDisplayBodyArtistSlugMax).nullish()
+  "artistSlug": zod.string().max(updateDisplayBodyArtistSlugMax).nullish(),
+  "artworkId": zod.string().max(updateDisplayBodyArtworkIdMax).nullish()
 })
 
 export const UpdateDisplayResponse = zod.object({
@@ -796,6 +823,13 @@ export const UpdateDisplayResponse = zod.object({
   "name": zod.string(),
   "slug": zod.string().nullable()
 }),zod.null()]),
+  "artworkId": zod.string().nullable(),
+  "artwork": zod.union([zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "modelGlbUrl": zod.string().nullable()
+}).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
   "createdAt": zod.coerce.date(),
@@ -979,6 +1013,363 @@ export const ListArtistPlacementsResponseItem = zod.object({
   "scansThisWeek": zod.number().int()
 })
 export const ListArtistPlacementsResponse = zod.array(ListArtistPlacementsResponseItem)
+
+
+/**
+ * @summary The signed-in artist's own works
+ */
+export const ListArtworksResponseItem = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "imageUrl": zod.string(),
+  "modelGlbUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "realHeightCm": zod.number().nullable(),
+  "priceCents": zod.number().int(),
+  "licenseNote": zod.string(),
+  "status": zod.enum(['listed', 'hidden']),
+  "originalWorkAttestedAt": zod.coerce.date(),
+  "licensedVenues": zod.number().int().describe('Venues with an accepted licence'),
+  "pendingRequests": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListArtworksResponse = zod.array(ListArtworksResponseItem)
+
+
+/**
+ * @summary Save an uploaded work (artists only, own work only)
+ */
+export const createArtworkBodyTitleMax = 80;
+
+
+export const createArtworkBodyTitleRegExp = new RegExp('\\S');
+export const createArtworkBodyDescriptionMax = 600;
+
+export const createArtworkBodyImageObjectPathRegExp = new RegExp('^/objects/uploads/[a-f0-9-]{36}$');
+export const createArtworkBodyModelGlbObjectPathRegExp = new RegExp('^/objects/uploads/[a-f0-9-]{36}$');
+export const createArtworkBodyModelUsdzObjectPathRegExp = new RegExp('^/objects/uploads/[a-f0-9-]{36}$');
+export const createArtworkBodyRealHeightCmMax = 500;
+
+export const createArtworkBodyPriceCentsMin = 0;
+export const createArtworkBodyPriceCentsMax = 10000000;
+
+export const createArtworkBodyLicenseNoteMax = 400;
+
+
+
+export const CreateArtworkBody = zod.object({
+  "title": zod.string().min(1).max(createArtworkBodyTitleMax).regex(createArtworkBodyTitleRegExp),
+  "description": zod.string().max(createArtworkBodyDescriptionMax).optional(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "imageObjectPath": zod.string().regex(createArtworkBodyImageObjectPathRegExp),
+  "modelGlbObjectPath": zod.string().regex(createArtworkBodyModelGlbObjectPathRegExp).nullish(),
+  "modelUsdzObjectPath": zod.string().regex(createArtworkBodyModelUsdzObjectPathRegExp).nullish(),
+  "realHeightCm": zod.number().min(1).max(createArtworkBodyRealHeightCmMax).nullish(),
+  "priceCents": zod.number().int().min(createArtworkBodyPriceCentsMin).max(createArtworkBodyPriceCentsMax).optional(),
+  "licenseNote": zod.string().max(createArtworkBodyLicenseNoteMax).optional(),
+  "status": zod.enum(['listed', 'hidden']).optional(),
+  "originalWork": zod.boolean().describe('The artist\'s statement that this is their own work and not AI-generated. Must be true.')
+})
+
+export const CreateArtworkResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "imageUrl": zod.string(),
+  "modelGlbUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "realHeightCm": zod.number().nullable(),
+  "priceCents": zod.number().int(),
+  "licenseNote": zod.string(),
+  "status": zod.enum(['listed', 'hidden']),
+  "originalWorkAttestedAt": zod.coerce.date(),
+  "licensedVenues": zod.number().int().describe('Venues with an accepted licence'),
+  "pendingRequests": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const updateArtworkPathIdMax = 120;
+
+
+
+export const UpdateArtworkParams = zod.object({
+  "id": zod.coerce.string().max(updateArtworkPathIdMax)
+})
+
+export const updateArtworkBodyTitleMax = 80;
+
+
+export const updateArtworkBodyTitleRegExp = new RegExp('\\S');
+export const updateArtworkBodyDescriptionMax = 600;
+
+export const updateArtworkBodyRealHeightCmMax = 500;
+
+export const updateArtworkBodyPriceCentsMin = 0;
+export const updateArtworkBodyPriceCentsMax = 10000000;
+
+export const updateArtworkBodyLicenseNoteMax = 400;
+
+
+
+export const UpdateArtworkBody = zod.object({
+  "title": zod.string().min(1).max(updateArtworkBodyTitleMax).regex(updateArtworkBodyTitleRegExp).optional(),
+  "description": zod.string().max(updateArtworkBodyDescriptionMax).optional(),
+  "realHeightCm": zod.number().min(1).max(updateArtworkBodyRealHeightCmMax).nullish(),
+  "priceCents": zod.number().int().min(updateArtworkBodyPriceCentsMin).max(updateArtworkBodyPriceCentsMax).optional(),
+  "licenseNote": zod.string().max(updateArtworkBodyLicenseNoteMax).optional(),
+  "status": zod.enum(['listed', 'hidden']).optional()
+})
+
+export const UpdateArtworkResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "imageUrl": zod.string(),
+  "modelGlbUrl": zod.string().nullable(),
+  "modelUsdzUrl": zod.string().nullable(),
+  "realHeightCm": zod.number().nullable(),
+  "priceCents": zod.number().int(),
+  "licenseNote": zod.string(),
+  "status": zod.enum(['listed', 'hidden']),
+  "originalWorkAttestedAt": zod.coerce.date(),
+  "licensedVenues": zod.number().int().describe('Venues with an accepted licence'),
+  "pendingRequests": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const deleteArtworkPathIdMax = 120;
+
+
+
+export const DeleteArtworkParams = zod.object({
+  "id": zod.coerce.string().max(deleteArtworkPathIdMax)
+})
+
+export const DeleteArtworkResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Stream an artwork file to the artist, a licensee, or any signed-in partner when listed
+ */
+export const getArtworkMediaPathIdMax = 120;
+
+
+
+export const GetArtworkMediaParams = zod.object({
+  "id": zod.coerce.string().max(getArtworkMediaPathIdMax),
+  "kind": zod.enum(['image', 'glb', 'usdz'])
+})
+
+export const GetArtworkMediaResponse = zod.unknown()
+
+
+/**
+ * @summary A venue asks to show a listed artwork
+ */
+export const requestArtworkLicensePathIdMax = 120;
+
+
+
+export const RequestArtworkLicenseParams = zod.object({
+  "id": zod.coerce.string().max(requestArtworkLicensePathIdMax)
+})
+
+export const requestArtworkLicenseBodyMessageMax = 600;
+
+
+
+export const RequestArtworkLicenseBody = zod.object({
+  "message": zod.string().max(requestArtworkLicenseBodyMessageMax).optional()
+})
+
+export const RequestArtworkLicenseResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['requested', 'accepted', 'declined', 'ended']),
+  "artworkId": zod.string(),
+  "artworkTitle": zod.string(),
+  "artworkImageUrl": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "artist": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "venue": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "priceCents": zod.number().int(),
+  "message": zod.string(),
+  "reply": zod.string(),
+  "displayId": zod.string().nullable(),
+  "displayStatus": zod.union([zod.enum(['draft', 'live', 'paused']),zod.null()]),
+  "requestedAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullable(),
+  "paidAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Listed artworks from every artist, for venues to browse
+ */
+export const listGalleryQueryQMax = 80;
+
+
+
+export const ListGalleryQueryParams = zod.object({
+  "q": zod.coerce.string().max(listGalleryQueryQMax).optional()
+})
+
+export const ListGalleryResponseItem = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "imageUrl": zod.string(),
+  "modelGlbUrl": zod.string().nullable(),
+  "realHeightCm": zod.number().nullable(),
+  "priceCents": zod.number().int(),
+  "licenseNote": zod.string(),
+  "artist": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "license": zod.union([zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['requested', 'accepted', 'declined', 'ended']),
+  "displayId": zod.string().nullable()
+}),zod.null()])
+}).describe('A listed artwork as a venue sees it, with this venue\'s licence if any.')
+export const ListGalleryResponse = zod.array(ListGalleryResponseItem)
+
+
+/**
+ * @summary Licences where the signed-in partner is the artist or the venue
+ */
+export const ListLicensesResponseItem = zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['requested', 'accepted', 'declined', 'ended']),
+  "artworkId": zod.string(),
+  "artworkTitle": zod.string(),
+  "artworkImageUrl": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "artist": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "venue": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "priceCents": zod.number().int(),
+  "message": zod.string(),
+  "reply": zod.string(),
+  "displayId": zod.string().nullable(),
+  "displayStatus": zod.union([zod.enum(['draft', 'live', 'paused']),zod.null()]),
+  "requestedAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullable(),
+  "paidAt": zod.coerce.date().nullable()
+})
+export const ListLicensesResponse = zod.array(ListLicensesResponseItem)
+
+
+export const updateLicensePathIdMax = 120;
+
+
+
+export const UpdateLicenseParams = zod.object({
+  "id": zod.coerce.string().max(updateLicensePathIdMax)
+})
+
+export const updateLicenseBodyReplyMax = 600;
+
+
+
+export const UpdateLicenseBody = zod.object({
+  "action": zod.enum(['accept', 'decline', 'mark_paid', 'end']).describe('accept and decline answer a request (artist). mark_paid records the fee as received (artist). end stops the licence (either side).'),
+  "reply": zod.string().max(updateLicenseBodyReplyMax).optional()
+})
+
+export const UpdateLicenseResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['requested', 'accepted', 'declined', 'ended']),
+  "artworkId": zod.string(),
+  "artworkTitle": zod.string(),
+  "artworkImageUrl": zod.string(),
+  "medium": zod.enum(['image', 'model']).describe('image is flat work (painting, print, photo, digital art); model is the artist\'s own 3D file.'),
+  "artist": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "venue": zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "neighborhood": zod.string(),
+  "bio": zod.string()
+}),
+  "priceCents": zod.number().int(),
+  "message": zod.string(),
+  "reply": zod.string(),
+  "displayId": zod.string().nullable(),
+  "displayStatus": zod.union([zod.enum(['draft', 'live', 'paused']),zod.null()]),
+  "requestedAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullable(),
+  "paidAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Signed upload URL for an artist's own GLB or USDZ model
+ */
+export const requestModelUploadUrlBodyNameMax = 160;
+
+export const requestModelUploadUrlBodySizeMax = 31457280;
+
+
+
+export const RequestModelUploadUrlBody = zod.object({
+  "name": zod.string().min(1).max(requestModelUploadUrlBodyNameMax),
+  "size": zod.number().int().min(1).max(requestModelUploadUrlBodySizeMax),
+  "contentType": zod.enum(['model/gltf-binary', 'model/vnd.usdz+zip'])
+})
+
+export const requestModelUploadUrlResponseMetadataNameMax = 160;
+
+export const requestModelUploadUrlResponseMetadataSizeMax = 10485760;
+
+
+
+export const RequestModelUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1).max(requestModelUploadUrlResponseMetadataNameMax),
+  "size": zod.number().int().min(1).max(requestModelUploadUrlResponseMetadataSizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+}).optional()
+})
 
 
 export const searchArtistsQueryQMax = 80;
