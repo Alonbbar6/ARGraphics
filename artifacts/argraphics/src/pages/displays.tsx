@@ -1,13 +1,45 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'wouter';
+import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListDisplaysQueryKey, useDeleteDisplay, useListDisplays, useUpdateDisplay, type Display } from '@workspace/api-client-react';
-import { Box, Palette, Pause, Pencil, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Box, LayoutGrid, Palette, Pause, Pencil, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { Badge, Button, buttonClass, ConfirmDialog, EmptyState, ErrorPanel, PageHeader, SegmentedControl, Skeleton, StatusBadge } from '@/components/partner-ui';
 import { DisplayThumb, PLACEMENT_ICONS, TYPE_ICONS } from '@/components/display-parts';
-import { placementLabel, typeLabel } from '@/lib/display-draft';
+import { formatPrice, placementLabel, typeLabel } from '@/lib/display-draft';
+import type { ShelfItem } from '@/components/shelf/ModelShelf';
+
+// Three.js and the shelf load only when the 3D view is on screen.
+const ModelShelf = lazy(() => import('@/components/shelf/ModelShelf').then((m) => ({ default: m.ModelShelf })));
+
+type View = 'shelf' | 'grid';
+const VIEW_KEY = 'argraphics-displays-view';
+
+function readView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'shelf';
+  } catch {
+    return 'shelf';
+  }
+}
+
+const STATUS_LABEL: Record<Display['status'], string> = { live: 'Live', draft: 'Draft', paused: 'Paused' };
+
+/** What each display puts on the shelf: its AR model, or its image standing in for one. */
+function shelfItem(display: Display): ShelfItem {
+  const stats = `${countLabel(display.scansThisWeek, 'scan')} · ${countLabel(display.redemptionsThisWeek, 'redemption')} this week`;
+  return {
+    id: display.id,
+    name: display.title,
+    subtitle: `${STATUS_LABEL[display.status]} · ${typeLabel(display.type)} · ${placementLabel(display.placement)}`,
+    priceLabel: display.drink ? formatPrice(display.drink.priceCents) : null,
+    glbUrl: display.drink?.modelGlbUrl ?? display.artwork?.modelGlbUrl ?? null,
+    posterUrl: display.mediaUrl ?? display.drink?.thumbnailUrl ?? null,
+    statLabel: stats,
+  };
+}
 import { countLabel, formatCount, plural } from '@/lib/traffic';
 import { toast } from '@/hooks/use-toast';
+import { EASE_OUT, Flip, gsap, prefersReducedMotion, registerFlip } from '@/lib/motion';
 
 type Filter = 'all' | 'live' | 'draft' | 'paused';
 
@@ -17,14 +49,23 @@ export function DisplaysPage() {
   const updateDisplay = useUpdateDisplay();
   const deleteDisplay = useDeleteDisplay();
   const [filter, setFilter] = useState<Filter>('all');
+  const [view, setView] = useState<View>(readView);
   const [pendingDelete, setPendingDelete] = useState<Display | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
 
   const list = displays.data ?? [];
   const shown = useMemo(() => list.filter((display) => filter === 'all' || display.status === filter), [list, filter]);
+  const shelfItems = useMemo(() => shown.map(shelfItem), [shown]);
+  const changeView = (next: View) => {
+    setView(next);
+    try { localStorage.setItem(VIEW_KEY, next); } catch { /* private mode */ }
+  };
   const scans = list.reduce((sum, display) => sum + display.scansThisWeek, 0);
   const walkIns = list.reduce((sum, display) => sum + display.redemptionsThisWeek, 0);
   const liveCount = list.filter((display) => display.status === 'live').length;
+  const gridRef = useRef<HTMLUListElement>(null);
+  useFilteredGrid(gridRef, filter, `${view}|${list.map((display) => `${display.id}:${display.status}`).join(',')}`);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListDisplaysQueryKey() });
 
@@ -67,19 +108,31 @@ export function DisplaysPage() {
       />
 
       {list.length > 0 && (
-        <SegmentedControl
-          label="Filter displays"
-          className="mb-5 max-w-md"
-          size="sm"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: 'all', label: `All ${list.length}` },
-            { value: 'live', label: 'Live' },
-            { value: 'draft', label: 'Drafts' },
-            { value: 'paused', label: 'Paused' },
-          ]}
-        />
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl
+            label="Filter displays"
+            className="max-w-md"
+            size="sm"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: `All ${list.length}` },
+              { value: 'live', label: 'Live' },
+              { value: 'draft', label: 'Drafts' },
+              { value: 'paused', label: 'Paused' },
+            ]}
+          />
+          <SegmentedControl
+            label="View"
+            size="sm"
+            value={view}
+            onChange={changeView}
+            options={[
+              { value: 'shelf', label: '3D', icon: Box },
+              { value: 'grid', label: 'List', icon: LayoutGrid },
+            ]}
+          />
+        </div>
       )}
 
       {displays.isLoading ? (
@@ -90,12 +143,34 @@ export function DisplaysPage() {
         <EmptyState icon={Sparkles} title="Your first display takes five minutes." action={<Link href="/displays/new" className={buttonClass('primary')}><Plus size={17} aria-hidden="true" /> Start with a slow night</Link>}>
           Snap a dish, add an offer or hang a local artist’s piece. Print a code, put it where people look, and watch the scans and redemptions come in.
         </EmptyState>
-      ) : shown.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nothing {filter === 'draft' ? 'in drafts' : filter} right now.</p>
+      ) : view === 'shelf' ? (
+        shelfItems.length === 0 ? (
+          <p className="rise rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nothing {filter === 'draft' ? 'in drafts' : filter} right now.</p>
+        ) : (
+          <section aria-label="Your displays in 3D" className="rise">
+            <Suspense fallback={<Skeleton className="aspect-[16/8.5] w-full rounded-2xl" />}>
+              <ModelShelf
+                key={filter}
+                items={shelfItems}
+                label="Your displays in 3D"
+                size="tall"
+                selectLabel="Edit display"
+                onSelect={(item) => setLocation(`/displays/${item.id}`)}
+              />
+            </Suspense>
+            <p className="mt-2 hidden text-xs text-muted-foreground sm:block">Swipe, drag or use the arrow keys to browse. Drag the front one to turn it. Choose it to edit.</p>
+          </section>
+        )
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {shown.map((display, index) => <DisplayCard key={display.id} display={display} index={index} busy={busyId === display.id} onToggle={() => toggle(display)} onDelete={() => setPendingDelete(display)} />)}
-        </ul>
+        <>
+          {/* Every card stays mounted; useFilteredGrid hides the ones outside the filter so leavers can animate out. */}
+          <ul ref={gridRef} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {list.map((display) => <DisplayCard key={display.id} display={display} busy={busyId === display.id} onToggle={() => toggle(display)} onDelete={() => setPendingDelete(display)} />)}
+          </ul>
+          {shown.length === 0 && (
+            <p className="rise rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nothing {filter === 'draft' ? 'in drafts' : filter} right now.</p>
+          )}
+        </>
       )}
 
       <ConfirmDialog
@@ -112,11 +187,54 @@ export function DisplaysPage() {
   );
 }
 
-function DisplayCard({ display, index, busy, onToggle, onDelete }: { display: Display; index: number; busy: boolean; onToggle: () => void; onDelete: () => void }) {
+/**
+ * Cards settle into place when the filter (or a card's status) changes: the ones that stay
+ * slide to their new spot, leavers fade out, newcomers rise in. The effect owns each card's
+ * `hidden` flag so the old layout can be measured before anything moves. First paint and
+ * reduced motion just set visibility.
+ */
+function useFilteredGrid(gridRef: RefObject<HTMLUListElement | null>, filter: Filter, signature: string) {
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    registerFlip();
+    const cards = Array.from(grid.querySelectorAll<HTMLLIElement>('[data-flip-id]'));
+    const show = (card: HTMLLIElement) => filter === 'all' || card.dataset.status === filter;
+    const instant = first.current || prefersReducedMotion();
+    const wasFirst = first.current;
+    first.current = false;
+    if (instant) {
+      cards.forEach((card) => { card.hidden = !show(card); });
+      if (wasFirst && !prefersReducedMotion()) {
+        const ctx = gsap.context(() => {
+          gsap.from(cards.filter(show), { opacity: 0, y: 8, duration: 0.35, stagger: 0.04, ease: EASE_OUT, clearProps: 'all' });
+        }, grid);
+        return () => ctx.revert();
+      }
+      return;
+    }
+    const ctx = gsap.context(() => {
+      const state = Flip.getState(cards);
+      cards.forEach((card) => { card.hidden = !show(card); });
+      Flip.from(state, {
+        duration: 0.4,
+        ease: EASE_OUT,
+        stagger: 0.02,
+        absolute: true,
+        onEnter: (entering) => gsap.fromTo(entering, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.3, ease: EASE_OUT, stagger: 0.03, clearProps: 'opacity,transform' }),
+        onLeave: (leaving) => gsap.to(leaving, { opacity: 0, y: -6, duration: 0.2, ease: 'power2.in' }),
+      });
+    }, grid);
+    return () => ctx.revert();
+  }, [gridRef, filter, signature]);
+}
+
+function DisplayCard({ display, busy, onToggle, onDelete }: { display: Display; busy: boolean; onToggle: () => void; onDelete: () => void }) {
   const TypeIcon = TYPE_ICONS[display.type];
   const PlacementIcon = PLACEMENT_ICONS[display.placement];
   return (
-    <li className="pa-card pa-card-in flex flex-col overflow-hidden" style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }} data-testid={`card-display-${display.id}`}>
+    <li className="pa-card flex flex-col overflow-hidden" data-flip-id={display.id} data-status={display.status} data-testid={`card-display-${display.id}`}>
       <DisplayThumb display={display} addImageHref={`/displays/${display.id}`} className="h-36">
         <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5"><StatusBadge status={display.status} />{display.offer && <Badge tone="offer">Offer</Badge>}</div>
       </DisplayThumb>

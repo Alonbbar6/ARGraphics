@@ -15,6 +15,9 @@ export const barsTable = pgTable("bars", {
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
   timezone: text("timezone").notNull().default("America/New_York"),
+  // Service hours as local wall-clock "HH:MM"; null means the defaults (17:00 to 03:00).
+  serviceOpen: text("service_open"),
+  serviceClose: text("service_close"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -130,6 +133,9 @@ export const displaysTable = pgTable("displays", {
   artistBarId: text("artist_bar_id").references(() => barsTable.id, { onDelete: "set null" }),
   // A licensed artwork supplies the media and credit; the venue cannot swap the image.
   artworkId: text("artwork_id").references(() => artworksTable.id, { onDelete: "set null" }),
+  // Where the display sits on the venue's floor plan, normalised 0..1; null = not placed yet.
+  floorX: real("floor_x"),
+  floorY: real("floor_y"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("displays_bar_idx").on(table.barId), index("displays_artist_idx").on(table.artistBarId)]);

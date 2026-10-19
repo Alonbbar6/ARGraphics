@@ -88,7 +88,8 @@ async function publicDisplays(req: Request, rows: DisplayRow[]) {
       modelGlbUrl: artwork ? artworkGlb : drink ? publicAssetUrl(req, drink.modelGlbUrl) : null,
       modelHeightCm: artwork ? artwork.realHeightCm : drink?.realHeightCm ?? null,
       // A library model on an art piece or event is decor, not something to order.
-      price: drink && !artwork && row.type === "menu_item" ? priceLabel(drink.priceCents) : null,
+      price: drink && !artwork && row.type === "menu_item" && drink.priceCents > 0 ? priceLabel(drink.priceCents) : null,
+      ingredients: drink && !artwork && row.type === "menu_item" && drink.description.trim() ? drink.description.trim() : null,
       // An ended offer is simply no longer shown.
       offer: offerIsOpen(row, now)
         ? { title: row.offerTitle as string, details: row.offerDetails ?? "", endsAt: row.offerEndsAt }

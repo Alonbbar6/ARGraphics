@@ -6,7 +6,7 @@ import { expect } from "vitest";
 import {
   CreateArtworkResponse, ListGalleryResponse, RequestArtworkLicenseResponse, UpdateLicenseResponse,
   CreateDisplayResponse, CreatePublicClaimResponse, CreatePublicScanResponse, CreateQrCodesResponse,
-  CreateTableCardResponse, DeleteTableCardResponse, GetAnalyticsResponse, GetPartnerProfileResponse,
+  CreateTableCardResponse, DeleteTableCardResponse, GetAnalyticsResponse, GetLiveBoardResponse, GetPartnerProfileResponse,
   GetPublicArtistResponse, GetPublicMenuResponse, GetPublicMenuVersionResponse, GetPublicNearbyResponse,
   GetPublicTableCardsResponse, GetPublicVenueResponse, GetSessionResponse, ListArtistPlacementsResponse,
   ListDisplaysResponse, ListQrCodesResponse, ListRedemptionsResponse, ListTableCardsResponse,
@@ -32,6 +32,7 @@ const generated = {
   createQrCodes: CreateQrCodesResponse,
   updateQrCode: UpdateQrCodeResponse,
   getAnalytics: GetAnalyticsResponse,
+  getLiveBoard: GetLiveBoardResponse,
   listRedemptions: ListRedemptionsResponse,
   listArtistPlacements: ListArtistPlacementsResponse,
   searchArtists: SearchArtistsResponse,

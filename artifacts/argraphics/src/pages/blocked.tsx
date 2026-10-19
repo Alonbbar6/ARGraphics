@@ -245,19 +245,19 @@ export function SettingsPage() {
   const profile = useGetPartnerProfile();
   const analytics = useGetAnalytics({ range: 'week' });
   const updateProfile = useUpdatePartnerProfile();
-  const [form, setForm] = useState({ name: '', bio: '', neighborhood: '', address: '' });
+  const [form, setForm] = useState({ name: '', bio: '', neighborhood: '', address: '', serviceOpen: '', serviceClose: '' });
   const [saved, setSaved] = useState('');
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
-    if (profile.data) setForm({ name: profile.data.name, bio: profile.data.bio, neighborhood: profile.data.neighborhood, address: profile.data.address });
+    if (profile.data) setForm({ name: profile.data.name, bio: profile.data.bio, neighborhood: profile.data.neighborhood, address: profile.data.address, serviceOpen: profile.data.serviceOpen ?? '', serviceClose: profile.data.serviceClose ?? '' });
   }, [profile.data]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaved('');
     setFormError('');
-    updateProfile.mutate({ data: { name: form.name.trim(), bio: form.bio.trim(), neighborhood: form.neighborhood.trim(), address: form.address.trim() } }, {
+    updateProfile.mutate({ data: { name: form.name.trim(), bio: form.bio.trim(), neighborhood: form.neighborhood.trim(), address: form.address.trim(), serviceOpen: form.serviceOpen || null, serviceClose: form.serviceClose || null } }, {
       onSuccess: (result) => {
         queryClient.setQueryData(getGetPartnerProfileQueryKey(), result);
         setSaved('Saved. Guests see the new details on their next scan.');
@@ -285,6 +285,12 @@ export function SettingsPage() {
                 {!artist && <Field label="Street address"><input className={inputClass} value={form.address} onChange={set('address')} maxLength={200} autoComplete="street-address" /></Field>}
               </div>
               <Field label={artist ? 'Bio' : 'About your spot'} hint={`${form.bio.length}/600 · shown on the guest card`}><textarea className={inputClass} rows={4} value={form.bio} onChange={set('bio')} maxLength={600} /></Field>
+              {!artist && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Opens" hint="Tonight mode switches on at opening. Blank means 5:00 pm."><input type="time" className={inputClass} value={form.serviceOpen} onChange={set('serviceOpen')} data-testid="input-service-open" /></Field>
+                  <Field label="Last call" hint="And off at close. Blank means 3:00 am."><input type="time" className={inputClass} value={form.serviceClose} onChange={set('serviceClose')} data-testid="input-service-close" /></Field>
+                </div>
+              )}
               {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
               {saved && <p role="status" className="flex items-center gap-2 text-sm text-primary"><Check size={15} aria-hidden="true" />{saved}</p>}
               <Button type="submit" loading={updateProfile.isPending}>Save details</Button>

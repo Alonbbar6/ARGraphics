@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, desc, eq, gte, ilike, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   CreateDisplayBody,
@@ -14,6 +14,7 @@ import {
   GetAnalyticsResponse,
   GetDisplayParams,
   GetDisplayResponse,
+  GetLiveBoardResponse,
   GetPartnerProfileResponse,
   ListArtistPlacementsResponse,
   ListDisplaysResponse,
@@ -37,6 +38,7 @@ import {
   countBy, dailySeries, heatmap, isValidTimeZone, newQrCode, rangeBounds, safeTimeZone, totals, type TrafficRange,
 } from "../lib/traffic";
 import { currentUser, isUniqueViolation, partnerKind, publicAssetUrl } from "./argraphics";
+import { isServiceTimeString, serviceWindows, type ServiceWindow } from "../lib/service-window";
 
 const router: IRouter = Router();
 const storage = new ObjectStorageService();
@@ -82,6 +84,8 @@ function profile(bar: Bar) {
     latitude: bar.latitude,
     longitude: bar.longitude,
     timezone: safeTimeZone(bar.timezone),
+    serviceOpen: bar.serviceOpen ?? null,
+    serviceClose: bar.serviceClose ?? null,
   };
 }
 
@@ -142,6 +146,8 @@ async function serializeDisplays(req: Request, barId: string, rows: DisplayRow[]
       artwork: artwork ? displayArtwork(artwork) : null,
       scansThisWeek: counts.scans.get(row.id) ?? 0,
       redemptionsThisWeek: counts.redemptions.get(row.id) ?? 0,
+      floorX: row.floorX,
+      floorY: row.floorY,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -280,6 +286,12 @@ router.patch("/partner/profile", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Set latitude and longitude together." });
     return;
   }
+  for (const value of [data.serviceOpen, data.serviceClose]) {
+    if (typeof value === "string" && !isServiceTimeString(value)) {
+      res.status(400).json({ error: "Enter service hours as HH:MM." });
+      return;
+    }
+  }
   const [updated] = await db.update(barsTable).set({
     ...(data.name !== undefined ? { name: data.name.trim() } : {}),
     ...(data.bio !== undefined ? { bio: data.bio.trim() } : {}),
@@ -288,6 +300,8 @@ router.patch("/partner/profile", async (req, res): Promise<void> => {
     ...(data.latitude !== undefined ? { latitude: data.latitude, longitude: data.longitude } : {}),
     ...(data.timezone !== undefined ? { timezone: data.timezone } : {}),
     ...(data.venueType !== undefined ? { venueType: data.venueType } : {}),
+    ...(data.serviceOpen !== undefined ? { serviceOpen: data.serviceOpen } : {}),
+    ...(data.serviceClose !== undefined ? { serviceClose: data.serviceClose } : {}),
   }).where(eq(barsTable.id, bar.id)).returning();
   res.json(UpdatePartnerProfileResponse.parse(profile(updated)));
 });
@@ -380,10 +394,19 @@ router.patch("/displays/:id", async (req, res): Promise<void> => {
     return;
   }
   const input = parsed.data;
+  // A floor position only means something as a pair.
+  if ((input.floorX === undefined) !== (input.floorY === undefined) || (input.floorX === null) !== (input.floorY === null)) {
+    res.status(400).json({ error: "Set the floor position as x and y together." });
+    return;
+  }
   let newMedia: string | null = null;
   let committed = false;
   try {
     const changes: Partial<DisplayRow> = { updatedAt: new Date(Date.now()) };
+    if (input.floorX !== undefined) {
+      changes.floorX = input.floorX;
+      changes.floorY = input.floorY ?? null;
+    }
     if (input.placement !== undefined) changes.placement = input.placement;
     if (input.status !== undefined) changes.status = input.status;
     if (input.title !== undefined) changes.title = input.title.trim();
@@ -626,6 +649,75 @@ router.get("/analytics", async (req, res): Promise<void> => {
         redemptions: claimsByCode.get(code.id) ?? 0,
       }))
       .sort((a, b) => b.redemptions - a.redemptions || b.scans - a.scans),
+  }));
+});
+
+/** Everything that happened in one service window: counts, people, and per-display tallies. */
+async function windowSummary(barId: string, window: ServiceWindow) {
+  const scans = await db.select({ displayId: scansTable.displayId, visitorHash: scansTable.visitorHash })
+    .from(scansTable)
+    .where(and(eq(scansTable.barId, barId), gte(scansTable.createdAt, window.from), lt(scansTable.createdAt, window.to)));
+  const claims = await db.select({ displayId: redemptionsTable.displayId })
+    .from(redemptionsTable)
+    .where(and(eq(redemptionsTable.barId, barId), gte(redemptionsTable.claimedAt, window.from), lt(redemptionsTable.claimedAt, window.to)));
+  const byDisplay = new Map<string, { displayId: string; scans: number; redemptions: number }>();
+  const tally = (displayId: string | null, key: "scans" | "redemptions") => {
+    if (!displayId) return;
+    const entry = byDisplay.get(displayId) ?? { displayId, scans: 0, redemptions: 0 };
+    entry[key] += 1;
+    byDisplay.set(displayId, entry);
+  };
+  scans.forEach((scan) => tally(scan.displayId, "scans"));
+  claims.forEach((claim) => tally(claim.displayId, "redemptions"));
+  return {
+    from: window.from,
+    to: window.to,
+    scans: scans.length,
+    redemptions: claims.length,
+    visitors: new Set(scans.map((scan) => scan.visitorHash)).size,
+    byDisplay: [...byDisplay.values()].sort((a, b) => b.scans - a.scans || b.redemptions - a.redemptions),
+  };
+}
+
+router.get("/live", async (req, res): Promise<void> => {
+  const bar = await partner(req, res);
+  if (!bar) return;
+  const rawSince = req.query.since;
+  const since = typeof rawSince === "string" && rawSince ? new Date(rawSince) : null;
+  if ((rawSince !== undefined && typeof rawSince !== "string") || (since && Number.isNaN(since.getTime()))) {
+    res.status(400).json({ error: "Invalid since." });
+    return;
+  }
+  const now = new Date(Date.now());
+  const timeZone = safeTimeZone(bar.timezone);
+  const windows = serviceWindows(now, bar.serviceOpen, bar.serviceClose, timeZone);
+  const scanRows = await db.select({
+    id: scansTable.id, displayId: scansTable.displayId, at: scansTable.createdAt,
+    displayTitle: displaysTable.title, spotLabel: qrCodesTable.label,
+  }).from(scansTable)
+    .leftJoin(displaysTable, eq(displaysTable.id, scansTable.displayId))
+    .leftJoin(qrCodesTable, eq(qrCodesTable.id, scansTable.qrCodeId))
+    .where(and(eq(scansTable.barId, bar.id), ...(since ? [gt(scansTable.createdAt, since)] : [])))
+    .orderBy(desc(scansTable.createdAt)).limit(50);
+  const claimRows = await db.select({
+    id: redemptionsTable.id, displayId: redemptionsTable.displayId, at: redemptionsTable.claimedAt,
+    displayTitle: redemptionsTable.displayTitle, spotLabel: redemptionsTable.spotLabel,
+  }).from(redemptionsTable)
+    .where(and(eq(redemptionsTable.barId, bar.id), ...(since ? [gt(redemptionsTable.claimedAt, since)] : [])))
+    .orderBy(desc(redemptionsTable.claimedAt)).limit(50);
+  const events = [
+    ...scanRows.map((row) => ({ id: `scan:${row.id}`, kind: "scan" as const, displayId: row.displayId, displayTitle: row.displayTitle ?? null, spotLabel: row.spotLabel ?? null, at: row.at })),
+    ...claimRows.map((row) => ({ id: `claim:${row.id}`, kind: "redemption" as const, displayId: row.displayId, displayTitle: row.displayTitle, spotLabel: row.spotLabel, at: row.at })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 50);
+  res.json(GetLiveBoardResponse.parse({
+    now,
+    timezone: timeZone,
+    serviceOpen: windows.serviceOpen,
+    serviceClose: windows.serviceClose,
+    open: windows.open,
+    tonight: windows.tonight ? await windowSummary(bar.id, windows.tonight) : null,
+    lastNight: windows.lastNight ? await windowSummary(bar.id, windows.lastNight) : null,
+    events,
   }));
 });
 

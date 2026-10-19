@@ -63,6 +63,8 @@
 .dark .pa-delta.is-up { color: #4ADE80; }
 .dark .pa-delta.is-down { color: #FCA5A5; }
 .pa-card {
+  position: relative;
+  isolation: isolate;
   border: 1px solid hsl(var(--border));
   border-radius: 1rem;
   background: hsl(var(--card));

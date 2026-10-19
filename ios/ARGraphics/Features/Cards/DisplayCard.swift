@@ -71,6 +71,12 @@ struct InfoCard: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Palette.tangerine)
             }
+            if let ingredients = display.ingredients, !ingredients.isEmpty, ingredients != display.description {
+                Text(ingredients)
+                    .font(Typography.bodySmall)
+                    .foregroundStyle(Palette.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !display.description.isEmpty {
                 Text(display.description)
                     .font(Typography.body)

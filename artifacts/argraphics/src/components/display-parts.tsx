@@ -55,7 +55,7 @@ export function DisplayThumb({ display, className, children, addImageHref, compa
 
   return (
     <div className={cn('pa-thumb relative overflow-hidden', className)}>
-      {photo ? <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+      {photo ? <img src={photo} alt="" className="absolute inset-0 h-full w-full object-contain object-center p-3" loading="lazy" />
         : model ? (modelReady ? createElement('model-viewer', { src: model, alt: '', 'environment-image': 'neutral', 'shadow-intensity': '0.6', 'interaction-prompt': 'none', loading: 'lazy', reveal: 'auto', 'aria-hidden': 'true' }) : null)
         : addImageHref ? <Link href={addImageHref} className="absolute inset-0 hover:bg-foreground/5">{empty}</Link>
         : empty}

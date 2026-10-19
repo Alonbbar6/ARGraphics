@@ -524,7 +524,9 @@ export const GetPartnerProfileResponse = zod.object({
   "address": zod.string(),
   "latitude": zod.number().nullable(),
   "longitude": zod.number().nullable(),
-  "timezone": zod.string()
+  "timezone": zod.string(),
+  "serviceOpen": zod.string().nullable().describe('Local opening time HH:MM; null means 17:00.'),
+  "serviceClose": zod.string().nullable().describe('Local closing time HH:MM; null means 03:00. Earlier than opening means it crosses midnight.')
 })
 
 
@@ -547,6 +549,8 @@ export const updatePartnerProfileBodyLongitudeMax = 180;
 
 export const updatePartnerProfileBodyTimezoneMax = 64;
 
+export const updatePartnerProfileBodyServiceOpenRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updatePartnerProfileBodyServiceCloseRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 
 
 export const UpdatePartnerProfileBody = zod.object({
@@ -557,7 +561,9 @@ export const UpdatePartnerProfileBody = zod.object({
   "address": zod.string().max(updatePartnerProfileBodyAddressMax).optional(),
   "latitude": zod.number().min(updatePartnerProfileBodyLatitudeMin).max(updatePartnerProfileBodyLatitudeMax).nullish(),
   "longitude": zod.number().min(updatePartnerProfileBodyLongitudeMin).max(updatePartnerProfileBodyLongitudeMax).nullish(),
-  "timezone": zod.string().min(1).max(updatePartnerProfileBodyTimezoneMax).optional()
+  "timezone": zod.string().min(1).max(updatePartnerProfileBodyTimezoneMax).optional(),
+  "serviceOpen": zod.string().regex(updatePartnerProfileBodyServiceOpenRegExp).nullish(),
+  "serviceClose": zod.string().regex(updatePartnerProfileBodyServiceCloseRegExp).nullish()
 })
 
 export const UpdatePartnerProfileResponse = zod.object({
@@ -571,7 +577,9 @@ export const UpdatePartnerProfileResponse = zod.object({
   "address": zod.string(),
   "latitude": zod.number().nullable(),
   "longitude": zod.number().nullable(),
-  "timezone": zod.string()
+  "timezone": zod.string(),
+  "serviceOpen": zod.string().nullable().describe('Local opening time HH:MM; null means 17:00.'),
+  "serviceClose": zod.string().nullable().describe('Local closing time HH:MM; null means 03:00. Earlier than opening means it crosses midnight.')
 })
 
 
@@ -612,6 +620,8 @@ export const ListDisplaysResponseItem = zod.object({
 }).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
+  "floorX": zod.number().nullable().describe('Position on the venue floor plan, 0..1 left to right; null until placed.'),
+  "floorY": zod.number().nullable().describe('Position on the venue floor plan, 0..1 top to bottom; null until placed.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -697,6 +707,8 @@ export const CreateDisplayResponse = zod.object({
 }).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
+  "floorX": zod.number().nullable().describe('Position on the venue floor plan, 0..1 left to right; null until placed.'),
+  "floorY": zod.number().nullable().describe('Position on the venue floor plan, 0..1 top to bottom; null until placed.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -746,6 +758,8 @@ export const GetDisplayResponse = zod.object({
 }).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
+  "floorX": zod.number().nullable().describe('Position on the venue floor plan, 0..1 left to right; null until placed.'),
+  "floorY": zod.number().nullable().describe('Position on the venue floor plan, 0..1 top to bottom; null until placed.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -779,6 +793,12 @@ export const updateDisplayBodyArtistSlugMax = 120;
 
 export const updateDisplayBodyArtworkIdMax = 120;
 
+export const updateDisplayBodyFloorXMin = 0;
+export const updateDisplayBodyFloorXMax = 1;
+
+export const updateDisplayBodyFloorYMin = 0;
+export const updateDisplayBodyFloorYMax = 1;
+
 
 
 export const UpdateDisplayBody = zod.object({
@@ -796,7 +816,9 @@ export const UpdateDisplayBody = zod.object({
   "eventStartsAt": zod.coerce.date().nullish(),
   "artistName": zod.string().max(updateDisplayBodyArtistNameMax).nullish(),
   "artistSlug": zod.string().max(updateDisplayBodyArtistSlugMax).nullish(),
-  "artworkId": zod.string().max(updateDisplayBodyArtworkIdMax).nullish()
+  "artworkId": zod.string().max(updateDisplayBodyArtworkIdMax).nullish(),
+  "floorX": zod.number().min(updateDisplayBodyFloorXMin).max(updateDisplayBodyFloorXMax).nullish(),
+  "floorY": zod.number().min(updateDisplayBodyFloorYMin).max(updateDisplayBodyFloorYMax).nullish()
 })
 
 export const UpdateDisplayResponse = zod.object({
@@ -836,6 +858,8 @@ export const UpdateDisplayResponse = zod.object({
 }).describe('The licensed artwork a display shows; media and credit come from it.'),zod.null()]),
   "scansThisWeek": zod.number().int(),
   "redemptionsThisWeek": zod.number().int(),
+  "floorX": zod.number().nullable().describe('Position on the venue floor plan, 0..1 left to right; null until placed.'),
+  "floorY": zod.number().nullable().describe('Position on the venue floor plan, 0..1 top to bottom; null until placed.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -990,6 +1014,54 @@ export const GetAnalyticsResponse = zod.object({
   "scans": zod.number().int(),
   "redemptions": zod.number().int()
 }))
+})
+
+
+/**
+ * @summary What is happening in the room right now
+ */
+export const GetLiveBoardQueryParams = zod.object({
+  "since": zod.date().optional().describe('Only return events after this instant (ISO 8601); counts are always complete.')
+})
+
+export const GetLiveBoardResponse = zod.object({
+  "now": zod.coerce.date(),
+  "timezone": zod.string(),
+  "serviceOpen": zod.string().describe('HH:MM local, defaults applied.'),
+  "serviceClose": zod.string().describe('HH:MM local, defaults applied.'),
+  "open": zod.boolean().describe('True while inside tonight\'s service window.'),
+  "tonight": zod.union([zod.object({
+  "from": zod.coerce.date(),
+  "to": zod.coerce.date(),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int(),
+  "visitors": zod.number().int(),
+  "byDisplay": zod.array(zod.object({
+  "displayId": zod.string(),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int()
+}))
+}).describe('One service window (opening to close) and what happened in it.'),zod.null()]),
+  "lastNight": zod.union([zod.object({
+  "from": zod.coerce.date(),
+  "to": zod.coerce.date(),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int(),
+  "visitors": zod.number().int(),
+  "byDisplay": zod.array(zod.object({
+  "displayId": zod.string(),
+  "scans": zod.number().int(),
+  "redemptions": zod.number().int()
+}))
+}).describe('One service window (opening to close) and what happened in it.'),zod.null()]),
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['scan', 'redemption']),
+  "displayId": zod.string().nullable(),
+  "displayTitle": zod.string().nullable(),
+  "spotLabel": zod.string().nullable(),
+  "at": zod.coerce.date()
+})).describe('Newest first, at most 50.')
 })
 
 
@@ -1510,6 +1582,7 @@ export const CreatePublicScanResponse = zod.object({
   "modelGlbUrl": zod.string().nullable(),
   "modelHeightCm": zod.number().nullable().describe('Real-world height in centimetres to render the model at; null means the app default.'),
   "price": zod.string().nullable(),
+  "ingredients": zod.string().nullish().describe('The drink\'s own line (what goes in it) for a menu item backed by a library drink; null otherwise.'),
   "offer": zod.union([zod.object({
   "title": zod.string(),
   "details": zod.string(),
@@ -1534,6 +1607,7 @@ export const CreatePublicScanResponse = zod.object({
   "modelGlbUrl": zod.string().nullable(),
   "modelHeightCm": zod.number().nullable().describe('Real-world height in centimetres to render the model at; null means the app default.'),
   "price": zod.string().nullable(),
+  "ingredients": zod.string().nullish().describe('The drink\'s own line (what goes in it) for a menu item backed by a library drink; null otherwise.'),
   "offer": zod.union([zod.object({
   "title": zod.string(),
   "details": zod.string(),
@@ -1583,6 +1657,7 @@ export const GetPublicVenueResponse = zod.object({
   "modelGlbUrl": zod.string().nullable(),
   "modelHeightCm": zod.number().nullable().describe('Real-world height in centimetres to render the model at; null means the app default.'),
   "price": zod.string().nullable(),
+  "ingredients": zod.string().nullish().describe('The drink\'s own line (what goes in it) for a menu item backed by a library drink; null otherwise.'),
   "offer": zod.union([zod.object({
   "title": zod.string(),
   "details": zod.string(),

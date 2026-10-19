@@ -31,6 +31,11 @@ export interface PublicDisplay {
   modelHeightCm: number | null;
   /** @nullable */
   price: string | null;
+  /**
+     * The drink's own line (what goes in it) for a menu item backed by a library drink; null otherwise.
+     * @nullable
+     */
+  ingredients?: string | null;
   offer: PublicOffer | null;
   /** @nullable */
   eventStartsAt: Date | null;

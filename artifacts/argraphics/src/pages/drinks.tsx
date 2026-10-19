@@ -2,7 +2,7 @@ import { createElement, useEffect, useMemo, useState, type FormEvent } from 'rea
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useListDisplays, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
-import { Link } from 'wouter';
+import { Link, useLocation, useSearch } from 'wouter';
 import type { Drink, DrinkInput, SavedPhotoCleanup } from '@workspace/api-client-react';
 import { AlertCircle, ArrowLeft, Camera, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { CameraCapture } from '@/components/camera-capture';
@@ -89,6 +89,17 @@ export function DrinksPage() {
     setStudioDrink({ drink, camera });
     setMenuFor(null);
   };
+
+  // `/drinks?open=<id>` (from the home page shelf) opens that drink's 3D studio, then drops the parameter.
+  const search = useSearch();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const openId = new URLSearchParams(search).get('open');
+    if (!openId || !drinksQuery.data) return;
+    const drink = drinksQuery.data.find((entry) => entry.id === openId);
+    if (drink) setStudioDrink({ drink, camera: false });
+    setLocation('/drinks', { replace: true });
+  }, [search, drinksQuery.data, setLocation]);
 
   const submitDrink = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

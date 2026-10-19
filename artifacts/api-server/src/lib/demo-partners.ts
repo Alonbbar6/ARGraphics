@@ -1,13 +1,16 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { barsTable, db, displaysTable, drinksTable, menuVersionTable, qrCodesTable, usersTable } from "@workspace/db";
-import { localTimeOn, safeTimeZone } from "./traffic";
+import { barsTable, db, displaysTable, drinksTable, menuVersionTable, qrCodesTable, redemptionsTable, scansTable, usersTable } from "@workspace/db";
+import { localParts, localTimeOn, safeTimeZone } from "./traffic";
+import { serviceWindows } from "./service-window";
 
 /**
  * Development-only demo partners: profile details, displays and placed codes so the
- * dashboard and the iOS app have something to show. It seeds configuration only,
- * never scans or claims; those numbers come from real use.
+ * dashboard and the iOS app have something to show. Only the demo bar also gets a
+ * night of scans and claims (re-stamped to "the last few hours" on every boot) so the
+ * room and Tonight mode have something to animate; every other partner's numbers come
+ * from real use.
  */
 export const DEMO_TRUCK_ID = "demo-truck";
 
@@ -118,4 +121,66 @@ export async function seedDemoPartners(demoBarId: string) {
     { id: "demo-qr-bar", barId: demoBarId, displayId: "demo-display-spritz", code: "demobar1", label: "Bar top", placement: "table" },
   ]).onConflictDoNothing();
   await seedDemoTruck(await bcrypt.hash("ARGraphics-demo-2026!", 12), safeTimeZone(demo.timezone));
+  await seedDemoActivity(demoBarId, safeTimeZone(demo.timezone));
+}
+
+/** Minutes ago for each demo scan: a slow start, a rush, then a tail. Deterministic. */
+const DEMO_SCAN_OFFSETS = [
+  2, 4, 7, 9, 12, 15, 17, 21, 24, 26, 31, 35, 38, 42, 47, 51, 55, 58, 63, 68,
+  74, 79, 85, 92, 98, 105, 113, 121, 130, 140, 151, 163, 176, 190, 205, 221, 238, 256, 275, 295,
+];
+const DEMO_CLAIM_OFFSETS = [6, 29, 77, 158];
+
+/**
+ * A night's worth of activity for the demo bar. Rows have fixed ids so restarts never
+ * pile up, and their timestamps are moved to the last few hours each time so the room
+ * always looks like it is mid-service.
+ */
+async function seedDemoActivity(barId: string, timeZone: string) {
+  const codes = await db.select().from(qrCodesTable).where(eq(qrCodesTable.barId, barId));
+  if (codes.length === 0) return;
+  const displays = await db.select().from(displaysTable).where(eq(displaysTable.barId, barId));
+  // Mid-service the activity trails "now"; in the morning it trails last night's close,
+  // so the board always has a real window to show.
+  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, barId)).limit(1);
+  const windows = serviceWindows(new Date(Date.now()), bar?.serviceOpen ?? null, bar?.serviceClose ?? null, timeZone);
+  const now = windows.open ? Date.now() : (windows.lastNight?.to.getTime() ?? Date.now()) - 5 * 60_000;
+  const scans = DEMO_SCAN_OFFSETS.map((minutes, index) => {
+    const code = codes[index % codes.length];
+    const display = displays.find((row) => row.id === code.displayId && row.status === "live") ?? null;
+    return {
+      id: `demo-scan-${String(index + 1).padStart(2, "0")}`,
+      barId, qrCodeId: code.id, displayId: display?.id ?? null,
+      // Nine "people" so repeat visitors show up.
+      visitorHash: `demo-visitor-${index % 9}`,
+      createdAt: new Date(now - minutes * 60_000),
+    };
+  });
+  await db.insert(scansTable).values(scans).onConflictDoNothing();
+  for (const scan of scans) {
+    await db.update(scansTable).set({ createdAt: scan.createdAt }).where(eq(scansTable.id, scan.id));
+  }
+  const offer = displays.find((row) => row.offerTitle && row.status === "live");
+  if (!offer) return;
+  const code = codes.find((row) => row.displayId === offer.id) ?? codes[0];
+  const claims = DEMO_CLAIM_OFFSETS.map((minutes, index) => {
+    const claimedAt = new Date(now - minutes * 60_000);
+    return {
+      id: `demo-claim-${index + 1}`,
+      barId, displayId: offer.id, qrCodeId: code.id,
+      visitorHash: `demo-visitor-${index}`,
+      claimDay: localParts(claimedAt, timeZone).day,
+      confirmationCode: `DEMO${index + 1}`,
+      displayTitle: offer.title,
+      offerTitle: offer.offerTitle as string,
+      spotLabel: code.label,
+      claimedAt,
+      expiresAt: new Date(claimedAt.getTime() + 30 * 60_000),
+    };
+  });
+  await db.insert(redemptionsTable).values(claims).onConflictDoNothing();
+  for (const claim of claims) {
+    await db.update(redemptionsTable).set({ claimedAt: claim.claimedAt, claimDay: claim.claimDay, expiresAt: claim.expiresAt })
+      .where(eq(redemptionsTable.id, claim.id));
+  }
 }

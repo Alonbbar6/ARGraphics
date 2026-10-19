@@ -22,4 +22,14 @@ export interface PartnerProfile {
   /** @nullable */
   longitude: number | null;
   timezone: string;
+  /**
+     * Local opening time HH:MM; null means 17:00.
+     * @nullable
+     */
+  serviceOpen: string | null;
+  /**
+     * Local closing time HH:MM; null means 03:00. Earlier than opening means it crosses midnight.
+     * @nullable
+     */
+  serviceClose: string | null;
 }

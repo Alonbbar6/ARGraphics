@@ -100,8 +100,16 @@ describe("displays", () => {
       .send({ status: "paused", title: "  Quiet Tuesday  ", offer: { title: "2-for-1 tacos", details: "Before 7pm" }, mediaObjectPath: null })
       .expect(200);
     expectResponseContract("updateDisplay", 200, updated.body);
-    expect(updated.body).toMatchObject({ status: "paused", title: "Quiet Tuesday", mediaUrl: null, offer: { title: "2-for-1 tacos", details: "Before 7pm" } });
+    expect(updated.body).toMatchObject({ status: "paused", title: "Quiet Tuesday", mediaUrl: null, offer: { title: "2-for-1 tacos", details: "Before 7pm" }, floorX: null, floorY: null });
     expect(storage.deleteObjectEntity).toHaveBeenCalled();
+
+    // A spot on the floor plan is saved as a pair, inside the plate.
+    await request(app).patch(`/api/displays/${created.body.id}`).set("Cookie", cookie).send({ floorX: 0.5 }).expect(400);
+    await request(app).patch(`/api/displays/${created.body.id}`).set("Cookie", cookie).send({ floorX: 1.5, floorY: 0.5 }).expect(400);
+    const placed = await request(app).patch(`/api/displays/${created.body.id}`).set("Cookie", cookie).send({ floorX: 0.5, floorY: 0.25 }).expect(200);
+    expect(placed.body).toMatchObject({ floorX: 0.5, floorY: 0.25 });
+    const unplaced = await request(app).patch(`/api/displays/${created.body.id}`).set("Cookie", cookie).send({ floorX: null, floorY: null }).expect(200);
+    expect(unplaced.body).toMatchObject({ floorX: null, floorY: null });
 
     const list = await request(app).get("/api/displays").set("Cookie", cookie).expect(200);
     expectResponseContract("listDisplays", 200, list.body);

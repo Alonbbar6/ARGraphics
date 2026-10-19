@@ -99,6 +99,11 @@ export function compareIosContracts(base, proposed) {
         else schema(child, b.properties[key], `${where}.${key}`, direction);
       }
       if (a.items !== undefined || b.items !== undefined) schema(a.items, b.items, `${where}[]`, direction);
+      // A nullable object is written as oneOf [schema, null]; compare the branches pairwise.
+      if (a.oneOf !== undefined || b.oneOf !== undefined) {
+        if (!Array.isArray(a.oneOf) || !Array.isArray(b.oneOf) || a.oneOf.length !== b.oneOf.length) issue(where, "oneOf branches changed");
+        else a.oneOf.forEach((branch, index) => schema(branch, b.oneOf[index], `${where}|${index}`, direction));
+      }
       const oldAdditional = a.additionalProperties ?? true;
       const newAdditional = b.additionalProperties ?? true;
       if (!equal(oldAdditional, newAdditional)) {
@@ -116,7 +121,7 @@ export function compareIosContracts(base, proposed) {
         if (direction === "request" ? narrowed : !narrowed) issue(where, `${key} changed incompatibly`);
       }
       unchanged(a, b, where, [
-        "type", "format", "enum", "required", "properties", "items", "additionalProperties",
+        "type", "format", "enum", "required", "properties", "items", "oneOf", "additionalProperties",
         "minimum", "exclusiveMinimum", "minLength", "minItems", "minProperties",
         "maximum", "exclusiveMaximum", "maxLength", "maxItems", "maxProperties",
       ]);

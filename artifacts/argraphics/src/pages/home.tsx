@@ -1,16 +1,33 @@
-import type { ReactNode } from 'react';
-import { Link } from 'wouter';
-import { useGetAnalytics, useGetSession, useListDisplays } from '@workspace/api-client-react';
+import { lazy, Suspense, useMemo, type ReactNode } from 'react';
+import { Link, useLocation } from 'wouter';
+import { useQueryClient } from '@tanstack/react-query';
+import { getListDisplaysQueryKey, useGetAnalytics, useGetSession, useListDisplays, useListDrinks, useUpdateDisplay, type Display } from '@workspace/api-client-react';
 import { ArrowRight, DoorOpen, Plus, Repeat, ScanLine, Users } from 'lucide-react';
 import { buttonClass, ErrorPanel, PageHeader, Skeleton, StatTile, StatusBadge, Badge } from '@/components/partner-ui';
 import { DisplayThumb } from '@/components/display-parts';
-import { formatEventDate, placementLabel, typeLabel } from '@/lib/display-draft';
+import { RoomFloor, type RoomCounts } from '@/components/room/RoomFloor';
+import { useLiveBoard } from '@/hooks/use-live-board';
+import { useTonight } from '@/hooks/use-tonight';
+import { TonightBoard } from '@/components/tonight/TonightBoard';
+import { toast } from '@/hooks/use-toast';
+import type { Point } from '@/lib/room-layout';
+import { formatEventDate, formatPrice, placementLabel, typeLabel } from '@/lib/display-draft';
 import { countLabel, dayKey, formatCount, formatDelta, greeting, plural, topDisplay, upcomingEvents } from '@/lib/traffic';
+import type { ShelfItem } from '@/components/shelf/ModelShelf';
+
+// Three.js and the shelf only load on the home page, and only once a drink has a model.
+const ModelShelf = lazy(() => import('@/components/shelf/ModelShelf').then((m) => ({ default: m.ModelShelf })));
 
 export function HomePage() {
   const session = useGetSession();
   const analytics = useGetAnalytics({ range: 'week' });
   const displays = useListDisplays();
+  const drinks = useListDrinks();
+  const queryClient = useQueryClient();
+  const updateDisplay = useUpdateDisplay();
+  const live = useLiveBoard();
+  const tonight = useTonight();
+  const [, setLocation] = useLocation();
 
   const now = new Date();
   const firstName = (session.data?.userName || '').split(' ')[0];
@@ -22,7 +39,72 @@ export function HomePage() {
   const list = displays.data ?? [];
   const top = topDisplay(list);
   const nextEvent = upcomingEvents(list, now)[0] ?? null;
-  const live = list.filter((display) => display.status === 'live');
+  const liveDisplays = list.filter((display) => display.status === 'live');
+
+  // Tonight's numbers while the room is open; otherwise the week, so the floor is never blank.
+  const roomCounts = useMemo<RoomCounts>(() => {
+    const tonight = live.board?.open ? live.board.tonight : null;
+    if (tonight) return new Map(tonight.byDisplay.map((entry) => [entry.displayId, { scans: entry.scans, redemptions: entry.redemptions }]));
+    return new Map(list.map((display) => [display.id, { scans: display.scansThisWeek, redemptions: display.redemptionsThisWeek }]));
+  }, [live.board, list]);
+  const roomCountsLabel = live.board?.open && live.board.tonight ? 'tonight' : 'this week';
+
+  // The shelf: every drink with a generated model, with this week's scans from the displays that carry it.
+  const shelfItems = useMemo<ShelfItem[]>(() => {
+    const scansByDrink = new Map<string, number>();
+    for (const display of list) {
+      if (display.drinkId) scansByDrink.set(display.drinkId, (scansByDrink.get(display.drinkId) ?? 0) + display.scansThisWeek);
+    }
+    return (drinks.data ?? [])
+      .filter((drink) => drink.modelGlbUrl)
+      .map((drink) => {
+        const scans = scansByDrink.get(drink.id);
+        return {
+          id: drink.id,
+          name: drink.name,
+          subtitle: drink.category || null,
+          priceLabel: formatPrice(drink.priceCents),
+          glbUrl: drink.modelGlbUrl,
+          posterUrl: drink.thumbnailUrl,
+          statLabel: scans === undefined ? 'Not on a display yet' : `${countLabel(scans, 'scan')} this week`,
+        };
+      });
+  }, [drinks.data, list]);
+  const drinksWithoutModels = (drinks.data ?? []).length > 0 && shelfItems.length === 0;
+
+  const moveDisplay = (id: string, point: Point | null) => {
+    const key = getListDisplaysQueryKey();
+    const before = queryClient.getQueryData<Display[]>(key);
+    queryClient.setQueryData<Display[]>(key, (current) => current?.map((display) => (display.id === id ? { ...display, floorX: point?.x ?? null, floorY: point?.y ?? null } : display)));
+    updateDisplay.mutate({ id, data: { floorX: point?.x ?? null, floorY: point?.y ?? null } }, {
+      onError: () => {
+        queryClient.setQueryData(key, before);
+        toast({ title: 'Couldn’t save that spot', description: 'Check your connection and drag it again.', variant: 'destructive' });
+      },
+    });
+  };
+
+  // The morning after: one line about last night, before the week's sentence.
+  const lastNight = !live.board?.open && live.board?.lastNight && live.board.lastNight.scans > 0 ? live.board.lastNight : null;
+  const bestSpot = lastNight ? list.find((display) => display.id === lastNight.byDisplay[0]?.displayId) : undefined;
+  const recap = lastNight
+    ? `Last night: ${countLabel(lastNight.scans, 'scan')}, ${countLabel(lastNight.redemptions, 'walk-in')}${bestSpot ? `, best spot ${bestSpot.title}` : ''}.`
+    : null;
+
+  if (tonight.on) {
+    return (
+      <div className="rise">
+        <TonightBoard
+          venueName={session.data?.barName ?? 'Tonight'}
+          displays={list}
+          board={live.board}
+          pulses={live.pulses}
+          onMove={moveDisplay}
+          onLeave={() => tonight.setOverride(tonight.auto ? 'off' : null)}
+        />
+      </div>
+    );
+  }
 
   const hero = (
     <Link href="/displays/new" className={buttonClass('hero', 'md', 'w-full md:w-auto')} data-testid="button-create-display">
@@ -35,9 +117,44 @@ export function HomePage() {
       <PageHeader
         serif
         title={<>{greeting(now)}{firstName ? `, ${firstName}` : ''}</>}
-        lede={<>{now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.{totals ? <> {walkInLine(totals.redemptions, totals.scans)}</> : null}</>}
+        lede={<>{now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.{recap ? <> {recap}</> : null}{totals ? <> {walkInLine(totals.redemptions, totals.scans)}</> : null}</>}
         actions={<div className="hidden md:block">{hero}</div>}
       />
+
+      <section aria-labelledby="room-heading" className="mx-auto mb-4 w-full max-w-[1100px]">
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <h2 id="room-heading" className="flex items-center gap-2 text-sm font-semibold">
+            Your room
+            {live.board?.open && <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><span className="room-live-dot" aria-hidden="true" /> Live</span>}
+          </h2>
+          <p className="text-xs text-muted-foreground">{list.length ? 'Drag a display to where it really sits.' : null}</p>
+        </div>
+        {displays.isLoading ? (
+          <Skeleton className="aspect-[5/3] w-full rounded-2xl" />
+        ) : (
+          <RoomFloor displays={list} counts={roomCounts} countsLabel={roomCountsLabel} pulses={live.pulses} onMove={moveDisplay} />
+        )}
+      </section>
+
+      {(shelfItems.length > 0 || drinks.isLoading || drinksWithoutModels) && (
+        <section aria-labelledby="shelf-heading" className="mx-auto mb-4 w-full max-w-[1100px]">
+          <div className="mb-2 flex items-end justify-between gap-3">
+            <h2 id="shelf-heading" className="text-sm font-semibold">Your menu in 3D</h2>
+            <p className="hidden text-xs text-muted-foreground sm:block">{shelfItems.length > 1 ? 'Swipe, drag or use the arrow keys. Drag the front one to turn it.' : null}</p>
+          </div>
+          {drinks.isLoading ? (
+            <Skeleton className="aspect-[16/7] w-full rounded-2xl" />
+          ) : drinksWithoutModels ? (
+            <p className="text-sm text-muted-foreground">
+              None of your drinks has a 3D model yet. <Link href="/drinks" className="font-semibold text-primary">Make one from a photo</Link> and it shows up here.
+            </p>
+          ) : (
+            <Suspense fallback={<Skeleton className="aspect-[16/7] w-full rounded-2xl" />}>
+              <ModelShelf items={shelfItems} selectLabel="Open in Drinks" onSelect={(item) => setLocation(`/drinks?open=${encodeURIComponent(item.id)}`)} />
+            </Suspense>
+          )}
+        </section>
+      )}
 
       {analytics.isLoading ? (
         <div className="grid gap-4" aria-label="Loading today’s and this week’s numbers">
@@ -99,8 +216,8 @@ export function HomePage() {
           ) : (
             <>
               <h2 id="top-display-heading" className="text-base font-semibold">Top performer</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{live.length ? 'Waiting on the first scan. Make sure the codes are out where people look.' : 'Put one display live and the one that brings people in shows up here.'}</p>
-              <Link href={live.length ? '/qr-codes' : '/displays/new'} className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary">{live.length ? 'Print QR codes' : 'Make your first display'} <ArrowRight size={14} aria-hidden="true" /></Link>
+              <p className="mt-1 text-sm text-muted-foreground">{liveDisplays.length ? 'Waiting on the first scan. Make sure the codes are out where people look.' : 'Put one display live and the one that brings people in shows up here.'}</p>
+              <Link href={liveDisplays.length ? '/qr-codes' : '/displays/new'} className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary">{liveDisplays.length ? 'Print QR codes' : 'Make your first display'} <ArrowRight size={14} aria-hidden="true" /></Link>
             </>
           )}
         </Card>

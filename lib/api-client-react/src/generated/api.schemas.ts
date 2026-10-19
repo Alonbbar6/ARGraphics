@@ -472,6 +472,16 @@ export interface PartnerProfile {
   /** @nullable */
   longitude: number | null;
   timezone: string;
+  /**
+     * Local opening time HH:MM; null means 17:00.
+     * @nullable
+     */
+  serviceOpen: string | null;
+  /**
+     * Local closing time HH:MM; null means 03:00. Earlier than opening means it crosses midnight.
+     * @nullable
+     */
+  serviceClose: string | null;
 }
 
 export interface PartnerProfileUpdate {
@@ -505,6 +515,16 @@ export interface PartnerProfileUpdate {
      * @maxLength 64
      */
   timezone?: string;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  serviceOpen?: string | null;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  serviceClose?: string | null;
 }
 
 export interface Offer {
@@ -589,6 +609,16 @@ export interface Display {
   artwork: DisplayArtwork | null;
   scansThisWeek: number;
   redemptionsThisWeek: number;
+  /**
+     * Position on the venue floor plan, 0..1 left to right; null until placed.
+     * @nullable
+     */
+  floorX: number | null;
+  /**
+     * Position on the venue floor plan, 0..1 top to bottom; null until placed.
+     * @nullable
+     */
+  floorY: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -682,6 +712,18 @@ export interface DisplayUpdate {
      * @nullable
      */
   artworkId?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  floorX?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  floorY?: number | null;
 }
 
 export interface QrCode {
@@ -783,6 +825,59 @@ export interface Analytics {
   heatmap: number[][];
   byDisplay: TrafficByDisplay[];
   byQrCode: TrafficByQrCode[];
+}
+
+export type LiveEventKind = typeof LiveEventKind[keyof typeof LiveEventKind];
+
+
+export const LiveEventKind = {
+  scan: 'scan',
+  redemption: 'redemption',
+} as const;
+
+export interface LiveEvent {
+  id: string;
+  kind: LiveEventKind;
+  /** @nullable */
+  displayId: string | null;
+  /** @nullable */
+  displayTitle: string | null;
+  /** @nullable */
+  spotLabel: string | null;
+  at: string;
+}
+
+export interface LiveDisplayCount {
+  displayId: string;
+  scans: number;
+  redemptions: number;
+}
+
+/**
+ * One service window (opening to close) and what happened in it.
+ */
+export interface LiveWindow {
+  from: string;
+  to: string;
+  scans: number;
+  redemptions: number;
+  visitors: number;
+  byDisplay: LiveDisplayCount[];
+}
+
+export interface LiveBoard {
+  now: string;
+  timezone: string;
+  /** HH:MM local, defaults applied. */
+  serviceOpen: string;
+  /** HH:MM local, defaults applied. */
+  serviceClose: string;
+  /** True while inside tonight's service window. */
+  open: boolean;
+  tonight: LiveWindow | null;
+  lastNight: LiveWindow | null;
+  /** Newest first, at most 50. */
+  events: LiveEvent[];
 }
 
 export interface Redemption {
@@ -1067,6 +1162,11 @@ export interface PublicDisplay {
   modelHeightCm: number | null;
   /** @nullable */
   price: string | null;
+  /**
+     * The drink's own line (what goes in it) for a menu item backed by a library drink; null otherwise.
+     * @nullable
+     */
+  ingredients?: string | null;
   offer: PublicOffer | null;
   /** @nullable */
   eventStartsAt: string | null;
@@ -1188,6 +1288,13 @@ export const GetAnalyticsRange = {
   month: 'month',
   season: 'season',
 } as const;
+
+export type GetLiveBoardParams = {
+/**
+ * Only return events after this instant (ISO 8601); counts are always complete.
+ */
+since?: string;
+};
 
 export type ListGalleryParams = {
 /**

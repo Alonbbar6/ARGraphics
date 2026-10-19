@@ -1,7 +1,6 @@
-import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
-import { Flip } from 'gsap/Flip';
+import { EASE_IN_OUT, EASE_OUT, Flip, gsap, hasFinePointer, prefersReducedMotion } from '@/lib/motion';
 
 /**
  * One place that registers the GSAP plugins the landing page uses. Safe to call many
@@ -18,18 +17,7 @@ export function registerGsap() {
   registered = true;
 }
 
-export const EASE_OUT = 'power3.out';
-export const EASE_IN_OUT = 'power2.inOut';
-
-/** True when the visitor asked the OS for reduced motion. Checked at call time. */
-export function prefersReducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-/** Mouse-driven effects (magnetic buttons, tilt) only make sense with a real pointer. */
-export function hasFinePointer() {
-  return typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-}
+export { EASE_OUT, EASE_IN_OUT, prefersReducedMotion, hasFinePointer };
 
 /** Narrow or portrait viewports get the lighter mobile treatment. */
 export function isMobileViewport() {

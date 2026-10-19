@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType, type ReactNode, useEffect, useState } from 'react';
+import { lazy, Suspense, type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -46,10 +46,12 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
-/** Dashboard pages share the signed-in shell (tabs, profile menu). */
-function InShell({ page: Page, ...props }: { page: ComponentType<any>; [key: string]: unknown }) {
-  return <Shell><Page {...props} /></Shell>;
-}
+/**
+ * Dashboard pages share one signed-in shell (tabs, profile menu). It is mounted once for
+ * every path below, so moving between tabs swaps only the page: the nav pill slides and
+ * the top bar never flashes.
+ */
+const DASHBOARD_PATHS = /^\/(home|artist|displays|displays\/[^/]+|qr-codes|analytics|insights|drinks|table-cards|settings|gallery)$/;
 
 function Router() {
   return (
@@ -66,18 +68,27 @@ function Router() {
           <Route path="/b/:slug">{(params) => <VenuePage slug={params.slug} />}</Route>
           <Route path="/privacy" component={PrivacyPage} />
           <Route path="/terms" component={TermsPage} />
-          <Route path="/home">{() => <InShell page={HomePage} />}</Route>
-          <Route path="/artist">{() => <InShell page={ArtistPage} />}</Route>
-          <Route path="/displays">{() => <InShell page={DisplaysPage} />}</Route>
-          <Route path="/displays/new">{() => <InShell page={NewDisplayPage} />}</Route>
-          <Route path="/displays/:id">{(params) => <InShell page={EditDisplayPage} id={params.id} />}</Route>
-          <Route path="/qr-codes">{() => <InShell page={QrCodesPage} />}</Route>
-          <Route path="/analytics">{() => <InShell page={AnalyticsPage} />}</Route>
-          <Route path="/insights"><Redirect to="/analytics" replace /></Route>
-          <Route path="/drinks">{() => <InShell page={DrinksPage} />}</Route>
-          <Route path="/table-cards">{() => <InShell page={TableCardsPage} />}</Route>
-          <Route path="/settings">{() => <InShell page={SettingsPage} />}</Route>
-          <Route path="/gallery">{() => <InShell page={GalleryPage} />}</Route>
+          <Route path={DASHBOARD_PATHS}>
+            <Shell>
+              {/* The page waits for its chunk on its own, so the tabs answer a click at once. */}
+              <Suspense fallback={<div className="pa-skeleton h-64" aria-busy="true" />}>
+                <Switch>
+                <Route path="/home" component={HomePage} />
+                <Route path="/artist" component={ArtistPage} />
+                <Route path="/displays" component={DisplaysPage} />
+                <Route path="/displays/new" component={NewDisplayPage} />
+                <Route path="/displays/:id">{(params) => <EditDisplayPage id={params.id} />}</Route>
+                <Route path="/qr-codes" component={QrCodesPage} />
+                <Route path="/analytics" component={AnalyticsPage} />
+                <Route path="/insights"><Redirect to="/analytics" replace /></Route>
+                <Route path="/drinks" component={DrinksPage} />
+                <Route path="/table-cards" component={TableCardsPage} />
+                <Route path="/settings" component={SettingsPage} />
+                <Route path="/gallery" component={GalleryPage} />
+                </Switch>
+              </Suspense>
+            </Shell>
+          </Route>
           {BakeFramesPage ? <Route path="/dev/bake" component={BakeFramesPage} /> : null}
           <Route component={NotFound} />
         </Switch>

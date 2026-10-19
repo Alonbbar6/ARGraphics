@@ -44,12 +44,14 @@ import type {
   Error,
   GalleryArtwork,
   GetAnalyticsParams,
+  GetLiveBoardParams,
   GetSavedPhotoCleanup200,
   HealthStatus,
   Insights,
   LicenseRequestInput,
   LicenseUpdate,
   ListGalleryParams,
+  LiveBoard,
   LoginInput,
   MenuVersion,
   Message,
@@ -3134,6 +3136,90 @@ export function useGetAnalytics<TData = Awaited<ReturnType<typeof getAnalytics>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAnalyticsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLiveBoardUrl = (params?: GetLiveBoardParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/live?${stringifiedParams}` : `/api/live`
+}
+
+/**
+ * @summary What is happening in the room right now
+ */
+export const getLiveBoard = async (params?: GetLiveBoardParams, options?: Parameters<typeof customFetch>[1]): Promise<LiveBoard> => {
+
+  return customFetch<LiveBoard>(getGetLiveBoardUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveBoardQueryKey = (params?: GetLiveBoardParams,) => {
+    return [
+    `/api/live`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLiveBoardQueryOptions = <TData = Awaited<ReturnType<typeof getLiveBoard>>, TError = ErrorType<void>>(params?: GetLiveBoardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveBoard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveBoardQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveBoard>>> = ({ signal }) => getLiveBoard(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveBoard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiveBoardQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveBoard>>>
+export type GetLiveBoardQueryError = ErrorType<void>
+
+
+/**
+ * @summary What is happening in the room right now
+ */
+
+export function useGetLiveBoard<TData = Awaited<ReturnType<typeof getLiveBoard>>, TError = ErrorType<void>>(
+ params?: GetLiveBoardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveBoard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiveBoardQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

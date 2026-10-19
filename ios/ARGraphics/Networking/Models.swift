@@ -99,6 +99,8 @@ struct PublicDisplay: Codable, Hashable, Identifiable {
     /// Real-world height chosen by the venue; older servers omit it (decodes as nil).
     var modelHeightCm: Double? = nil
     let price: String?
+    /// What goes in the drink, for a menu item backed by a library drink; older servers omit it.
+    var ingredients: String? = nil
     let offer: PublicOffer?
     let eventStartsAt: Date?
     let artist: PublicArtistCredit?

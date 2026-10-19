@@ -22,6 +22,13 @@
       "when": 1792414847167,
       "tag": "0002_venue_type",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792421714336,
+      "tag": "0003_floor_positions_service_hours",
+      "breakpoints": true
     }
   ]
 }

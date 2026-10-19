@@ -823,6 +823,30 @@ paths:
           description: Unknown range
         "401":
           description: Sign-in required
+  /live:
+    get:
+      operationId: getLiveBoard
+      tags: [analytics]
+      summary: What is happening in the room right now
+      parameters:
+        - in: query
+          name: since
+          required: false
+          description: Only return events after this instant (ISO 8601); counts are always complete.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Tonight's and last night's numbers plus the newest scans and claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveBoard"
+        "400":
+          description: Invalid since
+        "401":
+          description: Sign-in required
   /redemptions:
     get:
       operationId: listRedemptions
@@ -1699,7 +1723,9 @@ components:
         latitude: { type: ["number", "null"] }
         longitude: { type: ["number", "null"] }
         timezone: { type: string }
-      required: [id, kind, venueType, name, slug, bio, neighborhood, address, latitude, longitude, timezone]
+        serviceOpen: { type: ["string", "null"], description: "Local opening time HH:MM; null means 17:00." }
+        serviceClose: { type: ["string", "null"], description: "Local closing time HH:MM; null means 03:00. Earlier than opening means it crosses midnight." }
+      required: [id, kind, venueType, name, slug, bio, neighborhood, address, latitude, longitude, timezone, serviceOpen, serviceClose]
     PartnerProfileUpdate:
       type: object
       additionalProperties: false
@@ -1713,6 +1739,8 @@ components:
         latitude: { type: ["number", "null"], minimum: -90, maximum: 90 }
         longitude: { type: ["number", "null"], minimum: -180, maximum: 180 }
         timezone: { type: string, minLength: 1, maxLength: 64 }
+        serviceOpen: { type: ["string", "null"], pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" }
+        serviceClose: { type: ["string", "null"], pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" }
     Offer:
       type: object
       properties:
@@ -1776,9 +1804,11 @@ components:
             - type: "null"
         scansThisWeek: { type: integer }
         redemptionsThisWeek: { type: integer }
+        floorX: { type: ["number", "null"], description: "Position on the venue floor plan, 0..1 left to right; null until placed." }
+        floorY: { type: ["number", "null"], description: "Position on the venue floor plan, 0..1 top to bottom; null until placed." }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, type, placement, status, title, description, drinkId, drink, mediaUrl, offer, eventStartsAt, artist, artworkId, artwork, scansThisWeek, redemptionsThisWeek, createdAt, updatedAt]
+      required: [id, type, placement, status, title, description, drinkId, drink, mediaUrl, offer, eventStartsAt, artist, artworkId, artwork, scansThisWeek, redemptionsThisWeek, floorX, floorY, createdAt, updatedAt]
     DisplayArtwork:
       type: object
       description: The licensed artwork a display shows; media and credit come from it.
@@ -1827,6 +1857,8 @@ components:
         artistName: { type: ["string", "null"], maxLength: 80 }
         artistSlug: { type: ["string", "null"], maxLength: 120 }
         artworkId: { type: ["string", "null"], maxLength: 120 }
+        floorX: { type: ["number", "null"], minimum: 0, maximum: 1 }
+        floorY: { type: ["number", "null"], minimum: 0, maximum: 1 }
     QrCode:
       type: object
       properties:
@@ -1921,6 +1953,59 @@ components:
           type: array
           items: { $ref: "#/components/schemas/TrafficByQrCode" }
       required: [range, from, to, timezone, totals, previous, series, heatmap, byDisplay, byQrCode]
+    LiveEvent:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [scan, redemption] }
+        displayId: { type: ["string", "null"] }
+        displayTitle: { type: ["string", "null"] }
+        spotLabel: { type: ["string", "null"] }
+        at: { type: string, format: date-time }
+      required: [id, kind, displayId, displayTitle, spotLabel, at]
+    LiveDisplayCount:
+      type: object
+      properties:
+        displayId: { type: string }
+        scans: { type: integer }
+        redemptions: { type: integer }
+      required: [displayId, scans, redemptions]
+    LiveWindow:
+      type: object
+      description: One service window (opening to close) and what happened in it.
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        scans: { type: integer }
+        redemptions: { type: integer }
+        visitors: { type: integer }
+        byDisplay:
+          type: array
+          items:
+            $ref: "#/components/schemas/LiveDisplayCount"
+      required: [from, to, scans, redemptions, visitors, byDisplay]
+    LiveBoard:
+      type: object
+      properties:
+        now: { type: string, format: date-time }
+        timezone: { type: string }
+        serviceOpen: { type: string, description: "HH:MM local, defaults applied." }
+        serviceClose: { type: string, description: "HH:MM local, defaults applied." }
+        open: { type: boolean, description: "True while inside tonight's service window." }
+        tonight:
+          oneOf:
+            - $ref: "#/components/schemas/LiveWindow"
+            - type: "null"
+        lastNight:
+          oneOf:
+            - $ref: "#/components/schemas/LiveWindow"
+            - type: "null"
+        events:
+          type: array
+          description: Newest first, at most 50.
+          items:
+            $ref: "#/components/schemas/LiveEvent"
+      required: [now, timezone, serviceOpen, serviceClose, open, tonight, lastNight, events]
     Redemption:
       type: object
       properties:
@@ -2129,6 +2214,9 @@ components:
           type: ["number", "null"]
           description: Real-world height in centimetres to render the model at; null means the app default.
         price: { type: ["string", "null"] }
+        ingredients:
+          type: ["string", "null"]
+          description: The drink's own line (what goes in it) for a menu item backed by a library drink; null otherwise.
         offer:
           oneOf:
             - $ref: "#/components/schemas/PublicOffer"

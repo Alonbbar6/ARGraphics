@@ -34,6 +34,16 @@ export interface Display {
   artwork: DisplayArtwork | null;
   scansThisWeek: number;
   redemptionsThisWeek: number;
+  /**
+     * Position on the venue floor plan, 0..1 left to right; null until placed.
+     * @nullable
+     */
+  floorX: number | null;
+  /**
+     * Position on the venue floor plan, 0..1 top to bottom; null until placed.
+     * @nullable
+     */
+  floorY: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -24,6 +24,7 @@ export type Display = {
   modelGlbUrl: string | null;
   modelHeightCm?: number | null;
   price: string | null;
+  ingredients?: string | null;
   offer: { title: string; details: string; endsAt: string | null } | null;
   eventStartsAt: string | null;
   artist: { name: string; slug: string | null; bio: string | null } | null;
@@ -161,8 +162,9 @@ export function ScanPage({ code }: { code: string }) {
                   {result.displays.filter((display) => display.id !== selected?.id).map((display) => (
                     <li key={display.id}>
                       <button onClick={() => { setSelectedId(display.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-white/10 bg-[#121212] px-4 text-left hover:border-white/25">
-                        <span className="flex-1"><span className="block text-xs text-white/50">{typeLabel(display)}</span><span className="block text-sm font-medium">{display.title}</span></span>
-                        {display.modelGlbUrl && <Box size={16} className="text-white/50" aria-label="3D" />}
+                        <span className="min-w-0 flex-1 py-2"><span className="block text-xs text-white/50">{typeLabel(display)}</span><span className="block text-sm font-medium">{display.title}</span>{display.ingredients && <span className="block truncate text-xs text-white/50">{display.ingredients}</span>}</span>
+                        {display.price && <span className="shrink-0 text-sm font-medium">{display.price}</span>}
+                        {display.modelGlbUrl && <Box size={16} className="shrink-0 text-white/50" aria-label="3D" />}
                       </button>
                     </li>
                   ))}
@@ -208,6 +210,7 @@ export function DisplayView({ display, code }: { display: Display; code: string 
           <h2 className="text-xl font-semibold">{display.title}</h2>
           {display.price && <span className="shrink-0 text-base font-semibold">{display.price}</span>}
         </div>
+        {display.ingredients && display.ingredients !== display.description && <p className="mt-1 text-sm leading-6 text-white/60">{display.ingredients}</p>}
         {display.description && <p className="mt-2 text-sm leading-6 text-white/70">{display.description}</p>}
         {display.artist && <p className="mt-2 text-sm text-white/70">{t('by')} {display.artist.name}</p>}
         {display.eventStartsAt && (

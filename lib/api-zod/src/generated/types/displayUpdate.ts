@@ -48,4 +48,16 @@ export interface DisplayUpdate {
      * @nullable
      */
   artworkId?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  floorX?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  floorY?: number | null;
 }

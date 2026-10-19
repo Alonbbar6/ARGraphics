@@ -38,4 +38,14 @@ export interface PartnerProfileUpdate {
      * @maxLength 64
      */
   timezone?: string;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  serviceOpen?: string | null;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  serviceClose?: string | null;
 }
