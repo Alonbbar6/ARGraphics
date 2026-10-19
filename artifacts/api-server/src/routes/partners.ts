@@ -65,10 +65,15 @@ async function partner(req: Request, res: Response): Promise<Bar | null> {
   return bar;
 }
 
+function venueType(value: string | null | undefined): "restaurant" | "truck" | "stand" {
+  return value === "truck" || value === "stand" ? value : "restaurant";
+}
+
 function profile(bar: Bar) {
   return {
     id: bar.id,
     kind: partnerKind(bar.kind) ?? "venue",
+    venueType: partnerKind(bar.kind) === "artist" ? null : venueType(bar.venueType),
     name: bar.name,
     slug: bar.slug,
     bio: bar.bio,
@@ -282,6 +287,7 @@ router.patch("/partner/profile", async (req, res): Promise<void> => {
     ...(data.address !== undefined ? { address: data.address.trim() } : {}),
     ...(data.latitude !== undefined ? { latitude: data.latitude, longitude: data.longitude } : {}),
     ...(data.timezone !== undefined ? { timezone: data.timezone } : {}),
+    ...(data.venueType !== undefined ? { venueType: data.venueType } : {}),
   }).where(eq(barsTable.id, bar.id)).returning();
   res.json(UpdatePartnerProfileResponse.parse(profile(updated)));
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "bars" ADD COLUMN "venue_type" text;

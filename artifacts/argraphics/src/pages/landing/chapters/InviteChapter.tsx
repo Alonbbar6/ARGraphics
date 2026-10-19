@@ -34,9 +34,9 @@ export function InviteChapter() {
           <Reveal className="lp-invite-card">
             <Chapter n="06">Your move</Chapter>
             <SplitReveal as="h2" id="final-title" className="lp-h2 lp-h2-xl" type="words">
-              Make next Wednesday worth walking in for.
+              Make the slow hours worth walking up for.
             </SplitReveal>
-            <p className="lp-lede">Free pilot for founding venues and artists. We build your first display with you.</p>
+            <p className="lp-lede">Free for founding partners through the pilot. We build your first display with you, and we agree on a price together before it ever costs you anything.</p>
             <div className="lp-actions">
               <Magnetic>
                 <Link href="/register" className="lp-btn lp-btn-primary lp-btn-lg">
@@ -45,7 +45,7 @@ export function InviteChapter() {
                 </Link>
               </Magnetic>
               <Magnetic strength={0.2}>
-                <a href={`${import.meta.env.BASE_URL}b/demo-bar`} className="lp-btn lp-btn-ghost lp-btn-lg">
+                <a href={`${import.meta.env.BASE_URL}b/demo-truck`} className="lp-btn lp-btn-ghost lp-btn-lg">
                   Try it as a guest
                 </a>
               </Magnetic>
@@ -83,8 +83,8 @@ export function InviteChapter() {
           </div>
           <nav aria-label="Footer" className="lp-footer-links">
             <a href="mailto:hello@argraphics.app">hello@argraphics.app</a>
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
           </nav>
           <p className="lp-footer-copy">
             © 2026 ARGraphics · Photos via{' '}

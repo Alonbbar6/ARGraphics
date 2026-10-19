@@ -21,8 +21,9 @@ Custom domain: `railway domain yourdomain.com -s argraphics` prints the DNS reco
 (Cloudflare DNS is fine in front of it). Then set `LOCAL_STORAGE_PUBLIC_URL` and
 `VITE_PUBLIC_APP_URL` to the new origin and redeploy, **before** printing QR codes.
 
-Not yet configured there: password-reset email (`PASSWORD_RESET_FROM` / `PASSWORD_RESET_APP_URL`
-need a non-Replit sender first) and an App Store link (`VITE_APP_STORE_URL`).
+Not yet configured there: password-reset email (`RESEND_API_KEY`, `PASSWORD_RESET_FROM` and
+`PASSWORD_RESET_APP_URL`; see the table below) and an App Store link (`VITE_APP_STORE_URL`).
+`SEED_DEMO=true` is set so the demo bar, demo truck and demo artist exist with their 3D models.
 
 ## The shape of a deployment
 
@@ -48,7 +49,7 @@ Required in production:
 | `GCS_SERVICE_ACCOUNT_JSON` or `GCS_SERVICE_ACCOUNT_FILE` | Google service-account key. |
 | `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS` | Bucket paths, e.g. `/argraphics-media/private` and `/argraphics-media/public`. |
 | `APP_ORIGINS` | Comma-separated browser origins allowed to call the API cross-origin. Leave unset when the dashboard is served from the same origin. |
-| `PASSWORD_RESET_FROM`, `PASSWORD_RESET_APP_URL` | Reset-email sender (on a verified sending domain **you** own) and the HTTPS URL of the dashboard. Without both, password reset answers 503. Email currently goes through the Replit Resend connector and so only works when hosted on Replit; wire a direct provider before hosting elsewhere. |
+| `RESEND_API_KEY`, `PASSWORD_RESET_FROM`, `PASSWORD_RESET_APP_URL` | Password-reset email. Create a free Resend account (resend.com), verify a sending domain you own, add an API key, and set the sender to an address on that domain (e.g. `ARGraphics <hello@yourdomain.com>`) and the app URL to the HTTPS dashboard origin. Without all three, password reset answers 503 and sign-up still works. On Replit the API key can be left out and the Resend connector is used instead. |
 
 Optional: `OPENAI_API_KEY` and `MESHY_API_KEY` (photo cleanup and 3D generation; without them those features answer 503), `GENERATION_DAILY_LIMIT` (paid 3D generations one partner may start per day, default 10), `DATABASE_SSL` (`require`, `no-verify`, `disable`; see below), `LOG_LEVEL`.
 

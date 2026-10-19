@@ -48,7 +48,7 @@ export function DisplaysChapter() {
               Four kinds of displays, placed wherever people already look.
             </SplitReveal>
             <p className="lp-lede">
-              Bars, restaurants, the taco spot with the line out the door. Pick what guests see and where they find it.
+              Food trucks, stands, bars, the taco spot with the line down the block. Pick what customers see and where they find it.
             </p>
             <ol className="lp-stack-index" aria-hidden="true">
               {DISPLAY_TYPES.map((t, i) => (
@@ -141,12 +141,12 @@ export function ArtistsStrip() {
             Your work, on a wall that only exists if you show up.
           </h2>
           <p className="lp-lede">
-            Local venues host your piece in AR. It lives on their wall, and only there. People have to come in to see it.
+            Local venues and trucks host your piece in AR. It lives on their wall, and only there. People have to show up to see it.
           </p>
           <ul className="lp-checks">
             <li>Venues host your work. You keep it.</li>
             <li>See how many people came to see your piece.</li>
-            <li>“Find other ARGraphics spots nearby” sends guests down the block to the next venue, and the next piece.</li>
+            <li>“Find other ARGraphics spots nearby” sends customers down the block to the next venue, and the next piece.</li>
           </ul>
           <Magnetic strength={0.2}>
             <Link href="/register" className="lp-btn lp-btn-ghost">

@@ -15,11 +15,14 @@ import { ObjectStorageService, objectStorageClient } from "./objectStorage";
  * Each model was built from a photo through the app's own pipeline.
  */
 
-/** Demo drink id → asset base name in assets/demo (`<base>.glb`, `.usdz`, `.png`). */
-const DEMO_MODELS: ReadonlyArray<{ drinkId: string; base: string }> = [
+/** Demo item id → asset base name in assets/demo (`<base>.glb`, `.usdz`, `.png`). */
+const DEMO_MODELS: ReadonlyArray<{ barId?: string; drinkId: string; base: string }> = [
   { drinkId: "demo-cocktail-1", base: "blood-orange-spritz" },
   { drinkId: "demo-cocktail-3", base: "last-word" },
   { drinkId: "demo-cocktail-4", base: "garden-gimlet" },
+  { barId: "demo-truck", drinkId: "demo-truck-birria", base: "birria-tacos" },
+  { barId: "demo-truck", drinkId: "demo-truck-fries", base: "loaded-fries" },
+  { barId: "demo-truck", drinkId: "demo-truck-agua", base: "agua-fresca" },
 ];
 
 /** The assets folder sits next to src/ in development and next to dist/ once built. */
@@ -94,7 +97,7 @@ async function seedOne(dir: string, demoBarId: string, drinkId: string, base: st
 export async function seedDemoModel(demoBarId: string): Promise<void> {
   const dir = assetsDir();
   if (!dir) return;
-  for (const { drinkId, base } of DEMO_MODELS) {
-    await seedOne(dir, demoBarId, drinkId, base);
+  for (const { barId, drinkId, base } of DEMO_MODELS) {
+    await seedOne(dir, barId ?? demoBarId, drinkId, base);
   }
 }

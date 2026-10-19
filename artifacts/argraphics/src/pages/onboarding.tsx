@@ -80,7 +80,7 @@ function KindStep({ kind, onKind, authenticated }: { kind: PartnerKind; onKind: 
           );
         })}
       </fieldset>
-      <p className="mt-6 rounded-2xl bg-muted/60 p-4 text-xs leading-5 text-muted-foreground">From the first night you’ll see scans, walk-ins and regulars who come back. Numbers you can check against the room.</p>
+      <p className="mt-6 rounded-2xl bg-muted/60 p-4 text-xs leading-5 text-muted-foreground">From the first day you’ll see scans, redemptions and regulars who come back. Numbers you can check against the line.</p>
       <Button variant="primary" className="mt-8 w-full" onClick={() => setLocation(authenticated ? '/welcome' : `/register?kind=${kind}`)}>
         Continue <ArrowRight size={16} aria-hidden="true" />
       </Button>

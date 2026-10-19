@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Box, Loader2, Store } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
-import { DisplayView, guestGet, typeLabel, type Display } from '@/pages/scan';
+import { DisplayView, LangToggle, guestGet, typeLabel, type Display } from '@/pages/scan';
+import { t, useGuestLang } from '@/lib/guest-i18n';
 import '@/components/partner.css';
 
 type PublicVenue = {
@@ -15,6 +16,7 @@ type PublicVenue = {
  * AR. Printed codes (/s/:code) still tie a scan to a spot, which is what analytics count.
  */
 export function VenuePage({ slug }: { slug: string }) {
+  useGuestLang();
   const safeSlug = /^[a-z0-9-]{1,80}$/.test(slug.toLowerCase()) ? slug.toLowerCase() : '';
   const [state, setState] = useState<{ kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; venue: PublicVenue }>({ kind: 'loading' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export function VenuePage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (!safeSlug) {
-      setState({ kind: 'error', message: 'We couldn’t find that spot.' });
+      setState({ kind: 'error', message: t('venueNotFound') });
       return;
     }
     let alive = true;
@@ -38,7 +40,7 @@ export function VenuePage({ slug }: { slug: string }) {
         document.title = `${venue.venue.name} · ARGraphics`;
       })
       .catch((error: Error & { status?: number }) => {
-        if (alive) setState({ kind: 'error', message: error.status === 404 ? 'We couldn’t find that spot.' : 'We couldn’t load this menu. Check your connection and try again.' });
+        if (alive) setState({ kind: 'error', message: error.status === 404 ? t('venueNotFound') : t('couldNotLoadMenu') });
       });
     return () => { alive = false; };
   }, [safeSlug]);
@@ -54,11 +56,12 @@ export function VenuePage({ slug }: { slug: string }) {
         <header className="mb-6 flex items-center gap-2.5">
           <BrandMark size={28} />
           <span className="text-sm font-semibold">ARGraphics</span>
+          <LangToggle />
         </header>
 
         {state.kind === 'loading' && (
           <div className="grid min-h-[60dvh] place-items-center" role="status">
-            <Loader2 className="animate-spin text-white/60" size={28} aria-label="Loading" />
+            <Loader2 className="animate-spin text-white/60" size={28} aria-label={t('loading')} />
           </div>
         )}
 
@@ -66,22 +69,22 @@ export function VenuePage({ slug }: { slug: string }) {
           <section className="rounded-2xl border border-white/10 bg-[#121212] p-6 text-center">
             <Store className="mx-auto mb-3 text-white/50" size={28} aria-hidden="true" />
             <h1 className="text-xl font-semibold">{state.message}</h1>
-            <p className="mt-2 text-sm text-white/60">Ask your server for the right link, or scan the code at your table.</p>
+            <p className="mt-2 text-sm text-white/60">{t('askForLink')}</p>
           </section>
         )}
 
         {data && (
           <>
             <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight" data-testid="text-venue-name">{data.venue.name}</h1>
-            <p className="mt-1 text-sm text-white/60">{data.venue.neighborhood ? `${data.venue.neighborhood} · ` : ''}Tap anything to see it on your table.</p>
+            <p className="mt-1 text-sm text-white/60">{data.venue.neighborhood ? `${data.venue.neighborhood} · ` : ''}{t('tapAnything')}</p>
 
             {selected ? <DisplayView key={selected.id} display={selected} code={null} /> : (
-              <p className="mt-6 rounded-2xl border border-white/10 bg-[#121212] p-5 text-sm text-white/70">Nothing is on the menu right now.</p>
+              <p className="mt-6 rounded-2xl border border-white/10 bg-[#121212] p-5 text-sm text-white/70">{t('nothingOnMenu')}</p>
             )}
 
             {displays.length > 1 && (
               <section className="mt-8">
-                <h2 className="mb-3 text-sm font-medium text-white/60">Everything here</h2>
+                <h2 className="mb-3 text-sm font-medium text-white/60">{t('everythingHere')}</h2>
                 <ul className="space-y-2">
                   {displays.filter((display) => display.id !== selected?.id).map((display) => (
                     <li key={display.id}>

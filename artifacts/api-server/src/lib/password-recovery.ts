@@ -69,14 +69,24 @@ export async function sendResetEmail(email: string, token: string) {
   // Fragment tokens never reach access logs or HTTP Referer headers.
   const link = new URL(`${appUrl.pathname.replace(/\/$/, "")}/reset-password`, appUrl);
   link.hash = new URLSearchParams({ token }).toString();
-  const response = await new ReplitConnectors().createProxyFetch("resend")("/emails", {
-    method: "POST",
-    signal: AbortSignal.timeout(3000),
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const message = JSON.stringify({
       from, to: [email], subject: "Reset your ARGraphics password",
       text: `Reset your ARGraphics password:\n\n${link.href}\n\nThis link expires in 30 minutes and can be used once. Requesting another link replaces this one. If you did not request a reset, ignore this email; your password has not changed.`,
-    }),
-  });
+    });
+  // Off Replit, a plain Resend API key sends the mail; on Replit the connector still works.
+  const apiKey = process.env.RESEND_API_KEY;
+  const response = apiKey
+    ? await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        signal: AbortSignal.timeout(5000),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: message,
+      })
+    : await new ReplitConnectors().createProxyFetch("resend")("/emails", {
+        method: "POST",
+        signal: AbortSignal.timeout(3000),
+        headers: { "Content-Type": "application/json" },
+        body: message,
+      });
   if (!response.ok) throw new Error(`Reset email provider returned HTTP ${response.status}.`);
 }

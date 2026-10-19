@@ -35,11 +35,11 @@ export function AnalyticsPage() {
           <Skeleton className="h-64" />
         </div>
       ) : analytics.isError || !data ? (
-        <ErrorPanel title="The numbers are taking a breather." onRetry={() => void analytics.refetch()}>We couldn’t load your scans and walk-ins just now. Your displays are still working.</ErrorPanel>
+        <ErrorPanel title="The numbers are taking a breather." onRetry={() => void analytics.refetch()}>We couldn’t load your scans and redemptions just now. Your displays are still working.</ErrorPanel>
       ) : (
         <div className={analytics.isFetching ? 'opacity-70 transition-opacity' : 'transition-opacity'}>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-            <StatTile index={0} emphasis icon={DoorOpen} label="Walk-ins (offers claimed)" value={data.totals.redemptions} delta={delta(data.totals.redemptions, data.previous.redemptions)} testId="value-walkins" />
+            <StatTile index={0} emphasis icon={DoorOpen} label="Redemptions (offers claimed)" value={data.totals.redemptions} delta={delta(data.totals.redemptions, data.previous.redemptions)} testId="value-walkins" />
             <StatTile index={1} icon={Users} label="Unique visitors" value={data.totals.uniqueVisitors} delta={delta(data.totals.uniqueVisitors, data.previous.uniqueVisitors)} />
             <StatTile index={2} icon={Repeat} label="Came back again" value={data.totals.repeatVisitors} delta={delta(data.totals.repeatVisitors, data.previous.repeatVisitors)} note={data.totals.uniqueVisitors ? `${share(data.totals.repeatVisitors, data.totals.uniqueVisitors)}% of visitors` : undefined} />
             <StatTile index={3} icon={ScanLine} label="Scans" value={data.totals.scans} delta={delta(data.totals.scans, data.previous.scans)} />
@@ -63,7 +63,7 @@ export function AnalyticsPage() {
                 </Panel>
               </section>
 
-              <Panel className="mt-4" title="Scans over time" subtitle="Scans and walk-ins per day">
+              <Panel className="mt-4" title="Scans over time" subtitle="Scans and redemptions per day">
                 <ScansChart series={data.series} />
               </Panel>
 
@@ -86,7 +86,7 @@ export function AnalyticsPage() {
             </>
           )}
 
-          <Panel className="mt-4" title="Recent walk-ins" subtitle="Offers guests claimed in the room">
+          <Panel className="mt-4" title="Recent redemptions" subtitle="Offers customers claimed and showed at the counter">
             {redemptions.isLoading ? <Skeleton className="h-24" /> : redemptions.isError ? (
               <p className="text-sm text-muted-foreground">Couldn’t load recent claims. <button type="button" className="font-semibold text-primary underline" onClick={() => void redemptions.refetch()}>Try again</button></p>
             ) : !redemptions.data?.length ? (
@@ -158,7 +158,7 @@ function Breakdown({ rows, empty, nameHeader }: { rows: Row[]; empty: string; na
   if (!sorted.length) return <p className="text-sm text-muted-foreground">{empty}</p>;
   const table = (
     <table className="w-full text-left text-sm">
-      <thead><tr className="text-xs text-muted-foreground"><th scope="col" className="py-2 pr-3 font-medium">{nameHeader}</th><th scope="col" className="py-2 pr-3 text-right font-medium">Scans</th><th scope="col" className="py-2 pr-3 text-right font-medium">Walk-ins</th><th scope="col" className="py-2 text-right font-medium">Walk-in rate</th></tr></thead>
+      <thead><tr className="text-xs text-muted-foreground"><th scope="col" className="py-2 pr-3 font-medium">{nameHeader}</th><th scope="col" className="py-2 pr-3 text-right font-medium">Scans</th><th scope="col" className="py-2 pr-3 text-right font-medium">Redemptions</th><th scope="col" className="py-2 text-right font-medium">Walk-in rate</th></tr></thead>
       <tbody>
         {sorted.map((row) => (
           <tr key={row.key} className="border-t border-border">
@@ -182,7 +182,7 @@ function Breakdown({ rows, empty, nameHeader }: { rows: Row[]; empty: string; na
               {row.detail && <p className="text-xs text-muted-foreground">{row.detail}</p>}
               <dl className="mt-2 grid grid-cols-2 gap-2">
                 <div><dt className="text-[11px] text-muted-foreground">Scans</dt><dd className="text-xl font-light tabular-nums">{formatCount(row.scans)}</dd></div>
-                <div><dt className="text-[11px] text-muted-foreground">Walk-ins</dt><dd className="text-xl font-light tabular-nums">{formatCount(row.walkIns)}</dd></div>
+                <div><dt className="text-[11px] text-muted-foreground">Redemptions</dt><dd className="text-xl font-light tabular-nums">{formatCount(row.walkIns)}</dd></div>
               </dl>
             </li>
           ))}

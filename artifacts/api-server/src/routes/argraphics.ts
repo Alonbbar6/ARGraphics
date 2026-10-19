@@ -42,6 +42,7 @@ import passwordRecoveryRouter from "./password-recovery";
 import { seedDemoPartners } from "../lib/demo-partners";
 import { seedDemoModel } from "../lib/demo-model";
 import { judgeDrinkModel, summarizeGlb } from "../lib/glb-quality";
+import { slimGlb, slimUsdz } from "../lib/glb-slim";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -233,6 +234,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
           name: barName,
           slug,
           kind: parsed.data.kind ?? "venue",
+          venueType: (parsed.data.kind ?? "venue") === "venue" ? parsed.data.venueType ?? "restaurant" : null,
         }).onConflictDoNothing({ target: barsTable.slug }).returning();
         if (!bar) continue;
 
@@ -562,12 +564,18 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
     }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
     return true;
   }
+  // Slim both files for phones on cellular: smaller textures, quantized vertices, same shape.
+  // If slimming ever fails, the original is still a good model, so it is stored instead.
+  const slimmedGlb = await slimGlb(glbBytes).catch((error: unknown) => {
+    console.warn("[meshy] could not slim the GLB, storing the original", error);
+    return glbBytes;
+  });
+  const usdzBytes = result.model_urls?.usdz ? await fetchMeshyAsset(result.model_urls.usdz) : null;
+  const slimmedUsdz = usdzBytes ? await slimUsdz(usdzBytes).catch(() => usdzBytes) : null;
   const [glbPath, thumbnailPath, usdzPath] = await Promise.all([
-    storeMeshyAsset(Readable.from(glbBytes), drinkId, "glb", "model/gltf-binary"),
+    storeMeshyAsset(Readable.from(slimmedGlb), drinkId, "glb", "model/gltf-binary"),
     saveMeshyDownload(thumbnailSource, drinkId, "png", "image/png"),
-    result.model_urls?.usdz
-      ? saveMeshyDownload(result.model_urls.usdz, drinkId, "usdz", "model/vnd.usdz+zip")
-      : Promise.resolve(null),
+    slimmedUsdz ? storeMeshyAsset(Readable.from(slimmedUsdz), drinkId, "usdz", "model/vnd.usdz+zip") : Promise.resolve(null),
   ]);
   await db.update(drinksTable).set({
     modelGlbUrl: glbPath,
@@ -1073,7 +1081,7 @@ async function seedDemoBar(): Promise<string> {
 // Development always seeds; a hosted demo opts in with SEED_DEMO=true.
 if (process.env.NODE_ENV === "development" || process.env.SEED_DEMO === "true") {
   void seedDemoBar()
-    .then((barId) => seedDemoPartners(barId))
+    .then((barId) => seedDemoPartners(barId).then(() => seedDemoModel(barId)))
     .catch((error: unknown) => {
     process.stderr.write(`ARGraphics demo seed failed: ${String(error)}\n`);
   });

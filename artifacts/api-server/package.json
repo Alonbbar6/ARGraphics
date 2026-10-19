@@ -16,6 +16,9 @@
     "test:browser-storage-smoke": "vitest run --config vitest.browser-smoke.config.ts"
   },
   "dependencies": {
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1",
     "@google-cloud/storage": "^8.4.0",
     "@imgly/background-removal-node": "1.4.5",
     "@replit/connectors-sdk": "^0.4.3",

@@ -88,14 +88,14 @@ export function HeroChapter({ onReady }: { onReady?: () => void }) {
 
         <div className="lp-container lp-hero-copy">
           <p className="lp-kicker" data-hero-in>
-            For independent bars, restaurants and local artists
+            For food trucks, stands, bars, restaurants and local artists
           </p>
           <SplitReveal as="h1" id="hero-title" type="chars" playOn="mount" delay={0.35} className="lp-h1">
-            Empty on Wednesday? Give them a reason to walk in.
+            Slow afternoon? Give them a reason to walk up.
           </SplitReveal>
           <p className="lp-hero-sub" data-hero-in>
-            ARGraphics puts something in your room that only exists in your room. A 3D special over the table. A mural on
-            a blank wall. An offer guests claim in their seat. And you see every guest it brings in.
+            ARGraphics puts something at your spot that only exists at your spot. A 3D special floating over the counter. A
+            mural on the side of the truck. An offer customers claim on their phone. And you see every one it brings in.
           </p>
           <div className="lp-actions" data-hero-in>
             <Magnetic>
@@ -111,7 +111,7 @@ export function HeroChapter({ onReady }: { onReady?: () => void }) {
             </Magnetic>
           </div>
           <p className="lp-hero-note" data-hero-in>
-            Free pilot for founding venues and artists.
+            Free pilot for founding trucks, venues and artists.
           </p>
         </div>
 
@@ -128,7 +128,7 @@ export function HeroChapter({ onReady }: { onReady?: () => void }) {
           <span className="lp-hero-card-claim">Claim</span>
         </div>
         <p className="lp-hero-tail">
-          Guests see it over the table. Only in your room.
+          They see it right there. Only at your spot.
         </p>
 
         <a href="#problem" className="lp-scroll-cue" aria-label="Scroll to continue">

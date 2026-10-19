@@ -1481,6 +1481,7 @@ components:
       properties:
         name: { type: string, minLength: 2, maxLength: 80 }
         barName: { type: string, minLength: 2, maxLength: 80 }
+        venueType: { $ref: "#/components/schemas/VenueType" }
         email: { type: string, format: email, maxLength: 254 }
         password: { type: string, minLength: 12, maxLength: 72 }
         kind: { $ref: "#/components/schemas/PartnerKind" }
@@ -1668,6 +1669,10 @@ components:
     PartnerKind:
       type: string
       enum: [venue, artist]
+    VenueType:
+      description: What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.
+      type: string
+      enum: [restaurant, truck, stand]
     DisplayType:
       type: string
       enum: [menu_item, promo_offer, art_piece, event_teaser]
@@ -1682,6 +1687,10 @@ components:
       properties:
         id: { type: string }
         kind: { $ref: "#/components/schemas/PartnerKind" }
+        venueType:
+          oneOf:
+            - $ref: "#/components/schemas/VenueType"
+            - type: "null"
         name: { type: string }
         slug: { type: string }
         bio: { type: string }
@@ -1690,13 +1699,14 @@ components:
         latitude: { type: ["number", "null"] }
         longitude: { type: ["number", "null"] }
         timezone: { type: string }
-      required: [id, kind, name, slug, bio, neighborhood, address, latitude, longitude, timezone]
+      required: [id, kind, venueType, name, slug, bio, neighborhood, address, latitude, longitude, timezone]
     PartnerProfileUpdate:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
         name: { type: string, minLength: 2, maxLength: 80, pattern: "\\S" }
+        venueType: { $ref: "#/components/schemas/VenueType" }
         bio: { type: string, maxLength: 600 }
         neighborhood: { type: string, maxLength: 80 }
         address: { type: string, maxLength: 200 }

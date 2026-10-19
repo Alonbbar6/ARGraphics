@@ -47,7 +47,11 @@ describe("generated model checks", () => {
     expect(judgeDrinkModel(summarizeGlb(drink({ height: 0 })))).toMatch(/flat/);
   });
   it("fails a model whose proportions do not match the photo", () => {
-    expect(judgeDrinkModel(summarizeGlb(drink()), 5)).toMatch(/proportions/);
+    expect(judgeDrinkModel(summarizeGlb(drink()), 9)).toMatch(/proportions/);
     expect(judgeDrinkModel(summarizeGlb(drink({ height: 6 })), 1)).toMatch(/proportions/);
+  });
+  it("allows a low dish whose photo was taken from above", () => {
+    // A plate of tacos: cutout 0.64 tall per unit wide, model a quarter as tall as it is wide.
+    expect(judgeDrinkModel(summarizeGlb(drink({ height: 0.25 })), 0.64)).toBeNull();
   });
 });

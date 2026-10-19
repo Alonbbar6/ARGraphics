@@ -54,7 +54,7 @@ export function HomePage() {
             <h2 id="today-heading" className="w-full text-sm font-semibold sm:w-auto sm:min-w-24">Today</h2>
             <dl className="flex gap-8">
               <div className="flex items-baseline gap-2">
-                <dt className="order-2 text-sm text-muted-foreground">{plural(today?.redemptions ?? 0, 'walk-in')}</dt>
+                <dt className="order-2 text-sm text-muted-foreground">{plural(today?.redemptions ?? 0, 'redemption')}</dt>
                 <dd className="order-1 text-3xl font-light tabular-nums pa-accent-text" data-testid="value-today-walkins">{formatCount(today?.redemptions ?? 0)}</dd>
               </div>
               <div className="flex items-baseline gap-2">
@@ -70,7 +70,7 @@ export function HomePage() {
               <Link href="/analytics" className="flex min-h-9 items-center gap-1 text-xs font-semibold text-primary">Is it working? <ArrowRight size={13} aria-hidden="true" /></Link>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-              <StatTile index={0} emphasis icon={DoorOpen} label="Walk-ins from AR" value={totals.redemptions} delta={formatDelta(totals.redemptions, previous.redemptions, 'last week', lastWeekHadData)} testId="value-home-walkins" />
+              <StatTile index={0} emphasis icon={DoorOpen} label="Redemptions (offers claimed)" value={totals.redemptions} delta={formatDelta(totals.redemptions, previous.redemptions, 'last week', lastWeekHadData)} testId="value-home-walkins" />
               <StatTile index={1} icon={Users} label="Unique visitors" value={totals.uniqueVisitors} delta={formatDelta(totals.uniqueVisitors, previous.uniqueVisitors, 'last week', lastWeekHadData)} testId="value-home-visitors" />
               <StatTile index={2} icon={ScanLine} label="Scans" value={totals.scans} delta={formatDelta(totals.scans, previous.scans, 'last week', lastWeekHadData)} testId="value-home-scans" />
               <StatTile index={3} icon={Repeat} label="Came back again" value={totals.repeatVisitors} delta={formatDelta(totals.repeatVisitors, previous.repeatVisitors, 'last week', lastWeekHadData)} testId="value-home-repeat" />
@@ -90,7 +90,7 @@ export function HomePage() {
                   <Link href={`/displays/${top.id}`} className="hover:underline">{top.title}</Link>
                 </h2>
                 <dl className="mt-3 grid grid-cols-2 gap-3">
-                  <div><dt className="text-xs text-muted-foreground">{plural(top.redemptionsThisWeek, 'Walk-in')}</dt><dd className="pa-numeral pa-accent-text !text-3xl tabular-nums">{formatCount(top.redemptionsThisWeek)}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">{plural(top.redemptionsThisWeek, 'Redemption')}</dt><dd className="pa-numeral pa-accent-text !text-3xl tabular-nums">{formatCount(top.redemptionsThisWeek)}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">{plural(top.scansThisWeek, 'Scan')}</dt><dd className="pa-numeral !text-3xl tabular-nums">{formatCount(top.scansThisWeek)}</dd></div>
                 </dl>
                 <p className="mt-2 text-xs text-muted-foreground">{typeLabel(top.type)} · {placementLabel(top.placement)} · this week</p>
@@ -99,7 +99,7 @@ export function HomePage() {
           ) : (
             <>
               <h2 id="top-display-heading" className="text-base font-semibold">Top performer</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{live.length ? 'Waiting on the first scan. Make sure the codes are out on the tables.' : 'Put one display live and the one that brings people in shows up here.'}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{live.length ? 'Waiting on the first scan. Make sure the codes are out where people look.' : 'Put one display live and the one that brings people in shows up here.'}</p>
               <Link href={live.length ? '/qr-codes' : '/displays/new'} className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary">{live.length ? 'Print QR codes' : 'Make your first display'} <ArrowRight size={14} aria-hidden="true" /></Link>
             </>
           )}

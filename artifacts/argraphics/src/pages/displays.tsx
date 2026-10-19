@@ -58,7 +58,7 @@ export function DisplaysPage() {
     <div className="rise">
       <PageHeader
         title="What guests see in your room"
-        lede={list.length ? <><strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong> and <strong className="font-semibold text-foreground">{countLabel(walkIns, 'walk-in')}</strong> this week across {liveCount} live {plural(liveCount, 'display')}.</> : 'Each display is something people can only see when they’re in your room.'}
+        lede={list.length ? <><strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong> and <strong className="font-semibold text-foreground">{countLabel(walkIns, 'redemption')}</strong> this week across {liveCount} live {plural(liveCount, 'display')}.</> : 'Each display is something people can only see when they’re in your room.'}
         actions={<>
           <Link href="/gallery" className={buttonClass('ghost')} data-testid="link-gallery"><Palette size={16} aria-hidden="true" /> Local artists</Link>
           <Link href="/drinks" className={buttonClass('ghost')}><Box size={16} aria-hidden="true" /> 3D menu library</Link>
@@ -88,7 +88,7 @@ export function DisplaysPage() {
         <ErrorPanel title="Your displays didn’t load." onRetry={() => void displays.refetch()} />
       ) : list.length === 0 ? (
         <EmptyState icon={Sparkles} title="Your first display takes five minutes." action={<Link href="/displays/new" className={buttonClass('primary')}><Plus size={17} aria-hidden="true" /> Start with a slow night</Link>}>
-          Snap a dish, add an offer or hang a local artist’s piece. Print a code, put it on the table, and watch the scans and walk-ins come in.
+          Snap a dish, add an offer or hang a local artist’s piece. Print a code, put it where people look, and watch the scans and redemptions come in.
         </EmptyState>
       ) : shown.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nothing {filter === 'draft' ? 'in drafts' : filter} right now.</p>
@@ -130,7 +130,7 @@ function DisplayCard({ display, index, busy, onToggle, onDelete }: { display: Di
         {display.offer && <p className="mt-0.5 truncate text-xs text-muted-foreground">{display.offer.title}</p>}
         <dl className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-border p-3">
           <div><dt className="text-[11px] text-muted-foreground">{plural(display.scansThisWeek, 'Scan')} this week</dt><dd className="text-2xl font-light tabular-nums">{formatCount(display.scansThisWeek)}</dd></div>
-          <div><dt className="text-[11px] text-muted-foreground">{plural(display.redemptionsThisWeek, 'Walk-in')}</dt><dd className="pa-accent-text text-2xl font-light tabular-nums">{formatCount(display.redemptionsThisWeek)}</dd></div>
+          <div><dt className="text-[11px] text-muted-foreground">{plural(display.redemptionsThisWeek, 'Redemption')}</dt><dd className="pa-accent-text text-2xl font-light tabular-nums">{formatCount(display.redemptionsThisWeek)}</dd></div>
         </dl>
         <div className="mt-auto flex items-center gap-1 pt-3">
           <Link href={`/displays/${display.id}`} className={buttonClass('ghost', 'sm', 'flex-1')}><Pencil size={14} aria-hidden="true" /> Edit</Link>

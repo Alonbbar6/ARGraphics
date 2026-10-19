@@ -51,12 +51,13 @@ export function qrPngDataUrl(payload: string, size = 1024) {
   return QRCode.toDataURL(payload, { errorCorrectionLevel: "H", margin: 2, width: size, color: { dark: "#0B0B14", light: "#FFFFFF" } });
 }
 
-export type PrintTemplate = "tent" | "sticker" | "poster";
+export type PrintTemplate = "tent" | "sticker" | "poster" | "window";
 
 export const PRINT_TEMPLATES: { value: PrintTemplate; label: string; size: string; note: string }[] = [
   { value: "tent", label: "Table tent", size: "Letter, 2 per page", note: "Fold on the dashed line and stand it on the table." },
   { value: "sticker", label: "Window sticker", size: "5 × 5 in, 1 per page", note: "Faces the street so people walking by stop and scan." },
   { value: "poster", label: "Poster", size: "11 × 17 in, 1 per page", note: "For a wall, the host stand or an event night." },
+  { value: "window", label: "Window card", size: "Letter, 1 per page", note: "Laminate it for the service window or the menu board. Says what to do in one line." },
 ];
 
 export type PrintCode = { label: string; url: string; displayTitle?: string | null };
@@ -195,6 +196,42 @@ async function drawPoster(pdf: jsPDF, venue: string, code: PrintCode) {
   pdf.text(fit(pdf, code.label, width - margin * 2), width / 2, height - 18, { align: "center" });
 }
 
+/**
+ * A window card: US Letter, one code, built to be read from a line. The venue name on top, a
+ * big code, and one instruction. Made for a food truck's service window or a menu board.
+ */
+async function drawWindowCard(pdf: jsPDF, venue: string, code: PrintCode) {
+  const width = pdf.internal.pageSize.getWidth();
+  const height = pdf.internal.pageSize.getHeight();
+  const margin = 18;
+  pdf.setFillColor(...MIDNIGHT);
+  pdf.rect(0, 0, width, height, "F");
+  brandStripe(pdf, 0, 0, width, 5);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(20);
+  pdf.setTextColor(...SPOTLIGHT);
+  pdf.text(fit(pdf, venue.toUpperCase(), width - margin * 2), width / 2, 34, { align: "center" });
+  pdf.setFontSize(34);
+  pdf.setTextColor(255, 255, 255);
+  const headline = pdf.splitTextToSize(code.displayTitle || "See the menu in 3D, right in front of you.", width - margin * 2) as string[];
+  pdf.text(headline.slice(0, 2), width / 2, 56, { align: "center" });
+  const qr = 120;
+  const qrX = (width - qr) / 2;
+  const qrY = 56 + Math.min(2, headline.length) * 14 + 10;
+  pdf.setFillColor(255, 255, 255);
+  pdf.roundedRect(qrX - 6, qrY - 6, qr + 12, qr + 12, 5, 5, "F");
+  pdf.addImage(await qrPngDataUrl(code.url, 1024), "PNG", qrX, qrY, qr, qr);
+  pdf.setFontSize(24);
+  pdf.setTextColor(...CORAL);
+  pdf.text("Point your camera at the code.", width / 2, qrY + qr + 22, { align: "center" });
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(14);
+  pdf.setTextColor(210, 205, 235);
+  pdf.text("No app needed. Tap a dish, turn it around, set it down in front of you.", width / 2, qrY + qr + 32, { align: "center", maxWidth: width - margin * 2 });
+  pdf.setFontSize(11);
+  pdf.text(fit(pdf, code.label, width - margin * 2), width / 2, height - 16, { align: "center" });
+}
+
 /** Builds a print-ready PDF of every code in the chosen template. */
 export async function createQrPrintPdf(template: PrintTemplate, venueName: string, codes: PrintCode[]) {
   if (codes.length === 0) throw new Error("Add at least one spot.");
@@ -214,6 +251,7 @@ export async function createQrPrintPdf(template: PrintTemplate, venueName: strin
     } else {
       if (index > 0) pdf.addPage();
       if (template === "sticker") await drawSticker(pdf, venue, codes[index]);
+      else if (template === "window") await drawWindowCard(pdf, venue, codes[index]);
       else await drawPoster(pdf, venue, codes[index]);
     }
   }

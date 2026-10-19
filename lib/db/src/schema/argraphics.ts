@@ -5,8 +5,10 @@ export const barsTable = pgTable("bars", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   logoUrl: text("logo_url"),
-  // A partner is either a venue (bar, restaurant) or a local artist.
+  // A partner is either a venue (bar, restaurant, food truck, stand) or a local artist.
   kind: text("kind").notNull().default("venue"),
+  // For venues: "restaurant", "truck" or "stand". Shapes wording (table vs window). Null for artists.
+  venueType: text("venue_type"),
   bio: text("bio").notNull().default(""),
   neighborhood: text("neighborhood").notNull().default(""),
   address: text("address").notNull().default(""),

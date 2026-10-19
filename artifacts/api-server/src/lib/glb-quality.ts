@@ -73,8 +73,12 @@ export function judgeDrinkModel(summary: GlbSummary, photoAspect?: number): stri
   const footprint = Math.max(x, z);
   if (!(y > 0) || !(footprint > 0)) return "came back flat";
   if (photoAspect && photoAspect > 0) {
+    // A model much taller than the cutout is a build gone wrong. A much flatter one is
+    // usually fine: a plate or a pile of fries photographed from above shows its top
+    // surface, so the cutout looks taller than the dish really is. Only a model that is
+    // nearly a pancake next to its photo fails this way.
     const ratio = y / footprint / photoAspect;
-    if (ratio < 0.5 || ratio > 2) return "does not match the photo's proportions";
+    if (ratio < 0.2 || ratio > 2) return "does not match the photo's proportions";
   }
   return null;
 }

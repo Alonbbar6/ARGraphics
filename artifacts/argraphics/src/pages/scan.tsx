@@ -1,7 +1,8 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
-import { Apple, Box, Check, Loader2, ScanLine } from 'lucide-react';
+import { Apple, Box, Check, Loader2, ScanLine, Sun } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
 import { ensureModelViewer } from '@/lib/model-viewer';
+import { t, useGuestLang } from '@/lib/guest-i18n';
 import '@/components/partner.css';
 
 /** Set VITE_APP_STORE_URL once the iOS app is published; until then the link stays hidden. */
@@ -78,7 +79,18 @@ export async function guestPost<T>(path: string, body: unknown): Promise<T> {
  * Web AR: no app needed. iPhone Safari places 3D in Apple's AR Quick Look, Android
  * Chrome in WebXR or Scene Viewer, both at the venue's real-world size.
  */
+/** Small EN/ES switch for the guest pages. */
+export function LangToggle() {
+  const [lang, setLang] = useGuestLang();
+  return (
+    <button type="button" onClick={() => setLang(lang === 'es' ? 'en' : 'es')} className="ml-auto rounded-full border border-white/15 px-3 py-1 text-xs font-medium text-white/70 hover:text-white" data-testid="button-guest-lang">
+      {t('langToggle')}
+    </button>
+  );
+}
+
 export function ScanPage({ code }: { code: string }) {
+  useGuestLang();
   const safeCode = /^[a-z0-9]{6,16}$/.test(code.toLowerCase()) ? code.toLowerCase() : '';
   const [state, setState] = useState<{ kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; result: ScanResult }>({ kind: 'loading' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -91,7 +103,7 @@ export function ScanPage({ code }: { code: string }) {
 
   useEffect(() => {
     if (!safeCode) {
-      setState({ kind: 'error', message: 'This isn’t an ARGraphics code.' });
+      setState({ kind: 'error', message: t('notCode') });
       return;
     }
     let alive = true;
@@ -102,7 +114,7 @@ export function ScanPage({ code }: { code: string }) {
         document.title = `${result.venue.name} · ARGraphics`;
       })
       .catch((error: Error & { status?: number }) => {
-        if (alive) setState({ kind: 'error', message: error.status === 404 ? 'This code isn’t active anymore.' : 'We couldn’t load this spot. Check your connection and try again.' });
+        if (alive) setState({ kind: 'error', message: error.status === 404 ? t('codeInactive') : t('couldNotLoadSpot') });
       });
     return () => { alive = false; };
   }, [safeCode]);
@@ -116,11 +128,12 @@ export function ScanPage({ code }: { code: string }) {
         <header className="mb-6 flex items-center gap-2.5">
           <BrandMark size={28} />
           <span className="text-sm font-semibold">ARGraphics</span>
+          <LangToggle />
         </header>
 
         {state.kind === 'loading' && (
           <div className="grid min-h-[60dvh] place-items-center" role="status">
-            <Loader2 className="animate-spin text-white/60" size={28} aria-label="Loading" />
+            <Loader2 className="animate-spin text-white/60" size={28} aria-label={t('loading')} />
           </div>
         )}
 
@@ -128,7 +141,7 @@ export function ScanPage({ code }: { code: string }) {
           <section className="rounded-2xl border border-white/10 bg-[#121212] p-6 text-center">
             <ScanLine className="mx-auto mb-3 text-white/50" size={28} aria-hidden="true" />
             <h1 className="text-xl font-semibold">{state.message}</h1>
-            <p className="mt-2 text-sm text-white/60">Scan the code at your table again, or ask your server.</p>
+            <p className="mt-2 text-sm text-white/60">{t('scanAgain')}</p>
           </section>
         )}
 
@@ -138,12 +151,12 @@ export function ScanPage({ code }: { code: string }) {
             <p className="mt-1 text-sm text-white/60">{result.spot.label}{result.venue.neighborhood ? ` · ${result.venue.neighborhood}` : ''}</p>
 
             {selected ? <DisplayView key={selected.id} display={selected} code={safeCode} /> : (
-              <p className="mt-6 rounded-2xl border border-white/10 bg-[#121212] p-5 text-sm text-white/70">Nothing is showing at this spot right now.</p>
+              <p className="mt-6 rounded-2xl border border-white/10 bg-[#121212] p-5 text-sm text-white/70">{t('nothingHere')}</p>
             )}
 
             {result.displays.length > 1 && (
               <section className="mt-8">
-                <h2 className="mb-3 text-sm font-medium text-white/60">Also here</h2>
+                <h2 className="mb-3 text-sm font-medium text-white/60">{t('alsoHere')}</h2>
                 <ul className="space-y-2">
                   {result.displays.filter((display) => display.id !== selected?.id).map((display) => (
                     <li key={display.id}>
@@ -159,7 +172,7 @@ export function ScanPage({ code }: { code: string }) {
 
             {APP_STORE_URL ? (
               <a href={APP_STORE_URL} className="mt-10 flex items-center justify-center gap-2 text-xs text-white/50 hover:text-white/80" data-testid="link-app-store">
-                <Apple size={14} aria-hidden="true" /> Get the ARGraphics iPhone app for table-card AR
+                <Apple size={14} aria-hidden="true" /> {t('getApp')}
               </a>
             ) : null}
           </>
@@ -170,7 +183,7 @@ export function ScanPage({ code }: { code: string }) {
 }
 
 export function typeLabel(display: Display) {
-  return { menu_item: 'On the menu', promo_offer: 'Offer', art_piece: 'Art', event_teaser: 'Coming up' }[display.type] ?? 'Tonight';
+  return { menu_item: t('typeMenu'), promo_offer: t('typeOffer'), art_piece: t('typeArt'), event_teaser: t('typeEvent') }[display.type] ?? t('typeTonight');
 }
 
 /** One item: 3D with "View in AR", or its picture, plus price, details and any offer. */
@@ -196,7 +209,7 @@ export function DisplayView({ display, code }: { display: Display; code: string 
           {display.price && <span className="shrink-0 text-base font-semibold">{display.price}</span>}
         </div>
         {display.description && <p className="mt-2 text-sm leading-6 text-white/70">{display.description}</p>}
-        {display.artist && <p className="mt-2 text-sm text-white/70">By {display.artist.name}</p>}
+        {display.artist && <p className="mt-2 text-sm text-white/70">{t('by')} {display.artist.name}</p>}
         {display.eventStartsAt && (
           <p className="mt-2 text-sm text-white/70">{new Date(display.eventStartsAt).toLocaleString(undefined, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
         )}
@@ -256,7 +269,7 @@ function ArModel({ glbUrl, iosSrc, title, heightCm }: { glbUrl: string; iosSrc: 
       setCanAR(Boolean(element.canActivateAR));
     }, { once: true });
     element.addEventListener('ar-status', (event) => {
-      if ((event as CustomEvent<{ status: string }>).detail.status === 'failed') setArError('AR couldn’t start here. Try again in better light, or open this page in Safari or Chrome.');
+      if ((event as CustomEvent<{ status: string }>).detail.status === 'failed') setArError(t('arFailed'));
     });
   }, [authoredHeight, glbUrl]);
 
@@ -269,7 +282,7 @@ function ArModel({ glbUrl, iosSrc, title, heightCm }: { glbUrl: string; iosSrc: 
           src: glbUrl,
           ...(iosSrc ? { 'ios-src': iosSrc } : {}),
           ...(scale ? { scale: `${scale} ${scale} ${scale}` } : {}),
-          alt: `3D model of ${title}`,
+          alt: t('model3dOf', { title }),
           'camera-controls': true,
           'auto-rotate': true,
           'touch-action': 'pan-y',
@@ -279,17 +292,18 @@ function ArModel({ glbUrl, iosSrc, title, heightCm }: { glbUrl: string; iosSrc: 
           'environment-image': 'neutral',
           style: { width: '100%', height: '100%', backgroundColor: 'transparent' },
         }) : null}
-        {!loaded && <div className="absolute inset-0 grid place-items-center"><Loader2 className="animate-spin text-white/50" size={24} aria-label="Loading 3D model" /></div>}
+        {!loaded && <div className="absolute inset-0 grid place-items-center"><Loader2 className="animate-spin text-white/50" size={24} aria-label={t('loading3d')} /></div>}
       </div>
       <div className="border-t border-white/10 px-5 py-4">
         {canAR ? (
           <button onClick={() => { setArError(''); void ref.current?.activateAR?.(); }} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold ${ACCENT}`} data-testid="button-view-in-ar">
-            <Box size={17} aria-hidden="true" /> View in AR on your table
+            <Box size={17} aria-hidden="true" /> {t('seeInFront')}
           </button>
         ) : loaded ? (
-          <p className="text-center text-xs text-white/50">Drag to turn it. Open this page on an iPhone or Android phone to place it on your table.</p>
+          <p className="text-center text-xs text-white/50">{t('dragToTurn')}</p>
         ) : null}
-        {canAR && <p className="mt-2 text-center text-xs text-white/50">Shown about {Math.round(heightCm)} cm tall, its real size.</p>}
+        {canAR && <p className="mt-2 text-center text-xs text-white/50">{t('shownAbout', { cm: Math.round(heightCm) })}</p>}
+        {canAR && <p className="mt-1 flex items-center justify-center gap-1 text-center text-xs text-white/40"><Sun size={12} aria-hidden="true" /> {t('shadeTip')}</p>}
         {arError && <p role="alert" className="mt-2 text-center text-xs text-red-300">{arError}</p>}
       </div>
     </div>
@@ -299,6 +313,7 @@ function ArModel({ glbUrl, iosSrc, title, heightCm }: { glbUrl: string; iosSrc: 
 function OfferClaim({ display, code }: { display: Display; code: string | null }) {
   const [state, setState] = useState<{ kind: 'idle' } | { kind: 'busy' } | { kind: 'claimed'; claim: Claim } | { kind: 'error'; message: string }>({ kind: 'idle' });
   const [now, setNow] = useState(() => Date.now());
+  const [big, setBig] = useState(false);
 
   useEffect(() => {
     if (state.kind !== 'claimed') return;
@@ -314,7 +329,7 @@ function OfferClaim({ display, code }: { display: Display; code: string | null }
       setState({ kind: 'claimed', claim: claimed });
     } catch (error) {
       const status = (error as { status?: number }).status;
-      setState({ kind: 'error', message: status === 410 ? 'This offer has ended.' : status === 404 ? 'This offer isn’t available right now.' : 'Couldn’t claim it. Try again.' });
+      setState({ kind: 'error', message: status === 410 ? t('offerEnded') : status === 404 ? t('offerUnavailable') : t('claimFailed') });
     }
   };
 
@@ -322,15 +337,30 @@ function OfferClaim({ display, code }: { display: Display; code: string | null }
     const left = Math.max(0, new Date(state.claim.expiresAt).getTime() - now);
     const minutes = Math.floor(left / 60_000);
     const seconds = String(Math.floor((left % 60_000) / 1000)).padStart(2, '0');
+    const validity = left > 0 ? t('validFor', { time: `${minutes}:${seconds}` }) : t('expired');
+    // Big mode: a bright full-screen card the person at the window can read from a step away.
+    if (big) {
+      return (
+        <button type="button" onClick={() => setBig(false)} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-emerald-400 px-6 text-center text-[#052e1c]" data-testid="panel-claimed-big" aria-label={t('tapToClose')}>
+          <p className="flex items-center gap-2 text-base font-semibold"><Check size={20} aria-hidden="true" /> {t('showAtCounter')}</p>
+          <p className="mt-6 font-mono text-7xl font-bold tracking-[0.2em]">{state.claim.confirmationCode}</p>
+          <p className="mt-6 text-2xl font-semibold">{state.claim.offerTitle}</p>
+          <p className="mt-4 text-lg font-medium">{validity}</p>
+          <p className="mt-2 font-mono text-3xl tabular-nums">{new Date(now).toLocaleTimeString()}</p>
+          <p className="mt-10 text-sm opacity-70">{t('tapToClose')}</p>
+        </button>
+      );
+    }
     return (
-      <div className="mt-5 rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-5 text-center" data-testid="panel-claimed">
-        <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-300"><Check size={14} aria-hidden="true" /> Show this to your server</p>
+      <button type="button" onClick={() => setBig(true)} className="mt-5 w-full rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-5 text-center" data-testid="panel-claimed">
+        <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-300"><Check size={14} aria-hidden="true" /> {t('showAtCounter')}</p>
         <p className="mt-2 font-mono text-4xl font-bold tracking-wider">{state.claim.confirmationCode}</p>
         <p className="mt-2 text-sm text-white/80">{state.claim.offerTitle}</p>
-        <p className="mt-3 text-sm font-medium">{left > 0 ? `Valid for ${minutes}:${seconds}` : 'Expired'}</p>
+        <p className="mt-3 text-sm font-medium">{validity}</p>
         {/* A live clock shows staff this isn't a screenshot. */}
         <p className="mt-1 font-mono text-xs text-white/50">{new Date(now).toLocaleTimeString()}</p>
-      </div>
+        <p className="mt-3 text-xs text-emerald-200/80">{t('tapToEnlarge')}</p>
+      </button>
     );
   }
 
@@ -342,7 +372,7 @@ function OfferClaim({ display, code }: { display: Display; code: string | null }
       </div>
       <button onClick={() => void claim()} disabled={state.kind === 'busy'} className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold disabled:opacity-60 ${display.modelGlbUrl ? 'border border-white/20 hover:bg-white/5' : ACCENT}`} data-testid="button-claim-offer">
         {state.kind === 'busy' && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
-        Claim offer
+        {t('claimOffer')}
       </button>
       {state.kind === 'error' && <p role="alert" className="mt-2 text-sm text-red-300">{state.message}</p>}
     </div>

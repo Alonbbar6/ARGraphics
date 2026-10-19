@@ -43,12 +43,12 @@ export function formatCount(value: number) {
   return Math.round(value).toLocaleString('en-US');
 }
 
-/** The noun that goes with a count: plural(1, 'scan') → "scan", plural(2, 'walk-in') → "walk-ins". */
+/** The noun that goes with a count: plural(1, 'scan') → "scan", plural(2, 'redemption') → "redemptions". */
 export function plural(count: number, one: string, many = `${one}s`) {
   return Math.round(Number.isFinite(count) ? count : 0) === 1 ? one : many;
 }
 
-/** A count with its noun: countLabel(1, 'scan') → "1 scan", countLabel(1200, 'walk-in') → "1,200 walk-ins". */
+/** A count with its noun: countLabel(1, 'scan') → "1 scan", countLabel(1200, 'redemption') → "1,200 redemptions". */
 export function countLabel(count: number, one: string, many?: string) {
   return `${formatCount(count)} ${plural(count, one, many)}`;
 }
@@ -144,7 +144,7 @@ export function upcomingEvents<T extends DisplayLike>(displays: T[], now = new D
     .sort((a, b) => new Date(a.eventStartsAt!).getTime() - new Date(b.eventStartsAt!).getTime());
 }
 
-/** The display bringing the most people in: walk-ins first, scans break ties. Null until anyone has scanned. */
+/** The display bringing the most people in: redemptions first, scans break ties. Null until anyone has scanned. */
 export function topDisplay<T extends DisplayLike>(displays: T[]) {
   const ranked = displays
     .filter((display) => display.scansThisWeek > 0 || display.redemptionsThisWeek > 0)
@@ -177,7 +177,7 @@ export function inviteVenueMailto(artistName: string, slug: string, origin: stri
     '',
     `I'm ${artistName || 'a local artist'}. I put my work on ARGraphics, where guests scan a code at your place and see a piece that only exists in your room.`,
     '',
-    "It's a reason for people to come by on the slow nights, and you can see exactly how many scans and walk-ins it brings.",
+    "It's a reason for people to come by on the slow nights, and you can see exactly how many scans and redemptions it brings.",
     '',
     `If you want to try it, set up your spot here: ${link}`,
     '',

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useGetSession, useLogin, useRegister, getGetSessionQueryKey, type PartnerKind } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, LockKeyhole, Palette, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole, Palette, Store, Truck } from 'lucide-react';
 import { Button, Field, inputClass, SegmentedControl } from '@/components/partner-ui';
 import { Wordmark } from '@/components/shell';
 
@@ -63,9 +63,9 @@ export function LoginPage() {
   };
 
   return (
-    <AuthLayout aside={{ eyebrow: 'Between tables', headline: 'See who came in because of it.', body: 'Scans, walk-ins and regulars, counted for you. Check it on your phone between tables.' }}>
+    <AuthLayout aside={{ eyebrow: 'Between rushes', headline: 'See who came by because of it.', body: 'Scans, redemptions and regulars, counted for you. Check it on your phone between tables.' }}>
       <h1 className="serif text-5xl leading-tight">Welcome back.</h1>
-      <p className="mt-3 text-sm text-muted-foreground">Sign in to see this week’s scans and walk-ins.</p>
+      <p className="mt-3 text-sm text-muted-foreground">Sign in to see this week’s scans and redemptions.</p>
       {import.meta.env.DEV && <p className="mt-5 rounded-xl border border-border bg-card/70 px-4 py-3 text-xs text-muted-foreground">
         Development demo only: <span className="font-semibold text-foreground">demo@argraphics.app</span>
         <br />
@@ -88,6 +88,13 @@ export function RegisterPage() {
   const params = new URLSearchParams(window.location.search);
   const referral = params.get('ref');
   const [kind, setKind] = useState<PartnerKind>(params.get('kind') === 'artist' ? 'artist' : 'venue');
+  const [venueType, setVenueType] = useState<'restaurant' | 'truck'>(params.get('kind') === 'truck' ? 'truck' : 'restaurant');
+  const account = kind === 'artist' ? 'artist' : venueType;
+  const chooseAccount = (value: string) => {
+    if (value === 'artist') { setKind('artist'); return; }
+    setKind('venue');
+    setVenueType(value === 'truck' ? 'truck' : 'restaurant');
+  };
   const [name, setName] = useState('');
   const [barName, setBarName] = useState('');
   const [email, setEmail] = useState('');
@@ -105,7 +112,7 @@ export function RegisterPage() {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage('');
-    register.mutate({ data: { name, barName, email, password, kind } }, {
+    register.mutate({ data: { name, barName, email, password, kind, ...(kind === 'venue' ? { venueType } : {}) } }, {
       onSuccess: (result) => {
         queryClient.clear();
         queryClient.setQueryData(getGetSessionQueryKey(), result);
@@ -124,11 +131,11 @@ export function RegisterPage() {
   return (
     <AuthLayout aside={artist
       ? { eyebrow: 'For local artists', headline: 'Your work, on walls people already go to.', body: 'Venues host your pieces in AR. Guests see them in the room, and you see every scan.' }
-      : { eyebrow: 'For independent spots', headline: 'Fill the slow nights.', body: 'Put something on the table people can only see in your room, and see exactly who came in because of it.' }}>
-      <h1 className="serif text-5xl leading-tight">{artist ? 'Put your work in the room.' : 'Give people a reason to walk in.'}</h1>
+      : { eyebrow: 'For independent spots', headline: 'Fill the slow hours.', body: 'Put something out front that people can only see at your spot, and see exactly who came in because of it.' }}>
+      <h1 className="serif text-5xl leading-tight">{artist ? 'Put your work in the room.' : 'Give people a reason to come by.'}</h1>
       <p className="mt-3 text-sm text-muted-foreground">{referral ? 'An ARGraphics artist invited you. ' : ''}Takes about two minutes. No contract.</p>
       <form onSubmit={submit} className="mt-7 space-y-3.5">
-        <SegmentedControl label="Account type" value={kind} onChange={setKind} options={[{ value: 'venue', label: 'I run a venue', icon: Store }, { value: 'artist', label: 'I’m an artist', icon: Palette }]} />
+        <SegmentedControl label="Account type" value={account} onChange={chooseAccount} options={[{ value: 'restaurant', label: 'Bar or restaurant', icon: Store }, { value: 'truck', label: 'Food truck or stand', icon: Truck }, { value: 'artist', label: 'I’m an artist', icon: Palette }]} />
         <Field label="Your name"><input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder="Marisol Vega" /></Field>
         <Field label={artist ? 'Artist or studio name' : 'Venue name'}><input required minLength={2} maxLength={80} autoComplete="organization" value={barName} onChange={(event) => setBarName(event.target.value)} className={inputClass} placeholder={artist ? 'Ana Ruiz Studio' : 'Casa Marisol'} /></Field>
         <Field label="Email address"><input required type="email" maxLength={254} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} placeholder="you@yourspot.com" /></Field>

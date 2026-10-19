@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PartnerKind } from './partnerKind';
+import type { VenueType } from './venueType';
 
 export interface OwnerRegistrationInput {
   /**
@@ -18,6 +19,7 @@ export interface OwnerRegistrationInput {
      * @maxLength 80
      */
   barName: string;
+  venueType?: VenueType;
   /** @maxLength 254 */
   email: string;
   /**

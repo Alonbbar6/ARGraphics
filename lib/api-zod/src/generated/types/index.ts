@@ -106,3 +106,4 @@ export * from './unauthorizedResponse';
 export * from './uploadUrlRequest';
 export * from './uploadUrlRequestContentType';
 export * from './uploadUrlResponse';
+export * from './venueType';

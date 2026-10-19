@@ -164,7 +164,7 @@ export function HowChapter() {
 
             <div className="lp-walkin">
               <span className="lp-dot" />
-              Walk-in counted
+              Redeemed
               <strong>+1</strong>
             </div>
           </div>

@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PartnerKind } from './partnerKind';
+import type { VenueType } from './venueType';
 
 export interface PartnerProfile {
   id: string;
   kind: PartnerKind;
+  venueType: VenueType | null;
   name: string;
   slug: string;
   bio: string;

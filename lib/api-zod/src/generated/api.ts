@@ -45,6 +45,7 @@ export const registerBodyPasswordMax = 72;
 export const RegisterBody = zod.object({
   "name": zod.string().min(registerBodyNameMin).max(registerBodyNameMax),
   "barName": zod.string().min(registerBodyBarNameMin).max(registerBodyBarNameMax),
+  "venueType": zod.enum(['restaurant', 'truck', 'stand']).optional().describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),
   "email": zod.string().email().max(registerBodyEmailMax),
   "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax),
   "kind": zod.enum(['venue', 'artist']).optional()
@@ -515,6 +516,7 @@ export const DeleteTableCardResponse = zod.object({
 export const GetPartnerProfileResponse = zod.object({
   "id": zod.string(),
   "kind": zod.enum(['venue', 'artist']),
+  "venueType": zod.union([zod.enum(['restaurant', 'truck', 'stand']).describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),zod.null()]),
   "name": zod.string(),
   "slug": zod.string(),
   "bio": zod.string(),
@@ -549,6 +551,7 @@ export const updatePartnerProfileBodyTimezoneMax = 64;
 
 export const UpdatePartnerProfileBody = zod.object({
   "name": zod.string().min(updatePartnerProfileBodyNameMin).max(updatePartnerProfileBodyNameMax).regex(updatePartnerProfileBodyNameRegExp).optional(),
+  "venueType": zod.enum(['restaurant', 'truck', 'stand']).optional().describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),
   "bio": zod.string().max(updatePartnerProfileBodyBioMax).optional(),
   "neighborhood": zod.string().max(updatePartnerProfileBodyNeighborhoodMax).optional(),
   "address": zod.string().max(updatePartnerProfileBodyAddressMax).optional(),
@@ -560,6 +563,7 @@ export const UpdatePartnerProfileBody = zod.object({
 export const UpdatePartnerProfileResponse = zod.object({
   "id": zod.string(),
   "kind": zod.enum(['venue', 'artist']),
+  "venueType": zod.union([zod.enum(['restaurant', 'truck', 'stand']).describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),zod.null()]),
   "name": zod.string(),
   "slug": zod.string(),
   "bio": zod.string(),

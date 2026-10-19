@@ -28,9 +28,21 @@ export function originIsPrivate(origin: string) {
 }
 
 /** The code-free guest page: every live item, each placeable in AR. For bios, listings, tents. */
-function MenuLinkCard({ slug }: { slug: string }) {
+function MenuLinkCard({ slug, venueName }: { slug: string; venueName: string }) {
   const url = `${publicOrigin()}/b/${encodeURIComponent(slug)}`;
   const [copied, setCopied] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const printWindowCard = async () => {
+    setPrinting(true);
+    try {
+      const pdf = await createQrPrintPdf('window', venueName, [{ label: 'Scan for the menu in 3D', url, displayTitle: null }]);
+      pdf.save(`${fileSafe(venueName)}-window-card.pdf`);
+    } catch (error) {
+      toast({ title: 'Could not make the card', description: error instanceof Error ? error.message : 'Try again.' });
+    } finally {
+      setPrinting(false);
+    }
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
@@ -49,7 +61,10 @@ function MenuLinkCard({ slug }: { slug: string }) {
         </p>
         <p className="mt-1 text-xs text-muted-foreground">Guests open it from your Instagram bio, Google listing or a table tent and place any item on their table in AR. Printed codes still point to a specific spot.</p>
       </div>
-      <Button onClick={() => void copy()} variant="ghost" data-testid="button-copy-menu-link">{copied ? 'Copied' : 'Copy link'}</Button>
+      <div className="flex gap-2">
+        <Button onClick={() => void copy()} variant="ghost" data-testid="button-copy-menu-link">{copied ? 'Copied' : 'Copy link'}</Button>
+        <Button onClick={() => void printWindowCard()} loading={printing} icon={FileDown} data-testid="button-print-window-card">Window card</Button>
+      </div>
     </div>
   );
 }
@@ -110,10 +125,10 @@ export function QrCodesPage() {
           <p className="mt-1 text-muted-foreground">Before printing, open the dashboard from your public address (for example the tunnel URL) so guests' phones can reach it.</p>
         </div>
       ) : null}
-      {session.data?.barSlug ? <MenuLinkCard slug={session.data.barSlug} /> : null}
+      {session.data?.barSlug ? <MenuLinkCard slug={session.data.barSlug} venueName={venueName} /> : null}
       <PageHeader
         title="Codes on every table"
-        lede={list.length ? <>Every code counts its own scans and walk-ins. This week: <strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong>, <strong className="font-semibold text-foreground">{countLabel(walkIns, 'walk-in')}</strong>{busiest && busiest.scansThisWeek > 0 ? <>, and {busiest.label} is your busiest spot ({share(busiest.scansThisWeek, scans)}% of scans).</> : '.'}</> : 'One code per table, window or poster. Guests scan it with their phone camera and see what you put there.'}
+        lede={list.length ? <>Every code counts its own scans and redemptions. This week: <strong className="font-semibold text-foreground">{countLabel(scans, 'scan')}</strong>, <strong className="font-semibold text-foreground">{countLabel(walkIns, 'redemption')}</strong>{busiest && busiest.scansThisWeek > 0 ? <>, and {busiest.label} is your busiest spot ({share(busiest.scansThisWeek, scans)}% of scans).</> : '.'}</> : 'One code per window, counter, table or poster. Customers scan it with their phone camera and see what you put there.'}
         actions={<Button variant="primary" icon={Plus} onClick={() => setAdding(true)} data-testid="button-add-spots">Add spots</Button>}
       />
 

@@ -86,6 +86,18 @@ export interface LoginInput {
   password: string;
 }
 
+/**
+ * What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.
+ */
+export type VenueType = typeof VenueType[keyof typeof VenueType];
+
+
+export const VenueType = {
+  restaurant: 'restaurant',
+  truck: 'truck',
+  stand: 'stand',
+} as const;
+
 export interface OwnerRegistrationInput {
   /**
      * @minLength 2
@@ -97,6 +109,7 @@ export interface OwnerRegistrationInput {
      * @maxLength 80
      */
   barName: string;
+  venueType?: VenueType;
   /** @maxLength 254 */
   email: string;
   /**
@@ -448,6 +461,7 @@ export const DisplayStatus = {
 export interface PartnerProfile {
   id: string;
   kind: PartnerKind;
+  venueType: VenueType | null;
   name: string;
   slug: string;
   bio: string;
@@ -467,6 +481,7 @@ export interface PartnerProfileUpdate {
      * @pattern \S
      */
   name?: string;
+  venueType?: VenueType;
   /** @maxLength 600 */
   bio?: string;
   /** @maxLength 80 */

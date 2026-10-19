@@ -26,9 +26,9 @@ export const HERO = {
 
 export const PAINS = [
   {
-    title: 'Wednesday is quiet. Again.',
-    body: 'The kitchen is ready. The bar is stocked. Half the room is empty by eight.',
-    stat: { label: 'Seats filled by 8pm', from: 48, to: 11 },
+    title: 'The lunch line is gone by 1:30. Again.',
+    body: 'The grill is hot. The prep is done. The sidewalk in front of you is empty.',
+    stat: { label: 'People in line at 1:30', from: 48, to: 3 },
   },
   {
     title: 'You paid for ads. Who came?',
@@ -37,8 +37,8 @@ export const PAINS = [
   },
   {
     title: 'The chain down the street has a budget.',
-    body: 'You have a great room and regulars who love you. You need a reason for new people to walk in.',
-    stat: { label: 'Reasons a new guest needs to walk in', from: 100, to: 1 },
+    body: 'You have great food and regulars who love you. You need a reason for new people to walk up.',
+    stat: { label: 'Reasons a new customer needs to walk up', from: 100, to: 1 },
   },
 ];
 
@@ -48,17 +48,17 @@ export const STEPS: Step[] = [
   {
     icon: Sparkles,
     title: 'We build the AR display',
-    body: 'Tell us your special, your offer, or your art. We turn it into something guests can see in your room.',
+    body: 'Snap a photo of your special, write an offer, or hang local art. We turn it into something customers can see right at your spot.',
   },
   {
     icon: QrCode,
     title: 'You place the codes',
-    body: 'Print-ready QR codes for tables, windows, menus and posters. Stick them up. That is the setup.',
+    body: 'Print-ready QR codes for the window, the menu board, tables and posters. Stick them up. That is the setup.',
   },
   {
     icon: ScanLine,
-    title: 'Guests scan. You count walk-ins.',
-    body: 'One scan with the ARGraphics app and the room comes alive. Every scan and claimed offer shows up on your dashboard.',
+    title: 'Customers scan. You count redemptions.',
+    body: 'One scan with the phone camera and the dish is right there in 3D. Every scan and claimed offer shows up on your dashboard.',
   },
 ];
 
@@ -82,16 +82,16 @@ export const DISPLAY_TYPES: DisplayType[] = [
   {
     icon: Box,
     title: '3D menu item',
-    body: 'Your signature dish floats over the table, big enough to make the next table order one.',
-    where: 'Table',
+    body: 'Your signature dish floats right in front of them, big enough to make the next person in line order one.',
+    where: 'Counter · Table',
     photo: VENUE('table'),
     photoAlt: 'A table lamp glowing on a wooden restaurant table at night.',
   },
   {
     icon: Tag,
     title: 'Promo offer',
-    body: 'A deal guests claim right at the table. Your server confirms it with a code.',
-    where: 'Table · Menu',
+    body: 'A deal customers claim on their phone. You confirm it at the window with a code.',
+    where: 'Window · Menu',
     photo: VENUE('offer'),
     photoAlt: 'A bartender pouring a cocktail under purple light.',
     offer: true,
@@ -99,7 +99,7 @@ export const DISPLAY_TYPES: DisplayType[] = [
   {
     icon: ImageIcon,
     title: 'Virtual art piece',
-    body: 'A mural on the blank wall by the bathrooms. A local artist’s piece that only lives in your room.',
+    body: 'A mural on the blank wall, or on the side of the truck. A local artist’s piece that only lives at your spot.',
     where: 'Wall',
     photo: VENUE('wall'),
     photoAlt: 'Guests at a bar beneath a large painted mural.',
@@ -108,7 +108,7 @@ export const DISPLAY_TYPES: DisplayType[] = [
   {
     icon: CalendarDays,
     title: 'Event teaser',
-    body: 'Trivia night, a DJ set, a tasting. Guests scan your window and see what is coming.',
+    body: 'A pop-up, a new location, a tasting. Customers scan your window and see what is coming.',
     where: 'Window · Poster',
     photo: VENUE('event'),
     photoAlt: 'A crowd with raised hands under blue stage light.',
@@ -138,8 +138,8 @@ export const FUNNEL = [
   },
   {
     icon: Footprints,
-    label: 'Walk-ins',
-    body: 'Offers claimed at the table and confirmed by your staff with a code. A claimed offer is a guest in a seat.',
+    label: 'Redemptions',
+    body: 'Offers claimed on a phone and confirmed at the counter with a code. A claimed offer is a customer who showed up.',
     value: 57,
     accent: true,
   },
@@ -147,24 +147,24 @@ export const FUNNEL = [
 
 export const FAQS = [
   {
-    q: 'What do my guests need?',
-    a: 'An iPhone and the free ARGraphics app. They scan your code with it and the display opens right where they are sitting. One scan, and they are in.',
+    q: 'What do my customers need?',
+    a: 'Any phone. They scan your code with the camera and the display opens in the browser, no app to install. The free iPhone app adds extras like table-card tracking.',
   },
   {
     q: 'Do my staff need training?',
-    a: 'No. If a guest claims an offer, they show your server a confirmation screen with a code and a live clock. Your server looks at it and says yes. That is the whole job.',
+    a: 'No. If a customer claims an offer, they show whoever is at the window a confirmation screen with a code and a live clock. You look at it and say yes. That is the whole job.',
   },
   {
     q: 'Does this touch my POS?',
     a: 'No. Nothing connects to your register, your reservations or your menu system. ARGraphics runs alongside what you already use.',
   },
   {
-    q: 'How do you count walk-ins?',
-    a: 'We count claimed offers. A guest claims an offer at the table, staff confirm it with a code, and it lands on your dashboard. We do not guess, and we do not count ad impressions as guests.',
+    q: 'How do you count redemptions?',
+    a: 'We count claimed offers. A customer claims an offer on their phone, you confirm it with a code, and it lands on your dashboard. We do not guess, and we do not count ad impressions as customers.',
   },
   {
     q: 'I’m an artist. Who owns my work?',
-    a: 'You do. Your piece stays yours. Venues host it in AR for as long as you both agree, and your name stays on it every time someone sees it.',
+    a: 'You do. Your piece stays yours. Venues and trucks host it in AR for as long as you both agree, and your name stays on it every time someone sees it.',
   },
 ];
 

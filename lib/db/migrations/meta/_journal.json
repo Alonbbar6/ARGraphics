@@ -15,6 +15,13 @@
       "when": 1792334376681,
       "tag": "0001_artworks_and_licenses",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792414847167,
+      "tag": "0002_venue_type",
+      "breakpoints": true
     }
   ]
 }

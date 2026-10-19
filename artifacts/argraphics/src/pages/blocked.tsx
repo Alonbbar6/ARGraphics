@@ -271,7 +271,7 @@ export function SettingsPage() {
 
   return (
     <div className="rise">
-      <PageHeader title="Your details" lede={analytics.data ? `${countLabel(analytics.data.totals.scans, 'scan')} and ${countLabel(analytics.data.totals.redemptions, 'walk-in')} this week. Keep these details right so nearby guests can find you.` : 'What guests see about you after they scan.'} />
+      <PageHeader title="Your details" lede={analytics.data ? `${countLabel(analytics.data.totals.scans, 'scan')} and ${countLabel(analytics.data.totals.redemptions, 'redemption')} this week. Keep these details right so nearby guests can find you.` : 'What guests see about you after they scan.'} />
       <div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
         <section className="pa-card p-5 sm:p-7">
           <h2 className="text-lg font-semibold">{artist ? 'Artist profile' : 'Venue profile'}</h2>

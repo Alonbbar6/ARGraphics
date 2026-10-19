@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VenueType } from './venueType';
 
 export interface PartnerProfileUpdate {
   /**
@@ -13,6 +14,7 @@ export interface PartnerProfileUpdate {
      * @pattern \S
      */
   name?: string;
+  venueType?: VenueType;
   /** @maxLength 600 */
   bio?: string;
   /** @maxLength 80 */
