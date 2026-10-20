@@ -8,4 +8,6 @@
 
 export interface Error {
   error: string;
+  /** Machine-readable reason when the client should offer a next step (plan_limit, no_credits). */
+  code?: string;
 }

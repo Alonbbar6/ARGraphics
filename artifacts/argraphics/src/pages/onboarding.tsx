@@ -25,7 +25,7 @@ export function OnboardingPage() {
   useEffect(() => {
     if (!authenticated) return;
     setStep((current) => Math.max(1, current));
-    if (session.data?.partnerKind) setKind(session.data.partnerKind);
+    if (session.data?.partnerKind === 'venue' || session.data?.partnerKind === 'artist') setKind(session.data.partnerKind);
   }, [authenticated, session.data?.partnerKind]);
 
   return (

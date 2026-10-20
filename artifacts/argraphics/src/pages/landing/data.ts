@@ -163,6 +163,10 @@ export const FAQS = [
     a: 'We count claimed offers. A customer claims an offer on their phone, you confirm it with a code, and it lands on your dashboard. We do not guess, and we do not count ad impressions as customers.',
   },
   {
+    q: 'What does it cost?',
+    a: 'Looking is free, always. Anyone can make a 3D model for $5 and keep up to three displays live. A business pays $150 a month for unlimited displays, a verified badge, promoted placement, and exclusivity: only one business per category is promoted in a neighborhood. Founding partners stay free through the pilot.',
+  },
+  {
     q: 'I’m an artist. Who owns my work?',
     a: 'You do. Your piece stays yours. Venues and trucks host it in AR for as long as you both agree, and your name stays on it every time someone sees it.',
   },

@@ -7,6 +7,8 @@
  */
 export interface Error {
   error: string;
+  /** Machine-readable reason when the client should offer a next step (plan_limit, no_credits). */
+  code?: string;
 }
 
 export type SavedPhotoCleanupStatus = typeof SavedPhotoCleanupStatus[keyof typeof SavedPhotoCleanupStatus];
@@ -39,12 +41,28 @@ export interface Message {
   message: string;
 }
 
-export type PartnerKind = typeof PartnerKind[keyof typeof PartnerKind];
+/**
+ * What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.
+ */
+export type AccountKind = typeof AccountKind[keyof typeof AccountKind];
 
 
-export const PartnerKind = {
+export const AccountKind = {
   venue: 'venue',
   artist: 'artist',
+  creator: 'creator',
+} as const;
+
+/**
+ * What the account is entitled to right now. "founding" is a free Business plan through the pilot.
+ */
+export type PlanTier = typeof PlanTier[keyof typeof PlanTier];
+
+
+export const PlanTier = {
+  free: 'free',
+  business: 'business',
+  founding: 'founding',
 } as const;
 
 export interface Session {
@@ -55,7 +73,8 @@ export interface Session {
   barName: string | null;
   /** @nullable */
   barSlug: string | null;
-  partnerKind: PartnerKind | null;
+  partnerKind: AccountKind | null;
+  plan: PlanTier | null;
 }
 
 export interface PasswordRecoveryInput {
@@ -117,7 +136,7 @@ export interface OwnerRegistrationInput {
      * @maxLength 72
      */
   password: string;
-  kind?: PartnerKind;
+  kind?: AccountKind;
 }
 
 export interface Drink {
@@ -429,6 +448,92 @@ export interface ArEventInput {
   eventType: ArEventInputEventType;
 }
 
+export type PartnerKind = typeof PartnerKind[keyof typeof PartnerKind];
+
+
+export const PartnerKind = {
+  venue: 'venue',
+  artist: 'artist',
+} as const;
+
+export type BillingPlanPlan = typeof BillingPlanPlan[keyof typeof BillingPlanPlan];
+
+
+export const BillingPlanPlan = {
+  free: 'free',
+  business: 'business',
+} as const;
+
+export type BillingPlanSlot = {
+  category: string;
+  neighborhood: string;
+} | null;
+
+export type BillingPlanPrices = {
+  businessMonthlyCents: number;
+  buildCreditCents: number;
+};
+
+export interface BillingPlan {
+  plan: BillingPlanPlan;
+  effective: PlanTier;
+  /** @nullable */
+  foundingUntil: string | null;
+  liveDisplays: number;
+  /**
+     * Null means unlimited.
+     * @nullable
+     */
+  liveDisplayLimit: number | null;
+  buildCredits: number;
+  /** True when 3D builds do not spend credits. */
+  buildsIncluded: boolean;
+  /** @nullable */
+  subscriptionStatus: string | null;
+  /** @nullable */
+  currentPeriodEnd: string | null;
+  slot: BillingPlanSlot;
+  checkoutAvailable: boolean;
+  portalAvailable: boolean;
+  prices: BillingPlanPrices;
+}
+
+export type CheckoutInputProduct = typeof CheckoutInputProduct[keyof typeof CheckoutInputProduct];
+
+
+export const CheckoutInputProduct = {
+  business: 'business',
+  credits: 'credits',
+} as const;
+
+export interface CheckoutInput {
+  product: CheckoutInputProduct;
+  /**
+     * Build credits to buy; ignored for the Business plan.
+     * @minimum 1
+     * @maximum 10
+     */
+  quantity?: number;
+  /**
+     * What the business is known for (tacos, coffee). Defaults to the venue type.
+     * @minLength 1
+     * @maxLength 40
+     */
+  category?: string;
+}
+
+export interface CheckoutUrl {
+  url: string;
+}
+
+/**
+ * A Stripe event envelope; verified from the raw body, never parsed from this schema.
+ */
+export interface StripeEvent {
+  id: string;
+  type: string;
+}
+
 export type DisplayType = typeof DisplayType[keyof typeof DisplayType];
 
 
@@ -460,7 +565,8 @@ export const DisplayStatus = {
 
 export interface PartnerProfile {
   id: string;
-  kind: PartnerKind;
+  kind: AccountKind;
+  plan: PlanTier;
   venueType: VenueType | null;
   name: string;
   slug: string;

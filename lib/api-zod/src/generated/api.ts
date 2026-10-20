@@ -22,7 +22,8 @@ export const GetSessionResponse = zod.object({
   "userName": zod.string().nullable(),
   "barName": zod.string().nullable(),
   "barSlug": zod.string().nullable(),
-  "partnerKind": zod.union([zod.enum(['venue', 'artist']),zod.null()])
+  "partnerKind": zod.union([zod.enum(['venue', 'artist', 'creator']).describe('What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.'),zod.null()]),
+  "plan": zod.union([zod.enum(['free', 'business', 'founding']).describe('What the account is entitled to right now. "founding" is a free Business plan through the pilot.'),zod.null()])
 })
 
 
@@ -48,7 +49,7 @@ export const RegisterBody = zod.object({
   "venueType": zod.enum(['restaurant', 'truck', 'stand']).optional().describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),
   "email": zod.string().email().max(registerBodyEmailMax),
   "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax),
-  "kind": zod.enum(['venue', 'artist']).optional()
+  "kind": zod.enum(['venue', 'artist', 'creator']).optional().describe('What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.')
 })
 
 export const RegisterResponse = zod.object({
@@ -56,7 +57,8 @@ export const RegisterResponse = zod.object({
   "userName": zod.string().nullable(),
   "barName": zod.string().nullable(),
   "barSlug": zod.string().nullable(),
-  "partnerKind": zod.union([zod.enum(['venue', 'artist']),zod.null()])
+  "partnerKind": zod.union([zod.enum(['venue', 'artist', 'creator']).describe('What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.'),zod.null()]),
+  "plan": zod.union([zod.enum(['free', 'business', 'founding']).describe('What the account is entitled to right now. "founding" is a free Business plan through the pilot.'),zod.null()])
 })
 
 
@@ -75,7 +77,8 @@ export const LoginResponse = zod.object({
   "userName": zod.string().nullable(),
   "barName": zod.string().nullable(),
   "barSlug": zod.string().nullable(),
-  "partnerKind": zod.union([zod.enum(['venue', 'artist']),zod.null()])
+  "partnerKind": zod.union([zod.enum(['venue', 'artist', 'creator']).describe('What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.'),zod.null()]),
+  "plan": zod.union([zod.enum(['free', 'business', 'founding']).describe('What the account is entitled to right now. "founding" is a free Business plan through the pilot.'),zod.null()])
 })
 
 
@@ -513,9 +516,79 @@ export const DeleteTableCardResponse = zod.object({
 })
 
 
+/**
+ * @summary The signed-in partner's plan, limits and credits
+ */
+export const GetBillingPlanResponse = zod.object({
+  "plan": zod.enum(['free', 'business']),
+  "effective": zod.enum(['free', 'business', 'founding']).describe('What the account is entitled to right now. "founding" is a free Business plan through the pilot.'),
+  "foundingUntil": zod.coerce.date().nullable(),
+  "liveDisplays": zod.number().int(),
+  "liveDisplayLimit": zod.number().int().nullable().describe('Null means unlimited.'),
+  "buildCredits": zod.number().int(),
+  "buildsIncluded": zod.boolean().describe('True when 3D builds do not spend credits.'),
+  "subscriptionStatus": zod.string().nullable(),
+  "currentPeriodEnd": zod.coerce.date().nullable(),
+  "slot": zod.union([zod.object({
+  "category": zod.string(),
+  "neighborhood": zod.string()
+}),zod.null()]),
+  "checkoutAvailable": zod.boolean(),
+  "portalAvailable": zod.boolean(),
+  "prices": zod.object({
+  "businessMonthlyCents": zod.number().int(),
+  "buildCreditCents": zod.number().int()
+})
+})
+
+
+/**
+ * For the Business plan the partner's (category, neighborhood) slot is reserved before Checkout opens, so a taken slot answers 409 and nobody pays for exclusivity they cannot have.
+ * @summary Start a Stripe Checkout for the Business plan or build credits
+ */
+export const createCheckoutBodyQuantityMax = 10;
+
+export const createCheckoutBodyCategoryMax = 40;
+
+
+
+export const CreateCheckoutBody = zod.object({
+  "product": zod.enum(['business', 'credits']),
+  "quantity": zod.number().int().min(1).max(createCheckoutBodyQuantityMax).optional().describe('Build credits to buy; ignored for the Business plan.'),
+  "category": zod.string().min(1).max(createCheckoutBodyCategoryMax).optional().describe('What the business is known for (tacos, coffee). Defaults to the venue type.')
+})
+
+export const CreateCheckoutResponse = zod.object({
+  "url": zod.string().url()
+})
+
+
+/**
+ * @summary Open the Stripe customer portal to manage or cancel the subscription
+ */
+export const CreateBillingPortalResponse = zod.object({
+  "url": zod.string().url()
+})
+
+
+/**
+ * Mounted ahead of the JSON parser so the raw body can be verified against STRIPE_WEBHOOK_SECRET. Each event id is handled once.
+ * @summary Stripe event delivery (signed; not for the dashboard)
+ */
+export const ReceiveStripeWebhookBody = zod.object({
+  "id": zod.string(),
+  "type": zod.string()
+}).describe('A Stripe event envelope; verified from the raw body, never parsed from this schema.')
+
+export const ReceiveStripeWebhookResponse = zod.object({
+  "message": zod.string()
+})
+
+
 export const GetPartnerProfileResponse = zod.object({
   "id": zod.string(),
-  "kind": zod.enum(['venue', 'artist']),
+  "kind": zod.enum(['venue', 'artist', 'creator']).describe('What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.'),
+  "plan": zod.enum(['free', 'business', 'founding']).describe('What the account is entitled to right now. "founding" is a free Business plan through the pilot.'),
   "venueType": zod.union([zod.enum(['restaurant', 'truck', 'stand']).describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),zod.null()]),
   "name": zod.string(),
   "slug": zod.string(),
@@ -568,7 +641,8 @@ export const UpdatePartnerProfileBody = zod.object({
 
 export const UpdatePartnerProfileResponse = zod.object({
   "id": zod.string(),
-  "kind": zod.enum(['venue', 'artist']),
+  "kind": zod.enum(['venue', 'artist', 'creator']).describe('What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.'),
+  "plan": zod.enum(['free', 'business', 'founding']).describe('What the account is entitled to right now. "founding" is a free Business plan through the pilot.'),
   "venueType": zod.union([zod.enum(['restaurant', 'truck', 'stand']).describe('What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.'),zod.null()]),
   "name": zod.string(),
   "slug": zod.string(),

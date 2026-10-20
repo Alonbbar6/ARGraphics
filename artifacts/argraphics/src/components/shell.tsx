@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, useLocation } from 'wouter';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { getGetPartnerProfileQueryKey, getGetSessionQueryKey, useGetPartnerProfile, useGetSession, useLogout } from '@workspace/api-client-react';
+import { getGetPartnerProfileQueryKey, getGetSessionQueryKey, useGetPartnerProfile, useGetSession, useLogout, type AccountKind } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { BarChart3, ChevronDown, CircleHelp, Home, Layers, LogOut, Moon, QrCode, Settings2, Sun, type LucideIcon } from 'lucide-react';
+import { BadgeCheck, BarChart3, Box, ChevronDown, CircleHelp, CreditCard, Home, Layers, LogOut, Moon, QrCode, Settings2, Sun, type LucideIcon } from 'lucide-react';
+import { planLabel } from '@/lib/plan';
 import { initials } from '@/lib/traffic';
 import { gsap, prefersReducedMotion } from '@/lib/motion';
 import { installCursorSpotlight } from '@/lib/cursor-spotlight';
@@ -15,7 +16,18 @@ import './partner.css';
 
 type Tab = { href: string; label: string; icon: LucideIcon; match: (path: string) => boolean };
 
-function tabsFor(kind: 'venue' | 'artist'): Tab[] {
+const KIND_LABEL: Record<AccountKind, string> = { venue: 'Venue', artist: 'Artist', creator: 'Creator' };
+
+function tabsFor(kind: AccountKind): Tab[] {
+  if (kind === 'creator') {
+    // A creator has no room and no analytics to speak of: their library is home.
+    return [
+      { href: '/drinks', label: 'Library', icon: Box, match: (path) => path === '/drinks' || path === '/home' },
+      { href: '/displays', label: 'Displays', icon: Layers, match: (path) => path.startsWith('/displays') },
+      { href: '/qr-codes', label: 'QR Codes', icon: QrCode, match: (path) => path === '/qr-codes' || path === '/table-cards' },
+      { href: '/plan', label: 'Plan', icon: CreditCard, match: (path) => path === '/plan' },
+    ];
+  }
   return [
     kind === 'artist'
       ? { href: '/artist', label: 'Home', icon: Home, match: (path) => path === '/artist' || path === '/home' }
@@ -30,6 +42,7 @@ const pageNames: Record<string, string> = {
   '/drinks': '3D menu library',
   '/table-cards': 'Card art markers',
   '/settings': 'Settings',
+  '/plan': 'Plan & billing',
   '/displays/new': 'New display',
 };
 
@@ -153,13 +166,14 @@ function ShellFrame({ children }: { children: ReactNode }) {
 
   // A partner who hasn't told us where they are yet gets the three-screen welcome first.
   useEffect(() => {
-    if (profile.data && !profile.data.neighborhood.trim() && !onboardingSkipped()) setLocation('/welcome');
+    if (profile.data && profile.data.kind !== 'creator' && !profile.data.neighborhood.trim() && !onboardingSkipped()) setLocation('/welcome');
   }, [profile.data, setLocation]);
 
-  const kind = session?.partnerKind === 'artist' || profile.data?.kind === 'artist' ? 'artist' : 'venue';
+  const kind: AccountKind = profile.data?.kind ?? session?.partnerKind ?? 'venue';
 
   useEffect(() => {
     if (kind === 'artist' && location === '/home') setLocation('/artist');
+    if (kind === 'creator' && (location === '/home' || location === '/analytics')) setLocation('/drinks');
   }, [kind, location, setLocation]);
 
   const tabs = tabsFor(kind);
@@ -170,7 +184,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
     logout.mutate(undefined, {
       onSuccess: () => {
         queryClient.clear();
-        queryClient.setQueryData(getGetSessionQueryKey(), { authenticated: false, userName: null, barName: null, barSlug: null, partnerKind: null });
+        queryClient.setQueryData(getGetSessionQueryKey(), { authenticated: false, userName: null, barName: null, barSlug: null, partnerKind: null, plan: null });
         setLocation('/login');
       },
     });
@@ -189,7 +203,8 @@ function ShellFrame({ children }: { children: ReactNode }) {
 
   if (!session?.authenticated) return null;
 
-  const partnerName = profile.data?.name || session.barName || (kind === 'artist' ? 'Your studio' : 'Your spot');
+  const partnerName = profile.data?.name || session.barName || (kind === 'artist' ? 'Your studio' : kind === 'creator' ? 'Your library' : 'Your spot');
+  const tier = profile.data?.plan ?? session.plan ?? 'free';
   const pageName = activeIndex >= 0 ? tabs[activeIndex].label : pageNames[location] ?? (location.startsWith('/displays/') ? 'Edit display' : 'Workspace');
 
   const profileMenu = (align: 'start' | 'end', compact: boolean) => (
@@ -207,7 +222,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
           {!compact && <>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold" data-testid="text-bar-name">{partnerName}</span>
-              <span className="block truncate text-xs text-muted-foreground">{session.userName || 'Owner'} · {kind === 'artist' ? 'Artist' : 'Venue'}</span>
+              <span className="block truncate text-xs text-muted-foreground">{session.userName || 'Owner'} · {KIND_LABEL[kind]}{tier !== 'free' && <> · <BadgeCheck size={12} className="inline text-primary" aria-hidden="true" /> {planLabel(tier)}</>}</span>
             </span>
             <ChevronDown size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
           </>}
@@ -221,6 +236,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
           </DropdownMenu.Label>
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
           <DropdownMenu.Item className="pa-menu-item" onSelect={() => setLocation('/settings')}><Settings2 size={16} aria-hidden="true" /> Settings & profile</DropdownMenu.Item>
+          <DropdownMenu.Item className="pa-menu-item" onSelect={() => setLocation('/plan')} data-testid="menu-plan"><CreditCard size={16} aria-hidden="true" /> Plan & billing</DropdownMenu.Item>
           <DropdownMenu.Item className="pa-menu-item" onSelect={(event) => { event.preventDefault(); toggleTheme(); }} data-testid="button-theme-toggle">
             {dark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />} {dark ? 'Light mode' : 'Dark mode'}
           </DropdownMenu.Item>

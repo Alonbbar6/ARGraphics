@@ -67,7 +67,10 @@ export function TermsPage() {
       <p>These terms cover the ARGraphics website, dashboard, guest pages and iPhone app during our pilot. By creating an account or using the service you agree to them.</p>
 
       <H2>The pilot</H2>
-      <p>ARGraphics is in a pilot. Founding partners use it for free. Before anything costs you money, we will agree a price with you in writing and give you the chance to stop. We may change features, pause the service for maintenance, or end the pilot with notice.</p>
+      <p>ARGraphics is in a pilot. Founding partners use Business features for free until the date shown on their Plan page. We may change features, pause the service for maintenance, or end the pilot with notice.</p>
+
+      <H2>Payments</H2>
+      <p>Browsing is free. Paid things are listed on your Plan page before you buy them. Payments are handled by Stripe; we never see your card number. The Business plan is billed monthly in advance and renews until you cancel, which you can do at any time from the billing portal; features stay on until the end of the period you paid for. Build credits cost $5 each, do not expire, and are not refundable, except that a credit is returned automatically when a build fails to start, fails, or is rejected by our quality check. Exclusivity means we will not promote another business in your category in your neighborhood while your plan is active; it does not stop anyone from using ARGraphics.</p>
 
       <H2>Your account</H2>
       <p>You are responsible for keeping your password safe and for what is published under your account. One account per business. You must be allowed to speak for the business you register.</p>
@@ -82,7 +85,7 @@ export function TermsPage() {
       <p>Do not use the service to publish anything illegal, misleading, hateful or infringing, or to interfere with the service or other partners. We can remove content or suspend accounts that break this.</p>
 
       <H2>No guarantees</H2>
-      <p>The service is provided as is during the pilot. We work hard to keep it up and accurate, but we do not promise uninterrupted service, exact counts, or any particular business result. To the extent the law allows, our liability is limited to the amount you have paid us, which during the pilot is nothing.</p>
+      <p>The service is provided as is during the pilot. We work hard to keep it up and accurate, but we do not promise uninterrupted service, exact counts, or any particular business result. To the extent the law allows, our liability is limited to the amount you have paid us in the three months before the claim.</p>
 
       <H2>Contact</H2>
       <p>Questions about these terms: <a href={`mailto:${CONTACT}`} className="underline">{CONTACT}</a>.</p>

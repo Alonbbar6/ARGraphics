@@ -17,6 +17,8 @@ import {
 import { localInputToIso } from '@/lib/traffic';
 import { imageProblem, uploadImage } from '@/lib/upload';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
+import { billingErrorMessage } from '@/lib/plan';
 import { cn } from '@/lib/utils';
 
 const STEPS = ['Type', 'Media', 'Placement', 'Preview', 'Publish'];
@@ -117,8 +119,13 @@ function DisplayEditor({ initial, existing, startStep }: { initial: DisplayDraft
       }
     };
     const failed = (error: unknown) => {
-      const status = typeof error === 'object' && error && 'status' in error ? Number((error as { status: number }).status) : 0;
-      toast({ title: 'That didn’t save', description: status === 400 ? 'Something in the form needs a second look.' : 'Check your connection and try again.', variant: 'destructive' });
+      const { message, upgrade, status } = billingErrorMessage(error);
+      toast({
+        title: upgrade ? 'Live display limit reached' : 'That didn’t save',
+        description: upgrade ? message : status === 400 ? 'Something in the form needs a second look.' : 'Check your connection and try again.',
+        variant: 'destructive',
+        action: upgrade ? <ToastAction altText="See plans" onClick={() => setLocation('/plan')}>See plans</ToastAction> : undefined,
+      });
     };
     if (existing) {
       const nextStatus = status === 'draft' && existing.status !== 'draft' ? existing.status : status;

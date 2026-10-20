@@ -111,7 +111,7 @@ export function HeroChapter({ onReady }: { onReady?: () => void }) {
             </Magnetic>
           </div>
           <p className="lp-hero-note" data-hero-in>
-            Free pilot for founding trucks, venues and artists.
+            Free to start · $5 per model · $150/month Business with exclusivity. Founding partners free through the pilot.
           </p>
         </div>
 

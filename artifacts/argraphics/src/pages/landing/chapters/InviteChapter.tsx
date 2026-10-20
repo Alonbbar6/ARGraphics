@@ -36,7 +36,7 @@ export function InviteChapter() {
             <SplitReveal as="h2" id="final-title" className="lp-h2 lp-h2-xl" type="words">
               Make the slow hours worth walking up for.
             </SplitReveal>
-            <p className="lp-lede">Free for founding partners through the pilot. We build your first display with you, and we agree on a price together before it ever costs you anything.</p>
+            <p className="lp-lede">Free to browse, for everyone. Individuals pay $5 per AR model. Businesses get unlimited displays, a verified badge and neighborhood exclusivity for $150 a month. Founding partners stay free through the pilot.</p>
             <div className="lp-actions">
               <Magnetic>
                 <Link href="/register" className="lp-btn lp-btn-primary lp-btn-lg">

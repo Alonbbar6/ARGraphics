@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -48,10 +48,12 @@ import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwor
 import {
   allowAttempt, attemptsSoFar, clientAddress, DAY_MS, generationDailyLimit, LOGIN_FAILURE_LIMIT, LOGIN_IP_LIMIT, recordAttempt,
 } from "../lib/throttle";
+import { NoCreditsError, buildsIncluded, consumeBuildCredit, effectivePlan, refundBuildCredit, type RefundReason } from "../lib/billing";
 
 const router: IRouter = Router();
 const demoBarId = "argraphics-demo-bar";
 const demoSlug = "demo-bar";
+const DEMO_FOUNDING_UNTIL = new Date("2027-12-31T00:00:00Z");
 const sessionCookie = "argraphics_session";
 const MAX_PHOTO_SIZE = 15 * 1024 * 1024;
 const objectStorage = new ObjectStorageService();
@@ -129,6 +131,12 @@ export function partnerKind(kind: string | undefined): "venue" | "artist" | null
   return kind === undefined ? null : "venue";
 }
 
+/** The signed-in account's own kind. Creators are people, not places, so the public API never sees this value. */
+export function accountKind(kind: string | undefined): "venue" | "artist" | "creator" | null {
+  if (kind === "artist" || kind === "creator") return kind;
+  return kind === undefined ? null : "venue";
+}
+
 export function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
@@ -187,7 +195,7 @@ router.get("/auth/session", async (req, res): Promise<void> => {
   res.removeHeader("ETag");
   const user = await currentUser(req);
   if (!user) {
-    res.json(GetSessionResponse.parse({ authenticated: false, userName: null, barName: null, barSlug: null, partnerKind: null }));
+    res.json(GetSessionResponse.parse({ authenticated: false, userName: null, barName: null, barSlug: null, partnerKind: null, plan: null }));
     return;
   }
   const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, user.barId)).limit(1);
@@ -196,7 +204,8 @@ router.get("/auth/session", async (req, res): Promise<void> => {
     userName: user.name,
     barName: bar?.name ?? null,
     barSlug: bar?.slug ?? null,
-    partnerKind: partnerKind(bar?.kind),
+    partnerKind: accountKind(bar?.kind),
+    plan: bar ? effectivePlan(bar) : null,
   }));
 });
 
@@ -269,7 +278,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     userName: name,
     barName: createdBar.name,
     barSlug: createdBar.slug,
-    partnerKind: partnerKind(createdBar.kind),
+    partnerKind: accountKind(createdBar.kind),
+    plan: effectivePlan(createdBar),
   }));
 });
 
@@ -307,7 +317,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     userName: user.name,
     barName: bar?.name ?? null,
     barSlug: bar?.slug ?? null,
-    partnerKind: partnerKind(bar?.kind),
+    partnerKind: accountKind(bar?.kind),
+    plan: bar ? effectivePlan(bar) : null,
   }));
 });
 
@@ -509,6 +520,20 @@ type MeshyTask = {
   task_error?: { message?: string };
 };
 
+/** Gives back the credit spent on the build in flight, once; a refund failure never blocks the build's own status update. */
+async function refundInFlightCredit(drinkId: string, barId: string, reason: RefundReason): Promise<void> {
+  try {
+    const [row] = await db.select({ reference: drinksTable.generationCreditRef }).from(drinksTable)
+      .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).limit(1);
+    if (!row?.reference) return;
+    await refundBuildCredit(barId, reason, row.reference);
+    await db.update(drinksTable).set({ generationCreditRef: null })
+      .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.generationCreditRef, row.reference)));
+  } catch (error) {
+    console.warn("[billing] could not refund a build credit", error);
+  }
+}
+
 async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Promise<boolean> {
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) throw new Error("MESHY_API_KEY is not configured.");
@@ -533,6 +558,7 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
   }
 
   if (result.status === "FAILED" || result.status === "CANCELED") {
+    await refundInFlightCredit(drinkId, barId, "refund_meshy_failed");
     await db.update(drinksTable).set({
       generationStatus: "failed",
       generationError: result.task_error?.message || "Meshy could not make a model from this photo. Try another image.",
@@ -557,6 +583,7 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
     verdict = "could not be read";
   }
   if (verdict) {
+    await refundInFlightCredit(drinkId, barId, "refund_rejected");
     await db.update(drinksTable).set({
       generationStatus: "failed",
       generationError: `The 3D build ${verdict}. Try a sharper photo of the whole item on a plain background.`,
@@ -584,6 +611,7 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
     generationStatus: "ready",
     generationProgress: 100,
     generationError: null,
+    generationCreditRef: null,
     updatedAt: new Date(),
   }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
   return true;
@@ -599,6 +627,7 @@ function startBackgroundPolling(drinkId: string, barId: string, taskId: string) 
         await delay(5_000);
         if (await pollMeshyTask(drinkId, barId, taskId)) return;
       }
+      await refundInFlightCredit(drinkId, barId, "refund_meshy_failed");
       await db.update(drinksTable).set({
         generationStatus: "failed",
         generationError: "This model is taking longer than expected. Try again or choose another photo.",
@@ -606,6 +635,7 @@ function startBackgroundPolling(drinkId: string, barId: string, taskId: string) 
       }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
     } catch (error) {
       const message = error instanceof Error ? error.message : "The 3D preview could not be saved.";
+      await refundInFlightCredit(drinkId, barId, "refund_meshy_failed");
       await db.update(drinksTable).set({
         generationStatus: "failed",
         generationError: message,
@@ -737,9 +767,33 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
     return;
   }
   // Each generation spends platform credits; cap what one partner can start in a day.
-  if (!(await allowAttempt("generation", barId, generationDailyLimit(), { windowMs: DAY_MS }))) {
+  const dailyLimitMessage = `You've reached today's limit of ${generationDailyLimit()} 3D previews. Try again tomorrow.`;
+  if ((await attemptsSoFar("generation", barId, { windowMs: DAY_MS })) >= generationDailyLimit()) {
     res.setHeader("Retry-After", String(DAY_MS / 1000));
-    res.status(429).json({ error: `You've reached today's limit of ${generationDailyLimit()} 3D previews. Try again tomorrow.` });
+    res.status(429).json({ error: dailyLimitMessage });
+    return;
+  }
+  // Free accounts pay per build: one credit is spent now and given back if the build never
+  // starts, fails, or is rejected by the quality check. Business and founding partners build for free.
+  const [bar] = await db.select().from(barsTable).where(eq(barsTable.id, barId)).limit(1);
+  let creditRef: string | null = null;
+  if (bar && !buildsIncluded(bar)) {
+    const reference = `${drink.id}:${randomUUID()}`;
+    try {
+      await db.transaction((tx) => consumeBuildCredit(tx, barId, reference));
+    } catch (error) {
+      if (error instanceof NoCreditsError) {
+        res.status(402).json({ error: error.message, code: error.code });
+        return;
+      }
+      throw error;
+    }
+    creditRef = reference;
+  }
+  if (!(await allowAttempt("generation", barId, generationDailyLimit(), { windowMs: DAY_MS }))) {
+    if (creditRef) await refundBuildCredit(barId, "refund_start_failed", creditRef);
+    res.setHeader("Retry-After", String(DAY_MS / 1000));
+    res.status(429).json({ error: dailyLimitMessage });
     return;
   }
   try {
@@ -753,6 +807,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
         });
       } catch (error) {
         const message = error instanceof InvalidArtworkError ? error.message : `The ${label} photo could not be read. Upload it again.`;
+        if (creditRef) await refundBuildCredit(barId, "refund_start_failed", creditRef);
         res.status(400).json({ error: message });
         return;
       }
@@ -782,6 +837,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
     const result = await response.json() as { result?: string; message?: string };
     if (!response.ok || !result.result) {
       const message = result.message || `Meshy could not start the task (HTTP ${response.status}).`;
+      if (creditRef) await refundBuildCredit(barId, "refund_start_failed", creditRef);
       await db.update(drinksTable).set({
         generationStatus: "failed",
         generationError: message,
@@ -802,6 +858,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
         generationStatus: "processing",
         generationProgress: 0,
         generationError: null,
+        generationCreditRef: creditRef,
         isPublished: false,
         updatedAt: new Date(),
       }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, drink.barId))).returning();
@@ -816,6 +873,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
     res.json(StartDrinkGenerationResponse.parse(generationState(req, updated)));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start the 3D preview.";
+    if (creditRef) await refundBuildCredit(barId, "refund_start_failed", creditRef).catch(() => undefined);
     await db.update(drinksTable).set({
       generationStatus: "failed",
       generationError: message,
@@ -1050,8 +1108,11 @@ async function seedDemoBar(): Promise<string> {
   const [bySlug] = await db.select({ id: barsTable.id }).from(barsTable).where(eq(barsTable.slug, demoSlug)).limit(1);
   const barId = bySlug?.id ?? demoBarId;
   if (!bySlug) {
-    await db.insert(barsTable).values({ id: barId, name: "Demo Bar", slug: demoSlug }).onConflictDoNothing();
+    await db.insert(barsTable).values({ id: barId, name: "Demo Bar", slug: demoSlug, foundingUntil: DEMO_FOUNDING_UNTIL }).onConflictDoNothing();
   }
+  // The demo bar shows the pilot deal: Business features, free, with the badge. Older seeds get it too.
+  await db.update(barsTable).set({ foundingUntil: DEMO_FOUNDING_UNTIL })
+    .where(and(eq(barsTable.id, barId), isNull(barsTable.foundingUntil)));
   const [demoUser] = await db.select().from(usersTable)
     .where(eq(usersTable.email, "demo@argraphics.app")).limit(1);
   if (!demoUser) {

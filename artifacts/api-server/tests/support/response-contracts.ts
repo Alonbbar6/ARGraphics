@@ -4,6 +4,7 @@ import addFormats from "ajv-formats";
 import { parse } from "yaml";
 import { expect } from "vitest";
 import {
+  CreateCheckoutResponse, GetBillingPlanResponse,
   CreateArtworkResponse, ListGalleryResponse, RequestArtworkLicenseResponse, UpdateLicenseResponse,
   CreateDisplayResponse, CreatePublicClaimResponse, CreatePublicScanResponse, CreateQrCodesResponse,
   CreateTableCardResponse, DeleteTableCardResponse, GetAnalyticsResponse, GetLiveBoardResponse, GetPartnerProfileResponse,
@@ -15,6 +16,8 @@ import {
 } from "@workspace/api-zod";
 
 const generated = {
+  getBillingPlan: GetBillingPlanResponse,
+  createCheckout: CreateCheckoutResponse,
   getPublicMenu: GetPublicMenuResponse,
   getPublicMenuVersion: GetPublicMenuVersionResponse,
   getPublicTableCards: GetPublicTableCardsResponse,

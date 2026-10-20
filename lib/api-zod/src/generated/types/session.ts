@@ -5,7 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { PartnerKind } from './partnerKind';
+import type { AccountKind } from './accountKind';
+import type { PlanTier } from './planTier';
 
 export interface Session {
   authenticated: boolean;
@@ -15,5 +16,6 @@ export interface Session {
   barName: string | null;
   /** @nullable */
   barSlug: string | null;
-  partnerKind: PartnerKind | null;
+  partnerKind: AccountKind | null;
+  plan: PlanTier | null;
 }

@@ -51,9 +51,41 @@ Required in production:
 | `APP_ORIGINS` | Comma-separated browser origins allowed to call the API cross-origin. Leave unset when the dashboard is served from the same origin. |
 | `RESEND_API_KEY`, `PASSWORD_RESET_FROM`, `PASSWORD_RESET_APP_URL` | Password-reset email. Create a free Resend account (resend.com), verify a sending domain you own, add an API key, and set the sender to an address on that domain (e.g. `ARGraphics <hello@yourdomain.com>`) and the app URL to the HTTPS dashboard origin. Without all three, password reset answers 503 and sign-up still works. On Replit the API key can be left out and the Resend connector is used instead. |
 
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BUSINESS_MONTHLY`, `STRIPE_PRICE_BUILD_CREDIT`, `PUBLIC_APP_URL` | Billing (see "Billing" below). Without all five, the Plan page says billing is not set up and the checkout, portal and webhook routes answer 503; everything else works. |
+
 Optional: `OPENAI_API_KEY` and `MESHY_API_KEY` (photo cleanup and 3D generation; without them those features answer 503), `GENERATION_DAILY_LIMIT` (paid 3D generations one partner may start per day, default 10), `DATABASE_SSL` (`require`, `no-verify`, `disable`; see below), `LOG_LEVEL`.
 
 Never set `LOCAL_STORAGE_DIR` or `LOCAL_STORAGE_PUBLIC_URL` in production: they keep uploads on the server's disk with no access control beyond the URL.
+
+## Billing
+
+Plans live in `bars.plan` (`free` or `business`), written only by Stripe webhooks, plus
+`bars.founding_until` for pilot partners who get Business features free until a date.
+Free accounts may have 3 displays live at once and pay $5 per 3D build (`bars.build_credits`,
+audited in `credit_ledger`); Business is $150/month with unlimited displays, builds included,
+promotion and one exclusive (category, neighborhood) slot (`business_slots`).
+
+Set-up, once, in the Stripe dashboard:
+
+1. Create two products: "Business" with a recurring $150/month price and "Build credit" with a
+   one-time $5 price. Copy the two `price_...` ids into `STRIPE_PRICE_BUSINESS_MONTHLY` and
+   `STRIPE_PRICE_BUILD_CREDIT`.
+2. Developers > Webhooks > add endpoint `https://<your host>/api/billing/webhook` with the
+   events `checkout.session.completed`, `checkout.session.expired`,
+   `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.payment_failed`. Copy its signing secret into
+   `STRIPE_WEBHOOK_SECRET`.
+3. Settings > Billing > Customer portal: enable it and allow cancelling subscriptions.
+4. Set `STRIPE_SECRET_KEY` (test key first) and `PUBLIC_APP_URL` (the https origin of the
+   dashboard, no trailing slash) on the service and redeploy.
+
+Locally: `stripe listen --forward-to localhost:8080/api/billing/webhook` prints a `whsec_` to
+use as the webhook secret, and `4242 4242 4242 4242` pays in test mode.
+
+By hand, with SQL:
+
+- Founding partner: `UPDATE bars SET founding_until = '2027-06-30' WHERE slug = '<slug>';`
+- Give credits: `INSERT INTO credit_ledger (id, bar_id, delta, reason, reference) VALUES (gen_random_uuid()::text, '<bar id>', 5, 'admin', '<note>'); UPDATE bars SET build_credits = build_credits + 5 WHERE id = '<bar id>';`
 
 ## Schema changes: migrations, not `push`
 

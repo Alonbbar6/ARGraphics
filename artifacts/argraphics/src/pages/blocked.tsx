@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { AlertCircle, ArrowLeft, Check, Download, LayoutGrid, LoaderCircle, Pencil, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { TableCardEditor } from '@/components/table-card-editor';
 import { countLabel } from '@/lib/traffic';
+import { planLabel } from '@/lib/plan';
 
 type ArtworkSelection = {
   file: File;
@@ -301,7 +302,8 @@ export function SettingsPage() {
           <h2 className="text-lg font-semibold">Account</h2>
           <dl className="mt-3 divide-y divide-border">
             <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Signed in as</dt><dd className="truncate text-right text-sm font-semibold">{session?.userName || '—'}</dd></div>
-            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Account type</dt><dd className="text-right text-sm font-semibold">{artist ? 'Artist' : 'Venue'}</dd></div>
+            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Account type</dt><dd className="text-right text-sm font-semibold">{artist ? 'Artist' : profile.data?.kind === 'creator' ? 'Creator' : 'Venue'}</dd></div>
+            <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Plan</dt><dd className="text-right text-sm font-semibold"><Link href="/plan" className="underline underline-offset-4" data-testid="link-plan">{planLabel(profile.data?.plan)}</Link></dd></div>
             <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Times shown in</dt><dd className="text-right text-sm font-semibold">{profile.data?.timezone.replace(/_/g, ' ') || '—'}</dd></div>
             <div className="flex min-h-14 items-center justify-between gap-5"><dt className="text-sm text-muted-foreground">Location pin</dt><dd className="text-right text-sm font-semibold">{profile.data?.latitude != null ? 'Set' : 'Not set'}</dd></div>
           </dl>

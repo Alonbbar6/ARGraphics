@@ -5,7 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { PartnerKind } from './partnerKind';
+import type { AccountKind } from './accountKind';
 import type { VenueType } from './venueType';
 
 export interface OwnerRegistrationInput {
@@ -27,5 +27,5 @@ export interface OwnerRegistrationInput {
      * @maxLength 72
      */
   password: string;
-  kind?: PartnerKind;
+  kind?: AccountKind;
 }

@@ -16,6 +16,7 @@ export default defineConfig({
       SESSION_SECRET: "session-regression-fixture-secret",
       DATABASE_URL: "",
       MESHY_API_KEY: "",
+      STRIPE_SECRET_KEY: "",
       LOG_LEVEL: "silent",
     },
   },

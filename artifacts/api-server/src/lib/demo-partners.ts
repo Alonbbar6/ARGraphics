@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { barsTable, db, displaysTable, drinksTable, menuVersionTable, qrCodesTable, redemptionsTable, scansTable, usersTable } from "@workspace/db";
 import { localParts, localTimeOn, safeTimeZone } from "./traffic";
 import { serviceWindows } from "./service-window";
@@ -13,6 +13,8 @@ import { serviceWindows } from "./service-window";
  * from real use.
  */
 export const DEMO_TRUCK_ID = "demo-truck";
+/** The demo truck is a founding partner: Business features, free, through the pilot. */
+const FOUNDING_UNTIL = new Date("2027-12-31T00:00:00Z");
 
 /** A taco truck with three items, so the pitch to trucks and stands has a real example. */
 async function seedDemoTruck(passwordHash: string, timezone: string) {
@@ -20,7 +22,11 @@ async function seedDemoTruck(passwordHash: string, timezone: string) {
     id: DEMO_TRUCK_ID, name: "La Esquina Taco Truck", slug: "demo-truck", kind: "venue", venueType: "truck",
     neighborhood: "Little Havana", address: "SW 8th St & 15th Ave, Miami", timezone,
     bio: "Birria, al pastor and aguas frescas from a truck that parks where the lunch line is.",
+    foundingUntil: FOUNDING_UNTIL,
   }).onConflictDoNothing();
+  // Databases seeded before plans existed get the flag too, so the demo shows the Business badge.
+  await db.update(barsTable).set({ foundingUntil: FOUNDING_UNTIL })
+    .where(and(eq(barsTable.id, DEMO_TRUCK_ID), isNull(barsTable.foundingUntil)));
   const [owner] = await db.select().from(usersTable).where(eq(usersTable.email, "demo-truck@argraphics.app")).limit(1);
   if (!owner) {
     await db.insert(usersTable).values({ id: randomUUID(), barId: DEMO_TRUCK_ID, email: "demo-truck@argraphics.app", passwordHash, name: "Rosa Delgado" });

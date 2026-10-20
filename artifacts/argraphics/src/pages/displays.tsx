@@ -39,6 +39,8 @@ function shelfItem(display: Display): ShelfItem {
 }
 import { countLabel, formatCount, plural } from '@/lib/traffic';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
+import { billingErrorMessage } from '@/lib/plan';
 import { EASE_OUT, Flip, gsap, prefersReducedMotion, registerFlip } from '@/lib/motion';
 
 type Filter = 'all' | 'live' | 'draft' | 'paused';
@@ -77,7 +79,13 @@ export function DisplaysPage() {
         void refresh();
         toast({ title: status === 'live' ? `${display.title} is live` : `${display.title} is paused`, description: status === 'live' ? 'Guests who scan will see it right away.' : 'Guests won’t see it until you resume.' });
       },
-      onError: () => toast({ title: 'That didn’t save', description: 'Check your connection and try again.', variant: 'destructive' }),
+      onError: (error) => {
+        const { message, upgrade } = billingErrorMessage(error);
+        toast({
+          title: upgrade ? 'Live display limit reached' : 'That didn’t save', description: message, variant: 'destructive',
+          action: upgrade ? <ToastAction altText="See plans" onClick={() => setLocation('/plan')}>See plans</ToastAction> : undefined,
+        });
+      },
       onSettled: () => setBusyId(null),
     });
   };

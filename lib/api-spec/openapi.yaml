@@ -28,6 +28,8 @@ tags:
     description: AR displays a partner places in their space
   - name: qrCodes
     description: Placed QR codes, one per table, window, wall or poster
+  - name: billing
+    description: Plans, build credits and Stripe checkout
   - name: analytics
     description: Scans, visitors and redemptions
 paths:
@@ -385,6 +387,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DrinkGeneration"
+        "402":
+          description: No build credits left on a free account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "429":
           description: The partner's daily limit of paid 3D generations is reached
   /drinks/{id}/photos/{kind}:
@@ -572,6 +579,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+  /billing/plan:
+    get:
+      operationId: getBillingPlan
+      tags: [billing]
+      summary: The signed-in partner's plan, limits and credits
+      responses:
+        "200":
+          description: Plan state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPlan"
+        "401":
+          description: Sign-in required
+  /billing/checkout:
+    post:
+      operationId: createCheckout
+      tags: [billing]
+      summary: Start a Stripe Checkout for the Business plan or build credits
+      description: For the Business plan the partner's (category, neighborhood) slot is reserved before Checkout opens, so a taken slot answers 409 and nobody pays for exclusivity they cannot have.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutInput"
+      responses:
+        "200":
+          description: Redirect the browser here
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutUrl"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: Sign-in required
+        "409":
+          description: Already on this plan, or the exclusivity slot is taken
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: Stripe could not be reached
+        "503":
+          description: Billing is not configured
+  /billing/portal:
+    post:
+      operationId: createBillingPortal
+      tags: [billing]
+      summary: Open the Stripe customer portal to manage or cancel the subscription
+      responses:
+        "200":
+          description: Redirect the browser here
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutUrl"
+        "401":
+          description: Sign-in required
+        "404":
+          description: No billing account yet
+        "503":
+          description: Billing is not configured
+  /billing/webhook:
+    post:
+      operationId: receiveStripeWebhook
+      tags: [billing]
+      summary: Stripe event delivery (signed; not for the dashboard)
+      description: Mounted ahead of the JSON parser so the raw body can be verified against STRIPE_WEBHOOK_SECRET. Each event id is handled once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeEvent"
+      responses:
+        "200":
+          description: Event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Bad signature
+        "503":
+          description: Billing is not configured
   /partner/profile:
     get:
       operationId: getPartnerProfile
@@ -636,6 +729,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Display"
+        "402":
+          description: Live-display limit of the free plan reached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "400":
           description: Invalid display details
         "401":
@@ -685,6 +783,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Display"
+        "402":
+          description: Live-display limit of the free plan reached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "400":
           description: Invalid display details
         "401":
@@ -1448,6 +1551,9 @@ components:
       required: [error]
       properties:
         error: { type: string }
+        code:
+          type: string
+          description: Machine-readable reason when the client should offer a next step (plan_limit, no_credits).
     SavedPhotoCleanup:
       type: object
       required: [id, drinkId, status, sourcePhotoPath, cleanedPhotoPath, error, createdAt]
@@ -1480,9 +1586,13 @@ components:
         barSlug: { type: ["string", "null"] }
         partnerKind:
           oneOf:
-            - $ref: "#/components/schemas/PartnerKind"
+            - $ref: "#/components/schemas/AccountKind"
             - type: "null"
-      required: [authenticated, userName, barName, barSlug, partnerKind]
+        plan:
+          oneOf:
+            - $ref: "#/components/schemas/PlanTier"
+            - type: "null"
+      required: [authenticated, userName, barName, barSlug, partnerKind, plan]
     PasswordRecoveryInput:
       type: object
       properties:
@@ -1508,7 +1618,7 @@ components:
         venueType: { $ref: "#/components/schemas/VenueType" }
         email: { type: string, format: email, maxLength: 254 }
         password: { type: string, minLength: 12, maxLength: 72 }
-        kind: { $ref: "#/components/schemas/PartnerKind" }
+        kind: { $ref: "#/components/schemas/AccountKind" }
       required: [name, barName, email, password]
     Drink:
       type: object
@@ -1693,6 +1803,63 @@ components:
     PartnerKind:
       type: string
       enum: [venue, artist]
+    AccountKind:
+      description: What signed up. Venues and artists are places and people guests can find; a creator is an individual making models for themselves.
+      type: string
+      enum: [venue, artist, creator]
+    PlanTier:
+      description: What the account is entitled to right now. "founding" is a free Business plan through the pilot.
+      type: string
+      enum: [free, business, founding]
+    BillingPlan:
+      type: object
+      properties:
+        plan: { type: string, enum: [free, business] }
+        effective: { $ref: "#/components/schemas/PlanTier" }
+        foundingUntil: { type: ["string", "null"], format: date-time }
+        liveDisplays: { type: integer }
+        liveDisplayLimit: { type: ["integer", "null"], description: "Null means unlimited." }
+        buildCredits: { type: integer }
+        buildsIncluded: { type: boolean, description: "True when 3D builds do not spend credits." }
+        subscriptionStatus: { type: ["string", "null"] }
+        currentPeriodEnd: { type: ["string", "null"], format: date-time }
+        slot:
+          oneOf:
+            - type: object
+              properties:
+                category: { type: string }
+                neighborhood: { type: string }
+              required: [category, neighborhood]
+            - type: "null"
+        checkoutAvailable: { type: boolean }
+        portalAvailable: { type: boolean }
+        prices:
+          type: object
+          properties:
+            businessMonthlyCents: { type: integer }
+            buildCreditCents: { type: integer }
+          required: [businessMonthlyCents, buildCreditCents]
+      required: [plan, effective, foundingUntil, liveDisplays, liveDisplayLimit, buildCredits, buildsIncluded, subscriptionStatus, currentPeriodEnd, slot, checkoutAvailable, portalAvailable, prices]
+    CheckoutInput:
+      type: object
+      additionalProperties: false
+      properties:
+        product: { type: string, enum: [business, credits] }
+        quantity: { type: integer, minimum: 1, maximum: 10, description: "Build credits to buy; ignored for the Business plan." }
+        category: { type: string, minLength: 1, maxLength: 40, description: "What the business is known for (tacos, coffee). Defaults to the venue type." }
+      required: [product]
+    CheckoutUrl:
+      type: object
+      properties:
+        url: { type: string, format: uri }
+      required: [url]
+    StripeEvent:
+      description: A Stripe event envelope; verified from the raw body, never parsed from this schema.
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+      required: [id, type]
     VenueType:
       description: What kind of place a venue is; shapes wording like "table" vs "window". Null for artists.
       type: string
@@ -1710,7 +1877,8 @@ components:
       type: object
       properties:
         id: { type: string }
-        kind: { $ref: "#/components/schemas/PartnerKind" }
+        kind: { $ref: "#/components/schemas/AccountKind" }
+        plan: { $ref: "#/components/schemas/PlanTier" }
         venueType:
           oneOf:
             - $ref: "#/components/schemas/VenueType"
@@ -1725,7 +1893,7 @@ components:
         timezone: { type: string }
         serviceOpen: { type: ["string", "null"], description: "Local opening time HH:MM; null means 17:00." }
         serviceClose: { type: ["string", "null"], description: "Local closing time HH:MM; null means 03:00. Earlier than opening means it crosses midnight." }
-      required: [id, kind, venueType, name, slug, bio, neighborhood, address, latitude, longitude, timezone, serviceOpen, serviceClose]
+      required: [id, kind, plan, venueType, name, slug, bio, neighborhood, address, latitude, longitude, timezone, serviceOpen, serviceClose]
     PartnerProfileUpdate:
       type: object
       additionalProperties: false

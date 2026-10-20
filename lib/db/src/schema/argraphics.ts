@@ -1,4 +1,5 @@
-import { pgTable, text, integer, boolean, timestamp, numeric, real, uniqueIndex, index, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, numeric, real, uniqueIndex, index, doublePrecision, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const barsTable = pgTable("bars", {
   id: text("id").primaryKey(),
@@ -18,8 +19,18 @@ export const barsTable = pgTable("bars", {
   // Service hours as local wall-clock "HH:MM"; null means the defaults (17:00 to 03:00).
   serviceOpen: text("service_open"),
   serviceClose: text("service_close"),
+  // Billing. `plan` mirrors the Stripe subscription ("free" | "business") and is written by
+  // webhooks only. A founding partner keeps Business features free until `foundingUntil`.
+  plan: text("plan").notNull().default("free"),
+  foundingUntil: timestamp("founding_until", { withTimezone: true }),
+  // Paid 3D builds still available to a free account; the credit_ledger table is the audit trail.
+  buildCredits: integer("build_credits").notNull().default(0),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
+  subscriptionStatus: text("subscription_status"),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [check("bars_build_credits_nonnegative", sql`${table.buildCredits} >= 0`)]);
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
@@ -60,6 +71,9 @@ export const drinksTable = pgTable("drinks", {
   generationProgress: integer("generation_progress").notNull().default(0),
   meshyTaskId: text("meshy_task_id"),
   generationError: text("generation_error"),
+  // Ledger reference of the build credit spent on the build in flight, so a failed or
+  // rejected build can give it back exactly once. Null once the build is ready or refunded.
+  generationCreditRef: text("generation_credit_ref"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

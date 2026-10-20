@@ -1,4 +1,5 @@
 import { createElement, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { billingErrorMessage } from '@/lib/plan';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useListDisplays, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
@@ -464,7 +465,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
       void generationQuery.refetch();
     } catch (cause) {
       setBusyMessage('');
-      setError(messageFrom(cause, 'The 3D build could not start. Your photos are still here—try again.'));
+      setError(billingErrorMessage(cause, 'The 3D build could not start. Your photos are still here—try again.').message);
     }
   };
 

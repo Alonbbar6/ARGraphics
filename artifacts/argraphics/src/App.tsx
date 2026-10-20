@@ -36,6 +36,7 @@ const DrinksPage = lazy(() => import('@/pages/drinks').then((m) => ({ default: m
 const TableCardsPage = lazy(() => import('@/pages/blocked').then((m) => ({ default: m.TableCardsPage })));
 const SettingsPage = lazy(() => import('@/pages/blocked').then((m) => ({ default: m.SettingsPage })));
 const GalleryPage = lazy(() => import('@/pages/gallery').then((m) => ({ default: m.GalleryPage })));
+const PlanPage = lazy(() => import('@/pages/plan').then((m) => ({ default: m.PlanPage })));
 
 // Dev only: the frame baker for the landing page's image sequences. Vite drops this
 // branch (and three.js with it) from production builds.
@@ -51,7 +52,7 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
  * every path below, so moving between tabs swaps only the page: the nav pill slides and
  * the top bar never flashes.
  */
-const DASHBOARD_PATHS = /^\/(home|artist|displays|displays\/[^/]+|qr-codes|analytics|insights|drinks|table-cards|settings|gallery)$/;
+const DASHBOARD_PATHS = /^\/(home|artist|displays|displays\/[^/]+|qr-codes|analytics|insights|drinks|table-cards|settings|gallery|plan)$/;
 
 function Router() {
   return (
@@ -85,6 +86,7 @@ function Router() {
                 <Route path="/table-cards" component={TableCardsPage} />
                 <Route path="/settings" component={SettingsPage} />
                 <Route path="/gallery" component={GalleryPage} />
+                <Route path="/plan" component={PlanPage} />
                 </Switch>
               </Suspense>
             </Shell>

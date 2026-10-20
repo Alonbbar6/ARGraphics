@@ -22,9 +22,11 @@ export async function initializeDatabase() {
 export async function resetDatabase() {
   await client.exec("TRUNCATE bars CASCADE");
   await client.exec("TRUNCATE recovery_rate_limits");
+  // Free accounts pay per 3D build; the fixtures start with credits so generation tests
+  // exercise the pipeline, and billing tests set the balance they need explicitly.
   await db.insert(schema.barsTable).values([
-    { id: "argraphics-demo-bar", name: "Fixture Bar", slug: "demo-bar" },
-    { id: "other-bar", name: "Other Fixture Bar", slug: "other-bar" },
+    { id: "argraphics-demo-bar", name: "Fixture Bar", slug: "demo-bar", buildCredits: 25 },
+    { id: "other-bar", name: "Other Fixture Bar", slug: "other-bar", buildCredits: 25 },
   ]);
   await db.insert(schema.usersTable).values([
     {

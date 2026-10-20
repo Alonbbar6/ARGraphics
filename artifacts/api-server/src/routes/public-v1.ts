@@ -195,7 +195,7 @@ router.get("/v1/venues/:slug/nearby", async (req, res): Promise<void> => {
   }
   const origin = { latitude: bar.latitude, longitude: bar.longitude };
   const others = await db.select().from(barsTable).where(and(
-    ne(barsTable.id, bar.id), isNotNull(barsTable.latitude), isNotNull(barsTable.longitude),
+    ne(barsTable.id, bar.id), ne(barsTable.kind, "creator"), isNotNull(barsTable.latitude), isNotNull(barsTable.longitude),
   ));
   const close = others
     .map((other) => ({ other, distance: distanceMeters(origin, { latitude: other.latitude!, longitude: other.longitude! }) }))

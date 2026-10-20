@@ -37,7 +37,8 @@ import { InvalidArtworkError, MAX_ARTWORK_BYTES, validateRasterImage } from "../
 import {
   countBy, dailySeries, heatmap, isValidTimeZone, newQrCode, rangeBounds, safeTimeZone, totals, type TrafficRange,
 } from "../lib/traffic";
-import { currentUser, isUniqueViolation, partnerKind, publicAssetUrl } from "./argraphics";
+import { accountKind, currentUser, isUniqueViolation, partnerKind, publicAssetUrl } from "./argraphics";
+import { BillingError, assertCanGoLive, effectivePlan } from "../lib/billing";
 import { isServiceTimeString, serviceWindows, type ServiceWindow } from "../lib/service-window";
 
 const router: IRouter = Router();
@@ -53,7 +54,7 @@ type Placement = "table" | "wall" | "window" | "poster";
 
 class DisplayRuleError extends Error {}
 
-async function partner(req: Request, res: Response): Promise<Bar | null> {
+export async function partner(req: Request, res: Response): Promise<Bar | null> {
   const user = await currentUser(req);
   if (!user) {
     res.status(401).json({ error: "Sign in to manage your displays." });
@@ -74,8 +75,9 @@ function venueType(value: string | null | undefined): "restaurant" | "truck" | "
 function profile(bar: Bar) {
   return {
     id: bar.id,
-    kind: partnerKind(bar.kind) ?? "venue",
-    venueType: partnerKind(bar.kind) === "artist" ? null : venueType(bar.venueType),
+    kind: accountKind(bar.kind) ?? "venue",
+    plan: effectivePlan(bar),
+    venueType: accountKind(bar.kind) === "venue" ? venueType(bar.venueType) : null,
     name: bar.name,
     slug: bar.slug,
     bio: bar.bio,
@@ -250,6 +252,10 @@ async function removeMedia(objectPath: string | null | undefined) {
 }
 
 function sendDisplayError(req: Request, res: Response, error: unknown, action: string) {
+  if (error instanceof BillingError) {
+    res.status(error.status).json({ error: error.message, ...(error.code ? { code: error.code } : {}) });
+    return;
+  }
   if (error instanceof DisplayRuleError || error instanceof InvalidArtworkError) {
     res.status(400).json({ error: error.message });
     return;
@@ -349,7 +355,10 @@ router.post("/displays", async (req, res): Promise<void> => {
     };
     checkDisplayRules(values);
     if (input.mediaObjectPath && !artwork) mediaPath = await acceptMedia(input.mediaObjectPath);
-    const [created] = await db.insert(displaysTable).values({ ...values, mediaPath }).returning();
+    const [created] = await db.transaction(async (tx) => {
+      if (values.status === "live") await assertCanGoLive(tx, bar);
+      return tx.insert(displaysTable).values({ ...values, mediaPath }).returning();
+    });
     committed = true;
     const [display] = await serializeDisplays(req, bar.id, [created]);
     res.status(201).json(CreateDisplayResponse.parse(display));
@@ -439,8 +448,11 @@ router.patch("/displays/:id", async (req, res): Promise<void> => {
     } else if (input.mediaObjectPath === null) {
       changes.mediaPath = null;
     }
-    const [updated] = await db.update(displaysTable).set(changes)
-      .where(and(eq(displaysTable.id, existing.id), eq(displaysTable.barId, bar.id))).returning();
+    const [updated] = await db.transaction(async (tx) => {
+      if (changes.status === "live" && existing.status !== "live") await assertCanGoLive(tx, bar, existing.id);
+      return tx.update(displaysTable).set(changes)
+        .where(and(eq(displaysTable.id, existing.id), eq(displaysTable.barId, bar.id))).returning();
+    });
     committed = true;
     if (changes.mediaPath !== undefined && existing.mediaPath !== changes.mediaPath) {
       await removeMedia(existing.mediaPath);

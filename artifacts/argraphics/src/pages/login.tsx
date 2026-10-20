@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useGetSession, useLogin, useRegister, getGetSessionQueryKey, type PartnerKind } from '@workspace/api-client-react';
+import { useGetSession, useLogin, useRegister, getGetSessionQueryKey, type AccountKind } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, LockKeyhole, Palette, Store, Truck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole, Palette, Sparkles, Store, Truck } from 'lucide-react';
 import { Button, Field, inputClass, SegmentedControl } from '@/components/partner-ui';
 import { Wordmark } from '@/components/shell';
 
@@ -87,11 +87,12 @@ export function LoginPage() {
 export function RegisterPage() {
   const params = new URLSearchParams(window.location.search);
   const referral = params.get('ref');
-  const [kind, setKind] = useState<PartnerKind>(params.get('kind') === 'artist' ? 'artist' : 'venue');
-  const [venueType, setVenueType] = useState<'restaurant' | 'truck'>(params.get('kind') === 'truck' ? 'truck' : 'restaurant');
-  const account = kind === 'artist' ? 'artist' : venueType;
+  const wanted = params.get('kind');
+  const [kind, setKind] = useState<AccountKind>(wanted === 'artist' || wanted === 'creator' ? wanted : 'venue');
+  const [venueType, setVenueType] = useState<'restaurant' | 'truck'>(wanted === 'truck' ? 'truck' : 'restaurant');
+  const account = kind === 'venue' ? venueType : kind;
   const chooseAccount = (value: string) => {
-    if (value === 'artist') { setKind('artist'); return; }
+    if (value === 'artist' || value === 'creator') { setKind(value); return; }
     setKind('venue');
     setVenueType(value === 'truck' ? 'truck' : 'restaurant');
   };
@@ -116,7 +117,7 @@ export function RegisterPage() {
       onSuccess: (result) => {
         queryClient.clear();
         queryClient.setQueryData(getGetSessionQueryKey(), result);
-        setLocation('/welcome');
+        setLocation(kind === 'creator' ? '/drinks' : '/welcome');
       },
       onError: (error) => {
         const status = 'status' in error ? error.status : undefined;
@@ -128,16 +129,19 @@ export function RegisterPage() {
   };
 
   const artist = kind === 'artist';
+  const creator = kind === 'creator';
   return (
     <AuthLayout aside={artist
       ? { eyebrow: 'For local artists', headline: 'Your work, on walls people already go to.', body: 'Venues host your pieces in AR. Guests see them in the room, and you see every scan.' }
-      : { eyebrow: 'For independent spots', headline: 'Fill the slow hours.', body: 'Put something out front that people can only see at your spot, and see exactly who came in because of it.' }}>
-      <h1 className="serif text-5xl leading-tight">{artist ? 'Put your work in the room.' : 'Give people a reason to come by.'}</h1>
+      : creator
+        ? { eyebrow: 'For makers', headline: 'Turn a photo into something you can set on a table.', body: 'Free to look around. $5 per 3D model, no subscription, and up to three displays live at a time.' }
+        : { eyebrow: 'For independent spots', headline: 'Fill the slow hours.', body: 'Put something out front that people can only see at your spot, and see exactly who came in because of it.' }}>
+      <h1 className="serif text-5xl leading-tight">{artist ? 'Put your work in the room.' : creator ? 'Make it, then place it anywhere.' : 'Give people a reason to come by.'}</h1>
       <p className="mt-3 text-sm text-muted-foreground">{referral ? 'An ARGraphics artist invited you. ' : ''}Takes about two minutes. No contract.</p>
       <form onSubmit={submit} className="mt-7 space-y-3.5">
-        <SegmentedControl label="Account type" value={account} onChange={chooseAccount} options={[{ value: 'restaurant', label: 'Bar or restaurant', icon: Store }, { value: 'truck', label: 'Food truck or stand', icon: Truck }, { value: 'artist', label: 'I’m an artist', icon: Palette }]} />
+        <SegmentedControl label="Account type" value={account} onChange={chooseAccount} options={[{ value: 'restaurant', label: 'Bar or restaurant', icon: Store }, { value: 'truck', label: 'Food truck or stand', icon: Truck }, { value: 'artist', label: 'I’m an artist', icon: Palette }, { value: 'creator', label: 'Just me, making models', icon: Sparkles }]} />
         <Field label="Your name"><input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder="Marisol Vega" /></Field>
-        <Field label={artist ? 'Artist or studio name' : 'Venue name'}><input required minLength={2} maxLength={80} autoComplete="organization" value={barName} onChange={(event) => setBarName(event.target.value)} className={inputClass} placeholder={artist ? 'Ana Ruiz Studio' : 'Casa Marisol'} /></Field>
+        <Field label={artist ? 'Artist or studio name' : creator ? 'What to call your library' : 'Venue name'}><input required minLength={2} maxLength={80} autoComplete="organization" value={barName} onChange={(event) => setBarName(event.target.value)} className={inputClass} placeholder={artist ? 'Ana Ruiz Studio' : creator ? 'Sam’s models' : 'Casa Marisol'} /></Field>
         <Field label="Email address"><input required type="email" maxLength={254} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} placeholder="you@yourspot.com" /></Field>
         <Field label="Password" hint="Use at least 12 characters."><input required type="password" minLength={12} maxLength={72} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} placeholder="At least 12 characters" /></Field>
         {errorMessage && <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{errorMessage}</p>}

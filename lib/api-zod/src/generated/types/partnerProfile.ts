@@ -5,12 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { PartnerKind } from './partnerKind';
+import type { AccountKind } from './accountKind';
+import type { PlanTier } from './planTier';
 import type { VenueType } from './venueType';
 
 export interface PartnerProfile {
   id: string;
-  kind: PartnerKind;
+  kind: AccountKind;
+  plan: PlanTier;
   venueType: VenueType | null;
   name: string;
   slug: string;

@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import { stripeWebhookHandler } from "./routes/billing";
 import { logger } from "./lib/logger";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -79,6 +80,8 @@ app.use(cors({
   // PUT: local-storage uploads when the dashboard and storage URLs use different hosts.
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }));
+// Stripe signs the exact bytes it sends; this route must see them before any parser.
+app.post("/api/billing/webhook", express.raw({ type: "application/json", limit: "1mb" }), stripeWebhookHandler);
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 
