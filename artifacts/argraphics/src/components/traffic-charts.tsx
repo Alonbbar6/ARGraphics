@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { TrafficDay } from '@workspace/api-client-react';
 import { countLabel, DAY_NAMES, DAY_SHORT, formatCount, heatmapColor, hourLong, hourShort, shortDate, shortDay } from '@/lib/traffic';
 
-/** Scans and walk-ins per day on one shared count axis (both are people). */
+/** Scans and redemptions per day on one shared count axis (both are people). */
 export function ScansChart({ series, height = 180 }: { series: TrafficDay[]; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const days = series.slice(-120);
@@ -27,10 +27,10 @@ export function ScansChart({ series, height = 180 }: { series: TrafficDay[]; hei
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground" />Scans</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" />Walk-ins (offers claimed)</span>
         <span className="ml-auto min-h-4 tabular-nums text-foreground" aria-live="polite">
-          {active ? `${shortDay(active.date)} ${shortDate(active.date)}: ${countLabel(active.scans, 'scan')}, ${countLabel(active.redemptions, 'walk-in')}` : ''}
+          {active ? `${shortDay(active.date)} ${shortDate(active.date)}: ${countLabel(active.scans, 'scan')}, ${countLabel(active.redemptions, 'redemption')}` : ''}
         </span>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full overflow-visible" role="img" aria-label={`Scans and walk-ins per day, ${shortDate(days[0].date)} to ${shortDate(days[days.length - 1].date)}. Highest day: ${formatCount(max)}.`} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full overflow-visible" role="img" aria-label={`Scans and redemptions per day, ${shortDate(days[0].date)} to ${shortDate(days[days.length - 1].date)}. Highest day: ${formatCount(max)}.`} onMouseLeave={() => setHover(null)}>
         {[0, 0.5, 1].map((t) => (
           <g key={t}>
             <line x1={0} x2={width} y1={y(niceMax * t)} y2={y(niceMax * t)} className="stroke-border" strokeWidth={1} strokeDasharray={t === 0 ? undefined : '2 4'} />

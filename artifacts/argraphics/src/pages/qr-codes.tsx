@@ -53,15 +53,16 @@ function MenuLinkCard({ slug, venueName }: { slug: string; venueName: string }) 
     }
   };
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4" data-testid="card-menu-link">
+    <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-card px-5 py-4 sm:flex-row sm:items-center" data-testid="card-menu-link">
+      {/* On a phone the text takes the full width and the buttons drop underneath; side by side needs a wider screen. */}
       <div className="min-w-0 flex-1">
         <p className="font-semibold">Your guest page, no code needed</p>
-        <p className="mt-1 truncate text-sm text-muted-foreground">
+        <p className="mt-1 break-all text-sm text-muted-foreground sm:truncate">
           <a href={url} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">{url}</a>
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">Guests open it from your Instagram bio, Google listing or a table tent and place any item on their table in AR. Printed codes still point to a specific spot.</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Guests open it from your Instagram bio, Google listing or a table tent and place any item on their table in AR. Printed codes still point to a specific spot.</p>
       </div>
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
         <Button onClick={() => void copy()} variant="ghost" data-testid="button-copy-menu-link">{copied ? 'Copied' : 'Copy link'}</Button>
         <Button onClick={() => void printWindowCard()} loading={printing} icon={FileDown} data-testid="button-print-window-card">Window card</Button>
       </div>
@@ -240,7 +241,7 @@ function QrTile({ qr, venueName, displays, editing, onEdit, onDone, onRetire }: 
           <>
             <p className="flex items-center gap-1.5 text-sm font-semibold"><PlacementIcon size={14} aria-hidden="true" /><span className="truncate">{qr.label}</span></p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{qr.displayTitle ? `Shows ${qr.displayTitle}` : 'Shows everything live'}</p>
-            <p className="mt-2 text-xs tabular-nums"><span className="font-semibold">{formatCount(qr.scansThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.scansThisWeek, 'scan')} ·</span> <span className="font-semibold">{formatCount(qr.redemptionsThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.redemptionsThisWeek, 'walk-in')}</span></p>
+            <p className="mt-2 text-xs tabular-nums"><span className="font-semibold">{formatCount(qr.scansThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.scansThisWeek, 'scan')} ·</span> <span className="font-semibold">{formatCount(qr.redemptionsThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.redemptionsThisWeek, 'redemption')}</span></p>
             <div className="mt-auto flex items-center gap-1 pt-3">
               <Button variant="ghost" size="sm" icon={Download} onClick={() => void downloadPng()} className="flex-1" aria-label={`Download PNG for ${qr.label}`}>PNG</Button>
               <Button variant="quiet" size="icon" icon={Pencil} onClick={onEdit} aria-label={`Rename or relink ${qr.label}`} />

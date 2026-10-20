@@ -88,7 +88,7 @@ export function HomePage() {
   const lastNight = !live.board?.open && live.board?.lastNight && live.board.lastNight.scans > 0 ? live.board.lastNight : null;
   const bestSpot = lastNight ? list.find((display) => display.id === lastNight.byDisplay[0]?.displayId) : undefined;
   const recap = lastNight
-    ? `Last night: ${countLabel(lastNight.scans, 'scan')}, ${countLabel(lastNight.redemptions, 'walk-in')}${bestSpot ? `, best spot ${bestSpot.title}` : ''}.`
+    ? `Last night: ${countLabel(lastNight.scans, 'scan')}, ${countLabel(lastNight.redemptions, 'redemption')}${bestSpot ? `, best spot ${bestSpot.title}` : ''}.`
     : null;
 
   if (tonight.on) {
