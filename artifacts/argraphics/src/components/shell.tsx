@@ -7,6 +7,7 @@ import { BarChart3, ChevronDown, CircleHelp, Home, Layers, LogOut, Moon, QrCode,
 import { initials } from '@/lib/traffic';
 import { gsap, prefersReducedMotion } from '@/lib/motion';
 import { installCursorSpotlight } from '@/lib/cursor-spotlight';
+import { installCursorTracer } from '@/lib/cursor-tracer';
 import { TonightProvider, useTonight } from '@/hooks/use-tonight';
 import { formatHHMM } from '@/lib/service-hours';
 import './owner.css';
@@ -135,12 +136,14 @@ function ShellFrame({ children }: { children: ReactNode }) {
   const dark = useIsDark();
   const navRef = useRef<HTMLElement>(null);
 
-  // The cursor light over every card. A callback ref, because the owner root only mounts
-  // once the session is known, after the loading skeleton.
+  // The cursor light over every card and the colour trail behind the cursor. A callback
+  // ref, because the owner root only mounts once the session is known, after the skeleton.
   const spotlightCleanup = useRef<(() => void) | null>(null);
   const rootRef = useCallback((node: HTMLDivElement | null) => {
     spotlightCleanup.current?.();
-    spotlightCleanup.current = node ? installCursorSpotlight(node) : null;
+    if (!node) { spotlightCleanup.current = null; return; }
+    const cleanups = [installCursorSpotlight(node), installCursorTracer(node)];
+    spotlightCleanup.current = () => { for (const cleanup of cleanups) cleanup(); };
   }, []);
   useEffect(() => () => { spotlightCleanup.current?.(); spotlightCleanup.current = null; }, []);
 

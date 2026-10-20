@@ -206,6 +206,25 @@
 }
 /* The shelf canvas is transparent and positioned, so the light sits behind the models. */
 .argraphics-owner-root .shelf-stage::before { z-index: 0; }
+
+/*
+ * The colour trail. src/lib/cursor-tracer.ts draws the cursor's path on one fixed canvas
+ * over the page: above the content and the nav (z-40), under dialogs (z-50) and toasts.
+ * Screen blending lights up the dark theme; multiply tints the light one.
+ */
+.argraphics-owner-root .owner-tracer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 45;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.dark .argraphics-owner-root .owner-tracer { mix-blend-mode: screen; }
+@media (prefers-reduced-motion: reduce) {
+  .argraphics-owner-root .owner-tracer { display: none; }
+}
 .owner-drink-grid { grid-template-columns: minmax(0, 1fr) auto; }
 @media (min-width: 640px) {
   .owner-drink-grid { grid-template-columns: minmax(0, 1.65fr) minmax(70px, .7fr) 78px minmax(100px, .75fr) 40px; }
