@@ -43,6 +43,7 @@ import { seedDemoPartners } from "../lib/demo-partners";
 import { seedDemoModel } from "../lib/demo-model";
 import { judgeDrinkModel, summarizeGlb } from "../lib/glb-quality";
 import { slimGlb, slimUsdz } from "../lib/glb-slim";
+import { applyPbrMaps, type PbrMaps } from "../lib/glb-pbr";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -469,6 +470,25 @@ async function fetchMeshyAsset(sourceUrl: string): Promise<Buffer> {
   return bytes;
 }
 
+/**
+ * Puts Meshy's separately returned PBR maps onto the GLB when the file came without them.
+ * Any failure keeps the model as it came: a matte model is still a good model.
+ */
+async function withPbrMaps(glbBytes: Buffer, urls: Record<string, string | undefined> | undefined): Promise<Buffer> {
+  if (!urls) return glbBytes;
+  try {
+    const maps: PbrMaps = {};
+    await Promise.all((["metallic", "roughness", "normal"] as const).map(async (slot) => {
+      const url = urls[slot];
+      if (url) maps[slot] = await fetchMeshyAsset(url);
+    }));
+    return await applyPbrMaps(glbBytes, maps);
+  } catch (error) {
+    console.warn("[meshy] could not add the PBR maps, storing the model without them", error);
+    return glbBytes;
+  }
+}
+
 /** Height over width of the cutout the model was built from, when it can be read. */
 async function cutoutAspect(cleanedPhotoPath: string | null): Promise<number | undefined> {
   if (!cleanedPhotoPath) return undefined;
@@ -516,6 +536,8 @@ type MeshyTask = {
   status?: string;
   progress?: number;
   model_urls?: Record<string, string>;
+  /** With enable_pbr, the maps also come back on their own: base_color, metallic, roughness, normal. */
+  texture_urls?: Array<Record<string, string | undefined>>;
   thumbnail_url?: string;
   task_error?: { message?: string };
 };
@@ -575,7 +597,7 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
   }
   // Inspect the model before saving it. A build that is flat, untextured, nearly empty or
   // out of proportion with the photo is marked failed, so no customer ever sees it.
-  const glbBytes = await fetchMeshyAsset(glbSource);
+  const glbBytes = await withPbrMaps(await fetchMeshyAsset(glbSource), result.texture_urls?.[0]);
   let verdict: string | null;
   try {
     verdict = judgeDrinkModel(summarizeGlb(glbBytes), await cutoutAspect(drink.cleanedPhotoUrl));
@@ -821,8 +843,12 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
       },
       body: JSON.stringify({
         image_url: imageUrl,
-        ai_model: "latest",
+        // Pinned so a new Meshy release cannot change our models without us testing it first.
+        ai_model: "meshy-7.1",
         should_texture: true,
+        // Metallic, roughness and normal maps: glossy sauce and ice catch the light instead
+        // of every surface sharing one matte finish. No extra credits; about 30-60 s longer.
+        enable_pbr: true,
         // Raw image-to-3D output runs ~11 MB; a 30k-triangle remesh keeps table-scale
         // AR detail while staying light enough to load over bar wifi.
         should_remesh: true,

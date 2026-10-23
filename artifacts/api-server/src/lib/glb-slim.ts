@@ -6,14 +6,16 @@ import { readStoredZip, writeUsdz, type ZipEntry } from "./usdz";
 
 /**
  * Makes a generated model light enough for a phone on cellular. Meshy exports about 4 MB:
- * a 2048-pixel texture that is most of it, and full-precision vertex data. A 1024 texture
- * is indistinguishable on a phone screen, and quantized normals and UVs (a standard glTF
- * extension every viewer we target supports) shave the rest. Nothing changes
- * the shape; this is the same model with less to download.
+ * a 2048-pixel PNG texture that is most of it, and full-precision vertex data. The texture
+ * keeps its full 2048 pixels (in AR the phone is close enough to read labels and garnish,
+ * and 1024 visibly blurred them) but is re-encoded as JPEG, and quantized normals and UVs
+ * (a standard glTF extension every viewer we target supports) shave the rest. Nothing
+ * changes the shape; this is the same model with less to download.
  */
 
-export const TEXTURE_MAX_SIZE = 1024;
+export const TEXTURE_MAX_SIZE = 2048;
 const JPEG_QUALITY = 84;
+const NORMAL_JPEG_QUALITY = 95;
 
 export async function slimGlb(bytes: Buffer): Promise<Buffer> {
   const io = new NodeIO().registerExtensions([KHRMeshQuantization, KHRTextureTransform, KHRMaterialsEmissiveStrength]);
@@ -21,7 +23,10 @@ export async function slimGlb(bytes: Buffer): Promise<Buffer> {
   await document.transform(
     dedup(),
     prune(),
-    textureCompress({ encoder: sharp, targetFormat: "jpeg", resize: [TEXTURE_MAX_SIZE, TEXTURE_MAX_SIZE], quality: JPEG_QUALITY }),
+    textureCompress({ encoder: sharp, targetFormat: "jpeg", resize: [TEXTURE_MAX_SIZE, TEXTURE_MAX_SIZE], quality: JPEG_QUALITY, slots: /^(?!normalTexture).*$/ }),
+    // A normal map's colours are surface directions: JPEG blocks at the usual quality show
+    // up as banding in the highlights, so it is kept closer to the original.
+    textureCompress({ encoder: sharp, targetFormat: "jpeg", resize: [TEXTURE_MAX_SIZE, TEXTURE_MAX_SIZE], quality: NORMAL_JPEG_QUALITY, slots: /^normalTexture$/ }),
     // Positions stay float: the quality judge and the USDZ scaling read the accessor bounds
     // as real model units, which integer-quantized positions would break.
     quantize({ pattern: /^(NORMAL|TEXCOORD_\d+)$/, quantizeNormal: 10, quantizeTexcoord: 12 }),

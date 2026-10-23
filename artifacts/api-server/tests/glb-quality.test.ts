@@ -41,6 +41,9 @@ describe("generated model checks", () => {
     expect(judgeDrinkModel(summarizeGlb(drink()), 1.5)).toBeNull();
     expect(judgeDrinkModel(summarizeGlb(drink()), 2.2)).toBeNull();
   });
+  it("passes a PBR model that carries colour, metal-rough and normal maps", () => {
+    expect(judgeDrinkModel(summarizeGlb(drink({ images: 3 })))).toBeNull();
+  });
   it("fails placeholders, untextured and flat results", () => {
     expect(judgeDrinkModel(summarizeGlb(drink({ triangles: 120 })))).toMatch(/no detail/);
     expect(judgeDrinkModel(summarizeGlb(drink({ images: 0 })))).toMatch(/texture/);
