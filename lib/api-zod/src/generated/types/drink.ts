@@ -31,4 +31,6 @@ export interface Drink {
      * @nullable
      */
   realHeightCm: number | null;
+  /** Whether the last build treated the item as served in clear glass (see DrinkGenerationInput). */
+  clearGlass: boolean;
 }

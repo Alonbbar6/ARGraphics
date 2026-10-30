@@ -1,0 +1,1 @@
+ALTER TABLE "drinks" ADD COLUMN "clear_glass" boolean DEFAULT false NOT NULL;

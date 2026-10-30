@@ -1,4 +1,4 @@
-import { Readable } from "node:stream";
+import { Readable, Writable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { vi } from "vitest";
 
@@ -50,7 +50,36 @@ export const storage = {
   deleteObjectEntity: vi.fn(async (path: string) => { objects.delete(path); }),
 };
 
+/** Public model files, keyed by object name under the one search path below. */
+export const publicObjects = new Map<string, { bytes: Buffer; contentType: string }>();
+const PUBLIC_SEARCH_PATH = "/test-bucket/public";
+
+export const objectStorageClient = {
+  bucket: (_bucket: string) => ({
+    file: (name: string) => ({
+      createWriteStream: ({ metadata }: { metadata: { contentType: string } }) => {
+        const chunks: Buffer[] = [];
+        return new Writable({
+          write(chunk, _encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); },
+          final(callback) { publicObjects.set(name, { bytes: Buffer.concat(chunks), contentType: metadata.contentType }); callback(); },
+        });
+      },
+      delete: async () => { publicObjects.delete(name); },
+    }),
+  }),
+};
+
 export class ObjectStorageService {
+  getPublicObjectSearchPaths = () => [PUBLIC_SEARCH_PATH];
+  searchPublicObject = vi.fn(async (filePath: string) => {
+    const object = publicObjects.get(`public/${filePath}`);
+    if (!object) return null;
+    return {
+      download: async () => [object.bytes],
+      getMetadata: async () => [{ contentType: object.contentType, size: String(object.bytes.length) }],
+      createReadStream: () => Readable.from(object.bytes),
+    };
+  });
   savePrivateImage = storage.savePrivateImage;
   trySetObjectEntityAclPolicy = storage.trySetObjectEntityAclPolicy;
   getObjectEntityUploadURL = storage.getObjectEntityUploadURL;

@@ -11,4 +11,6 @@ export interface DrinkGenerationInput {
   sourcePhotoPath: string;
   /** @minLength 1 */
   cleanedPhotoPath: string;
+  /** The item is served in clear glass. The build asks for a clear glass and the glass is made see-through in the finished 3D and AR files. Leave off for creamy or milky drinks. Defaults to the drink's saved setting. */
+  clearGlass?: boolean;
 }

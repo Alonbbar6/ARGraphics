@@ -34,6 +34,9 @@ import {
   StartDrinkGenerationBody,
   StartDrinkGenerationParams,
   StartDrinkGenerationResponse,
+  TouchUpDrinkGlassBody,
+  TouchUpDrinkGlassParams,
+  TouchUpDrinkGlassResponse,
   UpdateDrinkBody,
   UpdateDrinkParams,
 } from "@workspace/api-zod";
@@ -44,6 +47,7 @@ import { seedDemoModel } from "../lib/demo-model";
 import { judgeDrinkModel, summarizeGlb } from "../lib/glb-quality";
 import { slimGlb, slimUsdz } from "../lib/glb-slim";
 import { applyPbrMaps, type PbrMaps } from "../lib/glb-pbr";
+import { glassifyGlb, glassifyUsdz, resplitGlb, triangleKey, type GlassLabels, type GlassOverrides } from "../lib/glb-glass";
 import photoCleanupRouter from "./photo-cleanup";
 import { InvalidArtworkError, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -402,6 +406,7 @@ function asDrink(req: Request, drink: typeof drinksTable.$inferSelect) {
     generationError: drink.generationError,
     updatedAt: drink.updatedAt.toISOString(),
     realHeightCm: drink.realHeightCm,
+    clearGlass: drink.clearGlass,
   };
 }
 
@@ -486,6 +491,33 @@ async function withPbrMaps(glbBytes: Buffer, urls: Record<string, string | undef
   } catch (error) {
     console.warn("[meshy] could not add the PBR maps, storing the model without them", error);
     return glbBytes;
+  }
+}
+
+/**
+ * Meshy's texture hint for a drink served in clear glass. It cannot make the glass
+ * transparent (one opaque mesh, one atlas), but it can keep the glass colourless and stop the
+ * garnish from being painted onto the glass wall, which is what the see-through step needs.
+ */
+const CLEAR_GLASS_TEXTURE_PROMPT =
+  "A drink in a clear, colourless, see-through drinking glass with only faint grey reflections. " +
+  "Keep the liquid's real colour below the fill line only. The garnish (citrus wheel, peel, herbs, straw) " +
+  "is a separate object on the rim or in the drink: do not paint the garnish or its colour onto the glass walls, stem or base. " +
+  "Photographic colours from the picture, no extra decoration.";
+
+/** See-through glass in the web model and the iPhone AR file; either stays as it came on any failure. */
+async function withClearGlass(glbBytes: Buffer, usdzBytes: Buffer | null, labels: GlassLabels): Promise<{ glb: Buffer; usdz: Buffer | null }> {
+  try {
+    const glassed = await glassifyGlb(glbBytes, labels);
+    if (!glassed) {
+      console.warn("[meshy] no glass could be told apart in this build; storing it as it came");
+      return { glb: glbBytes, usdz: usdzBytes };
+    }
+    const usdz = usdzBytes ? (await glassifyUsdz(usdzBytes, glassed.texture, glassed.glassUvTriangles, glassed.liquidBody)) ?? usdzBytes : null;
+    return { glb: glassed.glb, usdz };
+  } catch (error) {
+    console.warn("[meshy] could not make the glass see-through, storing the model as it came", error);
+    return { glb: glbBytes, usdz: usdzBytes };
   }
 }
 
@@ -613,14 +645,19 @@ async function pollMeshyTask(drinkId: string, barId: string, taskId: string): Pr
     }).where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId), eq(drinksTable.meshyTaskId, taskId)));
     return true;
   }
+  // A drink served in clear glass gets a see-through glass in both files. If that fails, the
+  // model as Meshy made it is still a good model.
+  const usdzBytes = result.model_urls?.usdz ? await fetchMeshyAsset(result.model_urls.usdz) : null;
+  const { glb: glassedGlb, usdz: glassedUsdz } = drink.clearGlass
+    ? await withClearGlass(glbBytes, usdzBytes, { parts: drink.parts, subjectBox: drink.subjectBox })
+    : { glb: glbBytes, usdz: usdzBytes };
   // Slim both files for phones on cellular: smaller textures, quantized vertices, same shape.
   // If slimming ever fails, the original is still a good model, so it is stored instead.
-  const slimmedGlb = await slimGlb(glbBytes).catch((error: unknown) => {
+  const slimmedGlb = await slimGlb(glassedGlb).catch((error: unknown) => {
     console.warn("[meshy] could not slim the GLB, storing the original", error);
-    return glbBytes;
+    return glassedGlb;
   });
-  const usdzBytes = result.model_urls?.usdz ? await fetchMeshyAsset(result.model_urls.usdz) : null;
-  const slimmedUsdz = usdzBytes ? await slimUsdz(usdzBytes).catch(() => usdzBytes) : null;
+  const slimmedUsdz = glassedUsdz ? await slimUsdz(glassedUsdz).catch(() => glassedUsdz) : null;
   const [glbPath, thumbnailPath, usdzPath] = await Promise.all([
     storeMeshyAsset(Readable.from(slimmedGlb), drinkId, "glb", "model/gltf-binary"),
     saveMeshyDownload(thumbnailSource, drinkId, "png", "image/png"),
@@ -750,6 +787,122 @@ router.get("/drinks/:id/generation", async (req, res): Promise<void> => {
   res.json(GetDrinkGenerationResponse.parse(generationState(req, drink)));
 });
 
+/** The stored bytes of one of the drink's public model files. */
+async function downloadStoredAsset(storedPath: string): Promise<Buffer | null> {
+  const file = await objectStorage.searchPublicObject(storedPath.replace(/^\/public-objects\//, ""));
+  if (!file) return null;
+  const [bytes] = await file.download();
+  return bytes;
+}
+
+/**
+ * The owner lassoed spots of the finished model as solid or glass. The stored model is
+ * re-split with those labels on top of the automatic ones, and both files are rewritten.
+ * Nothing is sent to Meshy.
+ */
+router.post("/drinks/:id/glass-touch-up", async (req, res): Promise<void> => {
+  const params = TouchUpDrinkGlassParams.safeParse(req.params);
+  const body = TouchUpDrinkGlassBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Lasso some spots of the model first." });
+    return;
+  }
+  const barId = req.owner?.barId;
+  if (!barId) {
+    res.status(401).json({ error: "Sign in to manage your bar." });
+    return;
+  }
+  const [drink] = await db.select().from(drinksTable)
+    .where(and(eq(drinksTable.id, params.data.id), eq(drinksTable.barId, barId))).limit(1);
+  if (!drink) {
+    res.status(404).json({ error: "Item not found." });
+    return;
+  }
+  if (drink.generationStatus === "processing") {
+    res.status(409).json({ error: "Wait for the 3D build to finish before touching it up." });
+    return;
+  }
+  if (!drink.modelGlbUrl || !drink.clearGlass) {
+    res.status(400).json({ error: "Touch-ups need a finished clear-glass model. Build one with “Served in clear glass” ticked." });
+    return;
+  }
+  const glbBytes = await downloadStoredAsset(drink.modelGlbUrl);
+  if (!glbBytes) {
+    res.status(404).json({ error: "The stored model could not be read. Build it again." });
+    return;
+  }
+  const overrides: GlassOverrides = { ...(drink.glassOverrides ?? {}) };
+  let resolved: Awaited<ReturnType<typeof resplitGlb>>;
+  try {
+    // Picks name triangles by their place in the stored file; translate them to vertex
+    // triples, which survive re-splits, before merging with earlier labels.
+    const picked = await resolvePicks(glbBytes, body.data);
+    if (!picked) {
+      res.status(400).json({ error: "This model is not a split clear-glass model. Build it again with “Served in clear glass” ticked." });
+      return;
+    }
+    Object.assign(overrides, picked.overrides);
+    // A filled spot stays solid on later touch-ups and a lined one stays clear; the repainted
+    // texture and the inner surface live in the file.
+    for (const key of picked.fill) overrides[key] = "solid";
+    for (const key of picked.inside) overrides[key] = "glass";
+    resolved = await resplitGlb(glbBytes, overrides, { fill: picked.fill, inside: picked.inside, source: picked.source });
+  } catch (error) {
+    req.log.warn({ err: error }, "Glass touch-up failed");
+    res.status(502).json({ error: "The touch-up could not be applied. Try again." });
+    return;
+  }
+  if (!resolved) {
+    res.status(400).json({ error: "This model is not a split clear-glass model. Build it again with “Served in clear glass” ticked." });
+    return;
+  }
+  const usdzBytes = drink.modelUsdzUrl ? await downloadStoredAsset(drink.modelUsdzUrl) : null;
+  const usdz = usdzBytes ? (await glassifyUsdz(usdzBytes, resolved.texture, resolved.glassUvTriangles, resolved.liquidBody)) ?? usdzBytes : null;
+  const [glbPath, usdzPath] = await Promise.all([
+    storeMeshyAsset(Readable.from(resolved.glb), drink.id, "glb", "model/gltf-binary"),
+    usdz ? storeMeshyAsset(Readable.from(usdz), drink.id, "usdz", "model/vnd.usdz+zip") : Promise.resolve(drink.modelUsdzUrl),
+  ]);
+  const updated = await db.transaction(async (tx) => {
+    const [saved] = await tx.update(drinksTable).set({
+      modelGlbUrl: glbPath, modelUsdzUrl: usdzPath, glassOverrides: overrides, updatedAt: new Date(),
+    }).where(and(eq(drinksTable.id, drink.id), eq(drinksTable.barId, barId))).returning();
+    if (saved?.isPublished) await bumpMenuVersion(tx, barId);
+    return saved;
+  });
+  if (!updated) {
+    res.status(404).json({ error: "Item not found." });
+    return;
+  }
+  res.json(TouchUpDrinkGlassResponse.parse(asDrink(req, updated)));
+});
+
+/** Vertex-triple keys for picks named by primitive and triangle index, or null if not a split model. */
+async function resolvePicks(glbBytes: Buffer, picks: { solid: number[][]; glass: number[][]; fill?: number[][]; inside?: number[][]; source?: number[][] }): Promise<{ overrides: GlassOverrides; fill: Set<string>; inside: Set<string>; source: Set<string> } | null> {
+  const { NodeIO } = await import("@gltf-transform/core");
+  const { KHRMeshQuantization, KHRTextureTransform, KHRMaterialsEmissiveStrength } = await import("@gltf-transform/extensions");
+  const document = await new NodeIO().registerExtensions([KHRMeshQuantization, KHRTextureTransform, KHRMaterialsEmissiveStrength]).readBinary(new Uint8Array(glbBytes));
+  const meshes = document.getRoot().listMeshes();
+  if (meshes.length !== 1) return null;
+  const primitives = meshes[0].listPrimitives();
+  // Solid and glass parts, plus possibly the drink's body and inner surface, which carry no index and take no picks.
+  const labelled = primitives.filter((primitive) => !["liquid", "inner"].includes(primitive.getMaterial()?.getName() ?? ""));
+  if (labelled.length !== 2 || !labelled.some((p) => p.getMaterial()?.getAlphaMode() === "BLEND")) return null;
+  const indices = primitives.map((primitive) => primitive.getIndices()?.getArray() ?? []);
+  const keyOf = ([p, t]: number[]) => {
+    const array = indices[p];
+    return array && t * 3 + 2 < array.length ? triangleKey(array[t * 3], array[t * 3 + 1], array[t * 3 + 2]) : null;
+  };
+  const overrides: GlassOverrides = {};
+  for (const [label, list] of [["solid", picks.solid], ["glass", picks.glass]] as const) {
+    for (const pick of list) {
+      const key = keyOf(pick);
+      if (key) overrides[key] = label;
+    }
+  }
+  const keysOf = (list: number[][] = []) => new Set(list.map(keyOf).filter((key): key is string => !!key));
+  return { overrides, fill: keysOf(picks.fill), inside: keysOf(picks.inside), source: keysOf(picks.source) };
+}
+
 router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
   const params = StartDrinkGenerationParams.safeParse(req.params);
   const body = StartDrinkGenerationBody.safeParse(req.body);
@@ -773,6 +926,7 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
     return;
   }
   const { sourcePhotoPath, cleanedPhotoPath } = body.data;
+  const clearGlass = body.data.clearGlass ?? drink.clearGlass;
   const [savedCleanup] = await db.select().from(photoCleanupsTable).where(and(
     eq(photoCleanupsTable.drinkId, drink.id), eq(photoCleanupsTable.ownerId, req.owner!.id),
     eq(photoCleanupsTable.status, "ready"), eq(photoCleanupsTable.sourcePhotoPath, sourcePhotoPath),
@@ -843,6 +997,9 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
       },
       body: JSON.stringify({
         image_url: imageUrl,
+        // Meshy has no glass or transparency option; its only steer is this texture hint.
+        // The glass is then made see-through here once the model is back (glb-glass.ts).
+        ...(clearGlass ? { texture_prompt: CLEAR_GLASS_TEXTURE_PROMPT } : {}),
         // Pinned so a new Meshy release cannot change our models without us testing it first.
         ai_model: "meshy-7.1",
         should_texture: true,
@@ -881,6 +1038,11 @@ router.post("/drinks/:id/generation", async (req, res): Promise<void> => {
         sourcePhotoUrl: sourcePhotoPath,
         cleanedPhotoUrl: cleanedPhotoPath,
         meshyTaskId: result.result,
+        clearGlass,
+        // A new mesh: the owner's lassoed labels belonged to the old one.
+        glassOverrides: null,
+        // The traced parts travel with the photo they were drawn on.
+        ...(savedCleanup ? { parts: savedCleanup.parts ?? null, subjectBox: savedCleanup.subjectBox ?? null } : {}),
         generationStatus: "processing",
         generationProgress: 0,
         generationError: null,

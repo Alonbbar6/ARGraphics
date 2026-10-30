@@ -18,7 +18,7 @@ vi.mock("openai", () => {
   return { default: OpenAI, toFile: vi.fn(async (data) => data) };
 });
 
-import { cleanupDrinkPhoto, prepareCleanupPhoto } from "../src/lib/photo-cleanup";
+import { cleanupDrinkPhoto, cleanupDrinkPhotoWithBox, MAX_OUTLINE_POINTS, parseOutline, parseParts, prepareCleanupPhoto, type Outline } from "../src/lib/photo-cleanup";
 import cleanupRouter from "../src/routes/photo-cleanup";
 
 /** A camera-sized photo: a solid rectangle "drink" on a transparent canvas. Also a valid cutout. */
@@ -131,6 +131,89 @@ describe("AI drink photo cleanup", () => {
   });
 });
 
+describe("owner-traced outline", () => {
+  /** A red drink with a blue bottle beside it, both on a transparent 800px photo. */
+  const crowded = () => sharp({ create: { width: 800, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([
+      { input: { create: { width: 200, height: 300, channels: 4, background: { r: 200, g: 40, b: 30, alpha: 1 } } }, left: 300, top: 250 },
+      { input: { create: { width: 40, height: 40, channels: 4, background: { r: 30, g: 40, b: 200, alpha: 1 } } }, left: 545, top: 300 },
+    ])
+    .png().toBuffer();
+  const aroundDrink: Outline = [[0.36, 0.3], [0.64, 0.3], [0.64, 0.7], [0.36, 0.7]];
+
+  it("reads the query format and refuses anything malformed", () => {
+    expect(parseOutline(undefined)).toBeUndefined();
+    expect(parseOutline("")).toBeUndefined();
+    expect(parseOutline("0.1,0.1;0.9,0.1;0.5,0.9")).toEqual([[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]]);
+    for (const bad of ["0.1,0.1;0.9,0.1", "0.1,0.1;0.9,0.1;0.5,1.2", "0.1,0.1;0.9;0.5,0.9", "a,b;c,d;e,f", ["0.1,0.1"]]) {
+      expect(() => parseOutline(bad)).toThrow("could not be read");
+    }
+    expect(() => parseOutline(Array.from({ length: MAX_OUTLINE_POINTS + 1 }, () => "0.5,0.5").join(";"))).toThrow("could not be read");
+    expect(() => parseOutline("0.5,0.5;0.51,0.5;0.5,0.51")).toThrow("too small");
+  });
+  it("sends the provider a square crop with a mask, and keeps nothing outside the outline", async () => {
+    mocks.edit.mockImplementation(async ({ image: sent }: { image: Buffer }) => ({ data: [{ b64_json: sent.toString("base64") }] }));
+    const output = await cleanupDrinkPhoto(await crowded(), undefined, aroundDrink);
+    const [{ image: sent, mask, prompt }] = mocks.edit.mock.calls[0];
+    const sentMeta = await sharp(sent).metadata();
+    expect(sentMeta.width).toBe(sentMeta.height);
+    expect(await sharp(mask).metadata()).toMatchObject({ width: sentMeta.width, height: sentMeta.height, hasAlpha: true });
+    expect(prompt).toContain("outlined");
+    // The red drink survives; the blue bottle inside the crop does not.
+    const { data } = await sharp(output).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let red = 0;
+    let blue = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue;
+      if (data[i] > 150 && data[i + 2] < 100) red++;
+      if (data[i + 2] > 150 && data[i] < 100) blue++;
+    }
+    expect(red).toBeGreaterThan(200 * 300 * 0.9);
+    expect(blue).toBe(0);
+  });
+  it("guides the local model the same way", async () => {
+    vi.stubEnv("PHOTO_CUTOUT", "local");
+    const photo = await sharp(await crowded()).flatten({ background: "white" }).jpeg().toBuffer();
+    const output = await cleanupDrinkPhoto(photo, undefined, aroundDrink);
+    expect(mocks.edit).not.toHaveBeenCalled();
+    const { data } = await sharp(output).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let blue = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i + 3] >= 128 && data[i + 2] > 150 && data[i] < 100) blue++;
+    expect(blue).toBe(0);
+    expect((await sharp(output).ensureAlpha().stats()).channels[3].max).toBe(255);
+  }, 60_000);
+  it("reports where the subject sits in the source photo, so traced parts can be mapped onto the model", async () => {
+    mocks.edit.mockImplementation(async ({ image: sent }: { image: Buffer }) => ({ data: [{ b64_json: sent.toString("base64") }] }));
+    // The red drink fills 300..500 × 250..550 of the 800px photo; the blue bottle is cut away.
+    const { subjectBox } = await cleanupDrinkPhotoWithBox(await crowded(), undefined, aroundDrink);
+    expect(subjectBox.x).toBeCloseTo(300 / 800, 1);
+    expect(subjectBox.y).toBeCloseTo(250 / 800, 1);
+    expect(subjectBox.w).toBeCloseTo(200 / 800, 1);
+    expect(subjectBox.h).toBeCloseTo(300 / 800, 1);
+    // Without an outline the whole photo is the frame.
+    const whole = await cleanupDrinkPhotoWithBox(await image());
+    expect(whole.subjectBox.x).toBeCloseTo(180 / 480, 1);
+    expect(whole.subjectBox.h).toBeCloseTo(160 / 480, 1);
+  });
+  it("reads traced parts and refuses anything malformed", () => {
+    expect(parseParts(undefined)).toBeUndefined();
+    expect(parseParts("")).toBeUndefined();
+    expect(parseParts("{}")).toBeUndefined();
+    const square = [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]];
+    expect(parseParts(JSON.stringify({ liquid: square, garnish: [square] }))).toEqual({ liquid: square, garnish: [square] });
+    expect(parseParts(JSON.stringify({ garnish: [square] }))).toEqual({ garnish: [square] });
+    for (const bad of ["not json", "[]", JSON.stringify({ liquid: [[0, 0], [1, 1]] }), JSON.stringify({ liquid: [[0, 0], [2, 0], [1, 1]] }),
+      JSON.stringify({ garnish: square }), JSON.stringify({ garnish: Array.from({ length: 7 }, () => square) }), ["{}"]]) {
+      expect(() => parseParts(bad)).toThrow("could not be read");
+    }
+    expect(() => parseParts(JSON.stringify({ liquid: [[0.5, 0.5], [0.51, 0.5], [0.5, 0.51]] }))).toThrow("too small");
+  });
+  it("refuses an outline around something too small to model, before any paid call", async () => {
+    await expect(cleanupDrinkPhoto(await crowded(), undefined, [[0.4, 0.4], [0.5, 0.4], [0.5, 0.5], [0.4, 0.5]])).rejects.toThrow("too small");
+    expect(mocks.edit).not.toHaveBeenCalled();
+  });
+});
+
 describe("cleanup HTTP boundary", () => {
   const app = (owner?: string) => {
     const server = express();
@@ -149,6 +232,16 @@ describe("cleanup HTTP boundary", () => {
   it("rejects unsupported MIME types", async () => {
     expect((await request(app("owner")).post("/drinks/photo-cleanup").type("text").send("x")).status).toBe(415);
     expect(await db.select().from(schema.photoCleanupLimitsTable)).toHaveLength(0);
+  });
+  it("refuses a malformed outline or parts without using up an attempt", async () => {
+    const response = await request(app("owner")).post("/drinks/photo-cleanup?outline=0.1,0.1;2,2").type("png").send(await image());
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("outline");
+    const parts = await request(app("owner")).post("/drinks/photo-cleanup?parts=nope").type("png").send(await image());
+    expect(parts.status).toBe(400);
+    expect(parts.body.error).toContain("parts");
+    expect(await db.select().from(schema.photoCleanupLimitsTable)).toHaveLength(0);
+    expect(mocks.edit).not.toHaveBeenCalled();
   });
   it("returns an uncacheable PNG", async () => {
     const png = await image();

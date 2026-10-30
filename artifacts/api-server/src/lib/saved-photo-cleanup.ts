@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, drinksTable, photoCleanupsTable, type PhotoCleanup } from "@workspace/db";
-import { cleanupDrinkPhoto, prepareCleanupPhoto, PhotoCleanupError } from "./photo-cleanup";
+import { cleanupDrinkPhotoWithBox, prepareCleanupPhoto, PhotoCleanupError, type Outline, type Parts } from "./photo-cleanup";
 import { ObjectStorageService, PrivateImageStoredError } from "./objectStorage";
 
 const storage = new ObjectStorageService();
@@ -11,11 +11,12 @@ export function cleanupDraftResponse(draft: PhotoCleanup) {
     id: draft.id, drinkId: draft.drinkId, status: draft.status,
     sourcePhotoPath: draft.sourcePhotoPath, cleanedPhotoPath: draft.cleanedPhotoPath,
     error: draft.error, createdAt: draft.createdAt.toISOString(),
+    hasParts: !!(draft.parts?.liquid || draft.parts?.garnish?.length),
   };
 }
 
 /** Reserve before the paid call; never tie its lifetime to the HTTP connection. */
-export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: string, input: Buffer, signal?: AbortSignal) {
+export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: string, input: Buffer, signal?: AbortSignal, outline?: Outline, parts?: Parts) {
   signal?.throwIfAborted();
   const [ownedDrink] = await db.select().from(drinksTable)
     .where(and(eq(drinksTable.id, drinkId), eq(drinksTable.barId, barId))).limit(1);
@@ -35,10 +36,10 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
       const pending = await tx.select().from(photoCleanupsTable)
         .where(and(eq(photoCleanupsTable.drinkId, drinkId), eq(photoCleanupsTable.status, "processing")));
       if (pending.length) throw new PhotoCleanupError("A saved cleanup is still running. Reopen the studio to check it.", 409);
-      await tx.insert(photoCleanupsTable).values({ id, ownerId, drinkId, sourcePhotoPath, cleanedPhotoPath, sourceSize: source.length });
+      await tx.insert(photoCleanupsTable).values({ id, ownerId, drinkId, sourcePhotoPath, cleanedPhotoPath, sourceSize: source.length, parts: parts ?? null });
     });
     reserved = true;
-    const output = await cleanupDrinkPhoto(source, signal);
+    const { png: output, subjectBox } = await cleanupDrinkPhotoWithBox(source, signal, outline);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         await storage.savePrivateImage(output, ownerId, cleanedPhotoPath);
@@ -55,7 +56,7 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const [draft] = await db.update(photoCleanupsTable).set({
-          cleanedPhotoPath, cleanedSize: output.length, status: "ready", error: null, updatedAt: new Date(),
+          cleanedPhotoPath, cleanedSize: output.length, subjectBox, status: "ready", error: null, updatedAt: new Date(),
         }).where(eq(photoCleanupsTable.id, id)).returning();
         if (!draft) throw new Error("Cleanup draft was removed while saving.");
         return cleanupDraftResponse(draft);
@@ -66,8 +67,13 @@ export async function savePhotoCleanup(ownerId: string, barId: string, drinkId: 
     throw lastError;
   } catch (error) {
     if (reserved && !outputStored) {
+      // Keep the photo's own problem ("cut off at the edge") so the studio can say what to fix.
+      // Server-side failures stay generic.
+      const reason = error instanceof PhotoCleanupError && error.status < 500
+        ? error.message
+        : "Cleanup could not be saved. Choose a photo to retry.";
       await db.update(photoCleanupsTable).set({
-        status: "failed", error: "Cleanup could not be saved. Choose a photo to retry.", updatedAt: new Date(),
+        status: "failed", error: reason, updatedAt: new Date(),
       }).where(eq(photoCleanupsTable.id, id));
     } else if (!reserved) {
       await storage.deleteObjectEntity(sourcePhotoPath).catch(() => {});

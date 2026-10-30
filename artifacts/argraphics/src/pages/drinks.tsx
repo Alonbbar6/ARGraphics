@@ -2,11 +2,14 @@ import { createElement, useEffect, useMemo, useState, type FormEvent } from 'rea
 import { billingErrorMessage } from '@/lib/plan';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useListDisplays, useStartDrinkGeneration, useUpdateDrink } from '@workspace/api-client-react';
+import { getListDrinksQueryKey, getGetInsightsQueryKey, getGetDrinkGenerationQueryKey, getGetSavedPhotoCleanupQueryKey, useCreateDrink, useDeleteDrink, useGetDrinkGeneration, useGetSavedPhotoCleanup, useListDrinks, useListDisplays, useStartDrinkGeneration, useTouchUpDrinkGlass, useUpdateDrink } from '@workspace/api-client-react';
 import { Link, useLocation, useSearch } from 'wouter';
 import type { Drink, DrinkInput, SavedPhotoCleanup } from '@workspace/api-client-react';
-import { AlertCircle, ArrowLeft, Camera, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Camera, Check, ChevronDown, CirclePlus, GlassWater, ImagePlus, LoaderCircle, MoreHorizontal, Pencil, PenLine, RefreshCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { CameraCapture } from '@/components/camera-capture';
+import { OutlineDrawer } from '@/components/outline-drawer';
+import { GlassTouchUp, type Picks } from '@/components/glass-touch-up';
+import type { OutlinePoint, Parts } from '@/lib/outline';
 import { cameraSupported } from '@/lib/camera';
 import { removePhotoBackground, savedCleanupImageUrl } from '@/lib/photo-cleanup';
 import { createPhotoReviewAnalytics } from '@/lib/photo-review-analytics';
@@ -15,6 +18,9 @@ import { ensureModelViewer } from '@/lib/model-viewer';
 import { countLabel } from '@/lib/traffic';
 
 const categories = ['all', 'signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof', 'dish', 'figure', 'art', 'object'];
+
+/** Styles that are usually poured into a clear glass, so "served in clear glass" starts ticked. */
+const glassCategories = ['signature', 'classic', 'seasonal', 'beer', 'wine', 'zero-proof'];
 
 /** Real-world heights for native AR (cm). Glass sizes follow the AR pipeline guide. */
 const sizePresets = [
@@ -298,6 +304,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
   const [reviewAnalytics] = useState(createPhotoReviewAnalytics);
   const queryClient = useQueryClient();
   const startGeneration = useStartDrinkGeneration();
+  const touchUpGlass = useTouchUpDrinkGlass();
   const updateDrink = useUpdateDrink();
   const generationQuery = useGetDrinkGeneration(drink.id, {
     query: {
@@ -316,6 +323,12 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
   const [cameraOpen, setCameraOpen] = useState(startWithCamera && cameraSupported());
   // "Snap and build": skip the cutout check and start the paid 3D build as soon as the cutout is ready.
   const [autoBuild, setAutoBuild] = useState(false);
+  // Served in clear glass: the saved setting once a build has used one, else from the style.
+  const [clearGlass, setClearGlass] = useState(drink.modelGlbUrl || drink.generationStatus !== 'none' ? drink.clearGlass : glassCategories.includes(drink.category));
+  // The photo waiting for the owner to outline the item before cleanup starts.
+  const [outlineFile, setOutlineFile] = useState<File | null>(null);
+  // A newer photo whose cleanup failed while an earlier cutout is still shown.
+  const [failedReplacement, setFailedReplacement] = useState<SavedPhotoCleanup | null>(null);
   const cleanupQuery = useGetSavedPhotoCleanup(drink.id, {
     query: {
       queryKey: getGetSavedPhotoCleanupQueryKey(drink.id),
@@ -343,10 +356,11 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
     setOriginalPreview(savedCleanupImageUrl(draft, 'source'));
     setCleanedPreview(draft.status === 'ready' ? savedCleanupImageUrl(draft, 'cleaned') : '');
     setApproved(false);
+    setFailedReplacement(latest?.status === 'failed' && draft !== latest ? latest : null);
     if (draft.status === 'ready') setNotice('Your cutout is saved. Review and approve it before building; no new cleanup is needed.');
     if (latest?.status === 'failed') {
       setError(draft.status === 'ready'
-        ? 'The replacement cleanup failed. Your earlier cutout is still saved below; you can review and build from it without another cleanup.'
+        ? `The new photo's cleanup failed${latest.error ? `: ${latest.error}` : '.'} Outlining just the item usually fixes this. Your earlier cutout is still saved below.`
         : latest.error || 'The cleanup was interrupted.');
     }
   }, [cleanupQuery.data, choosingNewPhoto, busyMessage, reviewAnalytics]);
@@ -359,7 +373,22 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
   }, [cleanedPreview]);
 
   const generation = generationQuery.data;
-  const modelUrl = generation?.modelGlbUrl || drink.modelGlbUrl;
+  // A touch-up rewrites the model under a new address; the studio's drink is a snapshot.
+  const [touchedUpModelUrl, setTouchedUpModelUrl] = useState<string | null>(null);
+  const modelUrl = touchedUpModelUrl || generation?.modelGlbUrl || drink.modelGlbUrl;
+  const applyTouchUp = (picks: Picks) => {
+    setError('');
+    setNotice('');
+    touchUpGlass.mutate({ id: drink.id, data: picks }, {
+      onSuccess: (updated) => {
+        setTouchedUpModelUrl(updated.modelGlbUrl);
+        queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetDrinkGenerationQueryKey(drink.id) });
+        setNotice(`Touch-up applied to the web preview and the AR file. ${drink.isPublished ? 'Guests get it on their next scan.' : ''}`.trim());
+      },
+      onError: (cause) => setError(messageFrom(cause, 'The touch-up could not be applied. Try again.')),
+    });
+  };
   const active = generation?.status === 'processing';
   const progress = Math.min(100, Math.max(0, generation?.progress ?? drink.generationProgress ?? 0));
 
@@ -427,7 +456,26 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
       setSourceFile(normalized);
       const sourceUrl = URL.createObjectURL(normalized);
       setOriginalPreview(sourceUrl);
-      const result = await removePhotoBackground(drink.id, normalized, setBusyMessage);
+      setBusyMessage('');
+      // "Build right away" promises no clicks in between, so it lets the cleanup find the item.
+      if (buildRightAway) await cleanUp(normalized, undefined, true);
+      else setOutlineFile(normalized);
+    } catch (cause) {
+      setBusyMessage('');
+      setError(messageFrom(cause, 'Could not prepare that photo. Try another.'));
+      setChoosingNewPhoto(false);
+      void cleanupQuery.refetch();
+    }
+  };
+
+  const cleanUp = async (file: File, outline: OutlinePoint[] | undefined, buildRightAway = false, parts?: Parts) => {
+    setOutlineFile(null);
+    setFailedReplacement(null);
+    setError('');
+    setNotice('');
+    setChoosingNewPhoto(true);
+    try {
+      const result = await removePhotoBackground(drink.id, file, setBusyMessage, outline, parts);
       reviewAnalytics.cleaned(result);
       queryClient.setQueryData(getGetSavedPhotoCleanupQueryKey(drink.id), { draft: result, previousReadyDraft: null });
       setSavedDraft(result);
@@ -441,10 +489,44 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
       }
     } catch (cause) {
       setBusyMessage('');
-      setError(messageFrom(cause, 'Could not prepare that photo. Try another.'));
+      setError(messageFrom(cause, 'Could not clean up that photo. Try another.'));
       setChoosingNewPhoto(false);
       void cleanupQuery.refetch();
     }
+  };
+
+  /** Back to the outline step for a photo: a saved draft's original, else the one in hand. */
+  const redrawOutline = async (from?: SavedPhotoCleanup | null) => {
+    setError('');
+    setNotice('');
+    try {
+      const draft = from ?? savedDraft;
+      let file = from ? null : sourceFile;
+      if (!file && draft) {
+        const response = await fetch(savedCleanupImageUrl(draft, 'source'), { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('Could not reopen the original photo. Choose it again to outline it.');
+        file = new File([await response.blob()], 'photo.png', { type: 'image/png' });
+      }
+      if (!file) return;
+      setFailedReplacement(null);
+      setChoosingNewPhoto(true);
+      setSourceFile(file);
+      // The drawer shows the photo being outlined, which may not be the one on screen.
+      if (from) setOriginalPreview(URL.createObjectURL(file));
+      setCleanedPreview('');
+      setApproved(false);
+      setOutlineFile(file);
+    } catch (cause) {
+      setError(messageFrom(cause, 'Could not reopen the original photo.'));
+    }
+  };
+
+  const leaveOutline = () => {
+    // Back to whatever was saved before: the effect restores the latest cutout, if any.
+    setOutlineFile(null);
+    setSourceFile(null);
+    setSavedDraft(null);
+    setChoosingNewPhoto(false);
   };
 
   const generateFrom = async (draft: SavedPhotoCleanup) => {
@@ -456,7 +538,7 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
       const sourcePhotoPath = draft.sourcePhotoPath;
       const cleanedPhotoPath = draft.cleanedPhotoPath;
       const cutoutSource = reviewAnalytics.source(draft);
-      const result = await startGeneration.mutateAsync({ id: drink.id, data: { sourcePhotoPath, cleanedPhotoPath } });
+      const result = await startGeneration.mutateAsync({ id: drink.id, data: { sourcePhotoPath, cleanedPhotoPath, clearGlass } });
       reviewAnalytics.generated(cutoutSource);
       queryClient.setQueryData(getGetDrinkGenerationQueryKey(drink.id), result);
       queryClient.invalidateQueries({ queryKey: getListDrinksQueryKey() });
@@ -491,6 +573,8 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
   const reshoot = (withCamera = cameraSupported()) => {
     reviewAnalytics.retake(savedDraft);
     setCameraOpen(withCamera);
+    setOutlineFile(null);
+    setFailedReplacement(null);
     setSourceFile(null);
     setSavedDraft(null);
     setChoosingNewPhoto(true);
@@ -531,19 +615,23 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
                 <input type="checkbox" checked={autoBuild} onChange={(event) => setAutoBuild(event.target.checked)} className="mt-0.5 h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-auto-build" />
                 <span><span className="font-semibold">Build the 3D model right away.</span> <span className="text-muted-foreground">Skips the cutout check. One photo, one model, no clicks in between.</span></span>
               </label>
+              <ClearGlassChoice checked={clearGlass} onChange={setClearGlass} />
               <p className="mt-3 text-[11px] text-muted-foreground">Best results: phone camera, up close, the whole item in frame on a plain surface, in good light. JPG, PNG, WebP, HEIC or HEIF · up to 15 MB · we cut the background out for you; only the 3D build uses Meshy credits.</p>
             </div>
           )}
           {busyMessage && <div className="flex items-center gap-3 rounded-2xl bg-secondary/55 px-4 py-3 text-sm" role="status" data-testid="status-photo-workflow"><LoaderCircle className="shrink-0 animate-spin text-primary" size={18} /><span>{busyMessage}</span></div>}
-          {hasPhoto && !cleanedPreview && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={() => reshoot()} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button>}
+          {outlineFile && !busyMessage && <ClearGlassChoice checked={clearGlass} onChange={setClearGlass} />}
+          {outlineFile && !busyMessage && <OutlineDrawer src={originalPreview} subject={drink.name} labelParts={clearGlass} onUse={(outline, parts) => void cleanUp(outlineFile, outline, false, parts)} onSkip={() => void cleanUp(outlineFile, undefined)} onBack={leaveOutline} />}
+          {hasPhoto && !cleanedPreview && !busyMessage && !outlineFile && savedDraft?.status !== 'processing' && <div className="flex flex-wrap gap-2">{(sourceFile || savedDraft) && <button onClick={() => void redrawOutline()} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-retry-outline"><PenLine size={15} /> Outline the item and retry</button>}<button onClick={() => reshoot()} className="min-h-11 rounded-xl border border-border px-4 text-sm font-semibold" data-testid="button-retry-photo-cleanup">Choose a photo and retry cleanup</button></div>}
           {hasPhoto && cleanedPreview && (
             <div>
-              <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D.</p></div><button onClick={() => reshoot()} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div>
+              <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Cutout review</p><p className="mt-1 text-sm text-muted-foreground">Check the glass edge and garnish before we send it to 3D. Something missing or extra? Redraw the outline.</p>{clearGlass && <p className="mt-1 text-xs" data-testid="status-parts-labelled">{savedDraft?.hasParts ? <span className="text-emerald-600 dark:text-emerald-400">Drink and garnish traced: the glass will be see-through around them.</span> : <span className="text-amber-600 dark:text-amber-400">Drink and garnish not traced: the glass will be guessed from colour. Redraw the outline to trace them.</span>}</p>}</div><div className="flex shrink-0 flex-wrap justify-end"><button onClick={() => void redrawOutline(savedDraft)} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-redraw-outline"><PenLine size={16} /> Redraw outline</button><button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60" data-testid="button-reshoot-photo"><RefreshCw size={16} /> Retake</button></div></div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <figure className="overflow-hidden rounded-2xl border border-border bg-muted"><div className="grid h-48 place-items-center sm:h-60"><img src={originalPreview} alt="Original photo" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Original photo</figcaption></figure>
                 <figure className="overflow-hidden rounded-2xl border border-border bg-card"><div className="checkerboard grid h-48 place-items-center sm:h-60" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}><img src={cleanedPreview} alt="Transparent background cutout preview" className="max-h-full max-w-full object-contain" /></div><figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold">Background removed <span className="ml-1 font-normal text-muted-foreground">· transparent</span></figcaption></figure>
               </div>
-              <label className="mt-4 flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-background px-3 text-sm">
+              <ClearGlassChoice checked={clearGlass} onChange={setClearGlass} />
+              <label className="mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-background px-3 text-sm">
                 <input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} className="h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-approve-cutout" />
                 <span>I’ve checked the cutout. It’s ready to become a 3D model.</span>
               </label>
@@ -566,15 +654,16 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
           {generationQuery.isError && !active && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive" role="alert">Couldn’t load the latest generation status. <button onClick={() => generationQuery.refetch()} className="font-semibold underline underline-offset-2">Try again</button></div>}
           {modelUrl && (
             <div className="overflow-hidden rounded-[1.5rem] border border-border bg-background" data-testid="panel-model-review">
-              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Ready for a closer look</p><p className="text-sm text-muted-foreground">Drag to rotate · pinch or scroll to zoom</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">3D ready</span></div>
-              <div className="checkerboard flex h-72 items-center justify-center sm:h-96" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}>{viewerError ? <div className="max-w-[30rem] rounded-2xl border border-border bg-card p-5 text-center text-sm" role="alert" data-testid="status-3d-browser-unavailable"><AlertCircle className="mx-auto mb-3 text-primary" /><p>{viewerError}</p><a href={modelUrl} download className="mt-3 inline-flex min-h-11 items-center px-3 font-semibold text-primary underline">Download saved 3D model</a></div> : createElement('model-viewer', { src: modelUrl, 'camera-controls': true, 'auto-rotate': true, 'rotation-per-second': '18deg', 'shadow-intensity': '0.7', 'environment-image': 'neutral', 'alt': `Interactive 3D preview of ${drink.name}`, style: { width: '100%', height: '100%', backgroundColor: 'transparent' } })}</div>
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-primary">Ready for a closer look</p><p className="text-sm text-muted-foreground">Drag to rotate · pinch or scroll to zoom{drink.clearGlass ? ' · something still off? Touch up: lasso spots as clear glass or solid, or fill in a see-through hole' : ''}</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">3D ready</span></div>
+              <div className="checkerboard flex h-72 items-center justify-center sm:h-96" style={{ backgroundColor: 'hsl(var(--card))', backgroundImage: 'linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)', backgroundSize: '24px 24px', backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0' }}>{viewerError ? <div className="max-w-[30rem] rounded-2xl border border-border bg-card p-5 text-center text-sm" role="alert" data-testid="status-3d-browser-unavailable"><AlertCircle className="mx-auto mb-3 text-primary" /><p>{viewerError}</p><a href={modelUrl} download className="mt-3 inline-flex min-h-11 items-center px-3 font-semibold text-primary underline">Download saved 3D model</a></div> : drink.clearGlass && !active ? <GlassTouchUp src={modelUrl} alt={`Interactive 3D preview of ${drink.name}`} applying={touchUpGlass.isPending} onApply={applyTouchUp} /> : createElement('model-viewer', { src: modelUrl, 'camera-controls': true, 'auto-rotate': true, 'rotation-per-second': '18deg', 'shadow-intensity': '0.7', 'environment-image': 'neutral', 'alt': `Interactive 3D preview of ${drink.name}`, style: { width: '100%', height: '100%', backgroundColor: 'transparent' } })}</div>
               <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted-foreground">{drink.isPublished ? 'This drink is already on your menu.' : viewerError ? 'Open the preview in a WebGL-enabled browser before publishing.' : 'Looks right? Put it on your menu.'}</p>{!drink.isPublished && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-reviewed-model" /> I’m satisfied with how it looks</label>}{!drink.isPublished && <button onClick={publish} disabled={updateDrink.isPending || !!viewerError || !reviewed} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-publish-generated-drink">{updateDrink.isPending && <LoaderCircle size={16} className="animate-spin" />}Publish to menu</button>}</div>
             </div>
           )}
           {modelUrl && !hasPhoto && !cameraOpen && !cleanupQuery.isLoading && !cleanupQuery.isError && !active && <div><p className="mb-2 text-xs text-muted-foreground">A new photo replaces the cutout. Building a new model uses Meshy credits.</p><div className="flex flex-wrap gap-2">{cameraSupported() && <button type="button" onClick={() => setCameraOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-camera"><Camera size={15} /> Snap a new photo</button>}<label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted" data-testid="button-new-model-photo"><RefreshCw size={15} /> Build another version from a library photo<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" onChange={(event) => { void choosePhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label></div></div>}
           {notice && <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm" role="status" data-testid="status-studio-notice">{notice}</p>}
           {error && <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert" data-testid="status-studio-error"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div>}
-          {(generation?.status === 'ready' || modelUrl) && hasPhoto && !busyMessage && savedDraft?.status !== 'processing' && <button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
+          {failedReplacement && !outlineFile && !busyMessage && <button onClick={() => void redrawOutline(failedReplacement)} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground" data-testid="button-outline-failed-photo"><PenLine size={15} /> Outline the new photo and retry</button>}
+          {(generation?.status === 'ready' || modelUrl) && hasPhoto && !busyMessage && !outlineFile && savedDraft?.status !== 'processing' && <button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary" data-testid="button-reshoot-ready"><RefreshCw size={15} /> Make another version from a new photo</button>}
           {!hasPhoto && !cameraOpen && !active && !modelUrl && generation?.status === 'failed' && <button onClick={() => reshoot()} className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold"><Upload size={15} /> Choose a new photo</button>}
         </div>
       </section>
@@ -584,3 +673,20 @@ function PhotoTo3DStudio({ drink, startWithCamera = false, onClose, onPublished 
 }
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+
+/**
+ * Meshy builds every drink as one solid shape with the garnish painted onto the glass. For a
+ * drink served in clear glass we ask Meshy to keep the glass colourless and then make the
+ * glass see-through ourselves, in the web preview and the iPhone AR file alike.
+ */
+function ClearGlassChoice({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <div className="mx-auto mt-4 max-w-md text-left">
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-3 py-3 text-sm">
+        <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-5 w-5 accent-[hsl(var(--primary))]" data-testid="checkbox-clear-glass" />
+        <span><span className="font-semibold">Served in clear glass.</span> <span className="text-muted-foreground">We make the glass see-through in 3D and AR, so the garnish sits on the rim instead of being painted on. Untick for creamy or milky drinks.</span></span>
+      </label>
+      {checked && <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="hint-clear-glass"><GlassWater size={13} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" /><span>Glass tips: a plain background, the garnish clearly on the rim or in the drink, and outline the glass and garnish together.</span></p>}
+    </div>
+  );
+}

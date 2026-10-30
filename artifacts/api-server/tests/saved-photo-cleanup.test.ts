@@ -244,8 +244,46 @@ describe("saved paid cutout lifecycle", () => {
     await request(app).post(endpoint).set("Cookie", cookie).type("png").send(await png()).expect(502);
     const failed = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
     expect(failed.body.draft.status).toBe("failed");
+    // A provider failure says nothing about the photo, so the saved reason stays generic.
+    expect(failed.body.draft.error).toBe("Cleanup could not be saved. Choose a photo to retry.");
     await request(app).post("/api/drinks/fixture-drink/generation").set("Cookie", cookie)
       .send({ sourcePhotoPath: failed.body.draft.sourcePhotoPath, cleanedPhotoPath: failed.body.draft.cleanedPhotoPath }).expect(400);
+  });
+
+  it("keeps the traced parts and the subject's place with the cutout, and hands them to the build", async () => {
+    const cookie = await signIn();
+    const parts = { liquid: [[0.1, 0.5], [0.9, 0.5], [0.9, 0.9], [0.1, 0.9]], garnish: [[[0.6, 0.1], [0.9, 0.1], [0.9, 0.3]]] };
+    const { body } = await request(app).post(`${endpoint}?parts=${encodeURIComponent(JSON.stringify(parts))}`)
+      .set("Cookie", cookie).type("png").send(await png()).expect(200);
+    expect(body.draft.hasParts).toBe(true);
+    const [saved] = await db.select().from(schema.photoCleanupsTable);
+    expect(saved.parts).toEqual(parts);
+    expect(saved.subjectBox).toMatchObject({ x: expect.closeTo(180 / 480, 1), w: expect.closeTo(120 / 480, 1) });
+    // Starting a build copies them onto the drink, where the finished model is split.
+    vi.stubEnv("MESHY_API_KEY", "offline-fixture-not-a-real-key");
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ result: "offline-task" }), { status: 200 }));
+    await request(app).post("/api/drinks/fixture-drink/generation").set("Cookie", cookie)
+      .send({ sourcePhotoPath: body.draft.sourcePhotoPath, cleanedPhotoPath: body.draft.cleanedPhotoPath, clearGlass: true }).expect(200);
+    fetch.mockRestore();
+    const [drink] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
+    expect(drink.parts).toEqual(parts);
+    expect(drink.subjectBox).toEqual(saved.subjectBox);
+    expect(drink.clearGlass).toBe(true);
+    const plain = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
+    expect(plain.body.draft.hasParts).toBe(true);
+  });
+
+  it("saves what was wrong with the photo, so a reopened studio can say what to fix", async () => {
+    const cookie = await signIn();
+    // The cutout kept something running off the photo's edge (a fruit at the side of the shot).
+    const cutOff = await sharp({ create: { width: 480, height: 480, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: { create: { width: 120, height: 200, channels: 4, background: { r: 200, g: 40, b: 30, alpha: 1 } } }, left: 0, top: 140 }])
+      .png().toBuffer();
+    mocks.edit.mockResolvedValue({ data: [{ b64_json: cutOff.toString("base64") }] });
+    await request(app).post(endpoint).set("Cookie", cookie).type("png").send(await png()).expect(400);
+    const failed = await request(app).get(endpoint).set("Cookie", cookie).expect(200);
+    expect(failed.body.draft.status).toBe("failed");
+    expect(failed.body.draft.error).toContain("cut off at the edge");
   });
 
   it("resumes the earlier paid cutout after a failed replacement and accepts it for generation", async () => {

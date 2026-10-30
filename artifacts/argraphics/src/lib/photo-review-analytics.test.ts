@@ -12,6 +12,7 @@ const draft: SavedPhotoCleanup = {
   cleanedPhotoPath: '/private/cleaned.png',
   error: null,
   createdAt: '2026-10-15T00:00:00Z',
+  hasParts: false,
 };
 
 describe('privacy-safe photo review analytics', () => {

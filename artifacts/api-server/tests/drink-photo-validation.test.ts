@@ -155,4 +155,18 @@ describe("valid drink photos reach mocked generation", () => {
       meshyTaskId: `offline-task-${format}`, generationStatus: "processing", isPublished: false,
     });
   });
+
+  it.each([true, false])("asks Meshy for a clear glass only when the item is served in one (%s)", async (clearGlass) => {
+    const cookie = await prepare();
+    const bytes = await image("png");
+    upload("original", bytes, "image/png");
+    upload("cleaned", bytes, "image/png");
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ result: "offline-task" }), { status: 200 }));
+    await request(app).post("/api/drinks/fixture-drink/generation").set("Cookie", cookie).send({ ...paths, clearGlass }).expect(200);
+    const sent = JSON.parse(fetch.mock.calls[0][1]!.body as string);
+    if (clearGlass) expect(sent.texture_prompt).toMatch(/clear, colourless/);
+    else expect(sent).not.toHaveProperty("texture_prompt");
+    const [drink] = await db.select().from(schema.drinksTable).where(eq(schema.drinksTable.id, "fixture-drink"));
+    expect(drink.clearGlass).toBe(clearGlass);
+  });
 });

@@ -1,15 +1,26 @@
 import type { SavedPhotoCleanup } from '@workspace/api-client-react';
 import { trackEvent } from './analytics';
+import { encodeOutline, encodeParts, type OutlinePoint, type Parts } from './outline';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 export function savedCleanupImageUrl(draft: SavedPhotoCleanup, kind: 'source' | 'cleaned') {
   return `${base}/api/drinks/${encodeURIComponent(draft.drinkId)}/photo-cleanup/${encodeURIComponent(draft.id)}/${kind}`;
 }
 
-/** AI cleanup runs on the authenticated server and saves before responding. */
-export async function removePhotoBackground(drinkId: string, file: Blob, onProgress?: (message: string) => void): Promise<SavedPhotoCleanup> {
-  onProgress?.('OpenAI is removing the background… This can take a minute or two. You can close the studio; the result will be saved here.');
-  const response = await fetch(`${base}/api/drinks/${encodeURIComponent(drinkId)}/photo-cleanup`, {
+/**
+ * AI cleanup runs on the authenticated server and saves before responding. An outline the
+ * owner traced tells it where the item is; everything outside it is removed.
+ */
+export async function removePhotoBackground(drinkId: string, file: Blob, onProgress?: (message: string) => void, outline?: OutlinePoint[], parts?: Parts): Promise<SavedPhotoCleanup> {
+  onProgress?.(outline
+    ? 'Removing everything outside your outline… This can take a minute or two. You can close the studio; the result will be saved here.'
+    : 'OpenAI is removing the background… This can take a minute or two. You can close the studio; the result will be saved here.');
+  const query = new URLSearchParams();
+  if (outline) query.set('outline', encodeOutline(outline));
+  const encodedParts = parts && encodeParts(parts);
+  if (encodedParts) query.set('parts', encodedParts);
+  const search = query.size ? `?${query}` : '';
+  const response = await fetch(`${base}/api/drinks/${encodeURIComponent(drinkId)}/photo-cleanup${search}`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': file.type },

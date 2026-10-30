@@ -20,6 +20,8 @@ const NORMAL_JPEG_QUALITY = 95;
 export async function slimGlb(bytes: Buffer): Promise<Buffer> {
   const io = new NodeIO().registerExtensions([KHRMeshQuantization, KHRTextureTransform, KHRMaterialsEmissiveStrength]);
   const document = await io.readBinary(new Uint8Array(bytes));
+  // (A see-through glass, glb-glass.ts, is a separate primitive whose material carries the
+  // alpha as a factor, so the texture stays plain JPEG here.)
   await document.transform(
     dedup(),
     prune(),

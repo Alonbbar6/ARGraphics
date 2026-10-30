@@ -1,6 +1,6 @@
 import { Router, raw, type IRouter, type Request, type Response } from "express";
 import OpenAI from "openai";
-import { cleanupDrinkPhoto, PhotoCleanupError } from "../lib/photo-cleanup";
+import { cleanupDrinkPhoto, parseOutline, parseParts, PhotoCleanupError, type Outline, type Parts } from "../lib/photo-cleanup";
 import { acquireCleanupLease, cleanupRequestTimeoutMs, releaseCleanupLease } from "../lib/photo-cleanup-limits";
 import { savePhotoCleanup } from "../lib/saved-photo-cleanup";
 import savedPhotoCleanupRouter from "./saved-photo-cleanup";
@@ -29,6 +29,15 @@ router.post(["/drinks/photo-cleanup", "/drinks/:id/photo-cleanup"], async (req, 
   if (!owner) { res.status(401).json({ error: "Sign in to clean up a photo." }); return; }
   if (!["image/jpeg", "image/png", "image/webp"].includes(req.get("content-type")?.split(";")[0] ?? "")) {
     res.status(415).json({ error: "Choose a JPEG, PNG, or WebP photo." }); return;
+  }
+  let outline: Outline | undefined;
+  let parts: Parts | undefined;
+  try {
+    // Checked before admission, so a bad outline never uses up one of the owner's attempts.
+    outline = parseOutline(req.query.outline);
+    parts = parseParts(req.query.parts);
+  } catch (error) {
+    res.status(400).json({ error: (error as Error).message }); return;
   }
   // Start the deadline before database admission so lock waits cannot extend it.
   const controller = new AbortController();
@@ -64,11 +73,11 @@ router.post(["/drinks/photo-cleanup", "/drinks/:id/photo-cleanup"], async (req, 
     if (req.params.id) {
       savingDraft = true;
       const draft = await savePhotoCleanup(owner.id, owner.barId, String(req.params.id),
-        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), controller.signal);
+        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), controller.signal, outline, parts);
       if (!res.destroyed) res.set("Cache-Control", "no-store").json(SavePhotoCleanupResponse.parse({ draft }));
       return;
     }
-    const output = await cleanupDrinkPhoto(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), controller.signal);
+    const output = await cleanupDrinkPhoto(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), controller.signal, outline);
     controller.signal.throwIfAborted();
     res.set("Cache-Control", "no-store").type("png").send(output);
   } catch (error) {

@@ -17,4 +17,6 @@ export interface SavedPhotoCleanup {
   /** @nullable */
   error: string | null;
   createdAt: Date;
+  /** Whether the owner traced the liquid or garnish on this photo (see the `parts` cleanup parameter). */
+  hasParts: boolean;
 }

@@ -1,7 +1,11 @@
-import { pgTable, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable, drinksTable } from "./argraphics";
+
+export type PhotoLoop = Array<[number, number]>;
+export type PhotoParts = { liquid?: PhotoLoop; garnish?: PhotoLoop[] };
+export type SubjectBox = { x: number; y: number; w: number; h: number };
 
 export const photoCleanupsTable = pgTable("photo_cleanups", {
   id: text("id").primaryKey(),
@@ -12,6 +16,10 @@ export const photoCleanupsTable = pgTable("photo_cleanups", {
   cleanedPhotoPath: text("cleaned_photo_path"),
   sourceSize: integer("source_size").notNull(),
   cleanedSize: integer("cleaned_size"),
+  // Parts the owner traced on the photo (liquid, garnish loops) and where the cutout's subject
+  // sits in the source photo, both as 0-1 fractions. Used to tell glass from drink after a build.
+  parts: jsonb("parts").$type<PhotoParts>(),
+  subjectBox: jsonb("subject_box").$type<SubjectBox>(),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
