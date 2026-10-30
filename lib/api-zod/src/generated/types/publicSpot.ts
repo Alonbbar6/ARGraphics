@@ -6,12 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Placement } from './placement';
+import type { SpotAnchor } from './spotAnchor';
 
 export interface PublicSpot {
   label: string;
   placement: Placement;
+  anchor?: SpotAnchor;
+  /** Printed width of the QR code image (quiet zone included), for tracking it at real size. */
+  qrWidthCm?: number;
+  /** The code's QR image as printed; see /v1/codes/{code}/qr.png. */
+  qrImageUrl?: string;
   /**
-     * The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.
+     * The entry in tableCards this code is printed on, when the venue registered its card design.
      * @nullable
      */
   tableCardId?: string | null;

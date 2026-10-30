@@ -197,6 +197,11 @@ export const qrCodesTable = pgTable("qr_codes", {
   // What the code shows, in order. Empty = everything live at the venue; one = opens that
   // display; several = a short menu of just those. Deleted or paused displays are skipped.
   displayIds: text("display_ids").array().notNull().default(sql`'{}'::text[]`),
+  // What the app anchors content to: "qr" (the printed code itself, tracked as an image),
+  // "card" (the registered card design in table_card_id), or "surface" (the table or wall).
+  anchor: text("anchor").notNull().default("qr"),
+  // Printed width of the QR code itself (modules plus quiet zone), for image tracking.
+  qrWidthCm: numeric("qr_width_cm", { precision: 5, scale: 2 }).notNull().default("4"),
   // The printed card design this code sits on, so the app can anchor content to the card.
   tableCardId: text("table_card_id").references(() => tableCardsTable.id, { onDelete: "set null" }),
   code: text("code").notNull().unique(),

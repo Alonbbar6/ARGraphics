@@ -123,12 +123,31 @@ struct PublicDisplay: Codable, Hashable, Identifiable {
     }
 }
 
+/// What content stands on when this code is scanned.
+enum SpotAnchor: String, OpenEnum {
+    /// The printed code itself, tracked as an image so content follows it.
+    case qr
+    /// The registered card design the code is printed on (`PublicSpot.tableCardId`).
+    case card
+    /// The nearest table or wall.
+    case surface
+    case unknown
+
+    static var unknownCase: SpotAnchor { .unknown }
+}
+
 struct PublicSpot: Codable, Hashable {
     let label: String
     let placement: Placement
-    /// The entry in `tableCards` this code is printed on, so content can stand on that card
-    /// and follow it. Older servers omit it.
+    /// Older servers omit these; they anchored to a surface.
+    var anchor: SpotAnchor? = nil
+    /// Printed width of the QR image in centimetres, quiet zone included.
+    var qrWidthCm: Double? = nil
+    /// The entry in `tableCards` this code is printed on.
     var tableCardId: String? = nil
+
+    /// Metres, for ARKit; a sensible default when the venue hasn't measured it.
+    var qrWidth: Float { Float((qrWidthCm ?? 4) / 100) }
 }
 
 struct PublicTableCard: Codable, Hashable, Identifiable {

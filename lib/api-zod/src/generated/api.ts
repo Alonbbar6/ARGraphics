@@ -1062,7 +1062,9 @@ export const ListQrCodesResponseItem = zod.object({
   "displayTitles": zod.array(zod.string()).describe('Titles matching displayIds, for labels and print.'),
   "displayId": zod.string().nullable().describe('The single display when exactly one is chosen, otherwise null. Prefer displayIds.'),
   "displayTitle": zod.string().nullable(),
-  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.'),
+  "anchor": zod.enum(['qr', 'card', 'surface']).describe('What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.'),
+  "qrWidthCm": zod.number().describe('Printed width of the QR image in centimetres (quiet zone included). Used when anchor is qr.'),
+  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on. Used when anchor is card.'),
   "tableCardName": zod.string().nullable(),
   "code": zod.string(),
   "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
@@ -1088,6 +1090,8 @@ export const createQrCodesBodyDisplayIdsMax = 30;
 
 export const createQrCodesBodyDisplayIdMax = 120;
 
+export const createQrCodesBodyQrWidthCmMax = 100;
+
 export const createQrCodesBodyTableCardIdMax = 120;
 
 
@@ -1097,6 +1101,8 @@ export const CreateQrCodesBody = zod.object({
   "placement": zod.enum(['table', 'wall', 'window', 'poster']),
   "displayIds": zod.array(zod.string().min(1).max(createQrCodesBodyDisplayIdsItemMax)).max(createQrCodesBodyDisplayIdsMax).optional().describe('Displays the code shows, in order. Empty means everything live. Send either this or displayId, not both.'),
   "displayId": zod.string().max(createQrCodesBodyDisplayIdMax).nullish().describe('Shorthand for a one-item displayIds.'),
+  "anchor": zod.enum(['qr', 'card', 'surface']).optional().describe('What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.'),
+  "qrWidthCm": zod.number().min(1).max(createQrCodesBodyQrWidthCmMax).optional().describe('Printed width of the QR image in centimetres.'),
   "tableCardId": zod.string().max(createQrCodesBodyTableCardIdMax).nullish().describe('The card design these codes are printed on.')
 })
 
@@ -1108,7 +1114,9 @@ export const CreateQrCodesResponseItem = zod.object({
   "displayTitles": zod.array(zod.string()).describe('Titles matching displayIds, for labels and print.'),
   "displayId": zod.string().nullable().describe('The single display when exactly one is chosen, otherwise null. Prefer displayIds.'),
   "displayTitle": zod.string().nullable(),
-  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.'),
+  "anchor": zod.enum(['qr', 'card', 'surface']).describe('What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.'),
+  "qrWidthCm": zod.number().describe('Printed width of the QR image in centimetres (quiet zone included). Used when anchor is qr.'),
+  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on. Used when anchor is card.'),
   "tableCardName": zod.string().nullable(),
   "code": zod.string(),
   "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
@@ -1136,6 +1144,8 @@ export const updateQrCodeBodyDisplayIdsMax = 30;
 
 export const updateQrCodeBodyDisplayIdMax = 120;
 
+export const updateQrCodeBodyQrWidthCmMax = 100;
+
 export const updateQrCodeBodyTableCardIdMax = 120;
 
 
@@ -1145,6 +1155,8 @@ export const UpdateQrCodeBody = zod.object({
   "placement": zod.enum(['table', 'wall', 'window', 'poster']).optional(),
   "displayIds": zod.array(zod.string().min(1).max(updateQrCodeBodyDisplayIdsItemMax)).max(updateQrCodeBodyDisplayIdsMax).optional().describe('Displays the code shows, in order. Empty means everything live. Send either this or displayId, not both.'),
   "displayId": zod.string().max(updateQrCodeBodyDisplayIdMax).nullish().describe('Shorthand for a one-item displayIds.'),
+  "anchor": zod.enum(['qr', 'card', 'surface']).optional().describe('What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.'),
+  "qrWidthCm": zod.number().min(1).max(updateQrCodeBodyQrWidthCmMax).optional().describe('Printed width of the QR image in centimetres.'),
   "tableCardId": zod.string().max(updateQrCodeBodyTableCardIdMax).nullish().describe('The card design this code is printed on; null to clear.')
 })
 
@@ -1156,7 +1168,9 @@ export const UpdateQrCodeResponse = zod.object({
   "displayTitles": zod.array(zod.string()).describe('Titles matching displayIds, for labels and print.'),
   "displayId": zod.string().nullable().describe('The single display when exactly one is chosen, otherwise null. Prefer displayIds.'),
   "displayTitle": zod.string().nullable(),
-  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.'),
+  "anchor": zod.enum(['qr', 'card', 'surface']).describe('What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.'),
+  "qrWidthCm": zod.number().describe('Printed width of the QR image in centimetres (quiet zone included). Used when anchor is qr.'),
+  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on. Used when anchor is card.'),
   "tableCardName": zod.string().nullable(),
   "code": zod.string(),
   "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
@@ -1774,7 +1788,10 @@ export const CreatePublicScanResponse = zod.object({
   "spot": zod.object({
   "label": zod.string(),
   "placement": zod.enum(['table', 'wall', 'window', 'poster']),
-  "tableCardId": zod.string().nullish().describe('The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.')
+  "anchor": zod.enum(['qr', 'card', 'surface']).optional().describe('What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.'),
+  "qrWidthCm": zod.number().optional().describe('Printed width of the QR code image (quiet zone included), for tracking it at real size.'),
+  "qrImageUrl": zod.string().url().optional().describe('The code\'s QR image as printed; see /v1/codes/{code}/qr.png.'),
+  "tableCardId": zod.string().nullish().describe('The entry in tableCards this code is printed on, when the venue registered its card design.')
 }),
   "display": zod.union([zod.object({
   "id": zod.string(),
@@ -1833,6 +1850,23 @@ export const CreatePublicScanResponse = zod.object({
   "physicalWidthCm": zod.number()
 }))
 })
+
+
+/**
+ * The QR image for a code exactly as the dashboard prints it (same encoder and options), for the app to track as an ARKit reference image so content stands on the printed code and follows it. Square PNG, white quiet zone included.
+ */
+export const getPublicCodeImagePathCodeRegExp = new RegExp('^[a-z0-9]{6,16}$');
+
+
+export const GetPublicCodeImageParams = zod.object({
+  "code": zod.coerce.string().regex(getPublicCodeImagePathCodeRegExp)
+})
+
+export const GetPublicCodeImageHeader = zod.object({
+  "x-api-key": zod.string()
+})
+
+export const GetPublicCodeImageResponse = zod.unknown()
 
 
 export const GetPublicVenueParams = zod.object({

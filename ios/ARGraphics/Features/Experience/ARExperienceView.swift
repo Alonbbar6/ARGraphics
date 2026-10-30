@@ -7,18 +7,21 @@ import SwiftUI
 /// unsupported there, so ExperienceModel always picks the flat page instead.
 struct ARExperienceView: View {
     let model: ExperienceModel
+    let api: VisitorAPI?
     var body: some View { Color.clear }
 }
 #else
-/// Live AR. The venue's printed cards are ARKit tracked images: content stands on the card
-/// the guest scanned and follows it when they pick it up. In order of preference it anchors
-/// to this spot's card, any of the venue's cards, the printed code itself (captured from the
-/// camera, see QRTracker), and only then a guessed surface: menu items on the nearest table,
-/// art flat on a wall or window. A Coral marker sits under whatever was placed. Tap to move it.
+/// Live AR. Content stands on what the venue chose for this code: the printed code itself or
+/// a registered card design, both tracked as ARKit images so the content follows the card
+/// when a guest picks it up; or the table or wall (menu items on the nearest table, art flat
+/// on a wall or window). While a tracked print hasn't been seen yet, the content waits on the
+/// surface in front of the guest and jumps onto the print as soon as it appears. A Coral
+/// marker sits under whatever was placed. Tap a surface to move it there.
 struct ARExperienceView: UIViewRepresentable {
     let model: ExperienceModel
+    let api: VisitorAPI?
 
-    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
+    func makeCoordinator() -> Coordinator { Coordinator(model: model, api: api) }
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
@@ -36,50 +39,34 @@ struct ARExperienceView: UIViewRepresentable {
         coordinator.teardown()
     }
 
-    /// Where the content is anchored, best first. A better anchor replaces a worse one.
-    enum Anchoring: Int, Comparable {
-        case none = 0
-        /// A guessed table or wall under the screen centre, or where the guest tapped.
-        case surface
-        /// The printed code, captured from the camera because no card was registered.
-        case capturedCode
-        /// One of the venue's registered cards.
-        case venueCard
-        /// The card this code is printed on.
-        case spotCard
-
-        static func < (lhs: Anchoring, rhs: Anchoring) -> Bool { lhs.rawValue < rhs.rawValue }
-        /// Tracked anchors follow the print; content stands on it in the image's own frame.
-        var tracksAnImage: Bool { self >= .capturedCode }
-    }
-
     @MainActor
     final class Coordinator: NSObject, ARSessionDelegate {
         private let model: ExperienceModel
+        private let api: VisitorAPI?
         private weak var arView: ARView?
         private var loadedKey: String?
         private var content: ModelEntity?
         private var marker: ModelEntity?
         private var contentSize: SIMD2<Float> = [0.2, 0.2]
         private var anchor: AnchorEntity?
-        private var anchoring: Anchoring = .none
-        /// Image anchors ARKit has reported, by how good they are, until content is ready to use them.
-        private var seenImages: [Anchoring: UUID] = [:]
+        private var onImage = false
+        /// The tracked print's anchor, if ARKit found it before the content was ready.
+        private var pendingImageAnchor: UUID?
+        private var referenceImages = Set<ARReferenceImage>()
+        private var imagesReadyAt: Date?
         private var startedAt = Date()
-        private var cardImages = Set<ARReferenceImage>()
-        private var codeImage: ARReferenceImage?
-        private let tracker: QRTracker?
         private var placementTimer: Timer?
         private var loadTask: Task<Void, Never>?
 
         /// Flat art hangs on walls and windows; a 3D model always stands on a table or floor.
         private var vertical: Bool { model.placement.isVertical && !model.content.isModel }
         private var alignment: ARRaycastQuery.TargetAlignment { vertical ? .vertical : .horizontal }
-        private var hasReferenceImages: Bool { !cardImages.isEmpty || codeImage != nil }
+        /// Whether this code is meant to stand on a print (the code or a card) rather than a surface.
+        private var expectsImage: Bool { model.visit.tracksCode || !model.visit.trackedCards.isEmpty }
 
-        init(model: ExperienceModel) {
+        init(model: ExperienceModel, api: VisitorAPI?) {
             self.model = model
-            tracker = model.visit.code.map { QRTracker(expectedCode: $0) }
+            self.api = api
         }
 
         func attach(to view: ARView) {
@@ -87,7 +74,17 @@ struct ARExperienceView: UIViewRepresentable {
             view.session.delegate = self
             view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap(_:))))
             runSession()
-            loadReferenceImages()
+            startedAt = Date()
+            if expectsImage {
+                Task { [weak self] in
+                    guard let self else { return }
+                    let images = await ReferenceImageLoader.load(for: self.model.visit, api: self.api)
+                    guard !images.isEmpty else { return }
+                    self.referenceImages = images
+                    self.imagesReadyAt = Date()
+                    self.runSession()
+                }
+            }
 
             model.snapshotProvider = { [weak view] completion in
                 guard let view else { return completion(nil) }
@@ -108,39 +105,17 @@ struct ARExperienceView: UIViewRepresentable {
 
         private func runSession() {
             guard let arView else { return }
-            var images = cardImages
-            if let codeImage { images.insert(codeImage) }
             let config = ARWorldTrackingConfiguration()
             config.planeDetection = vertical ? [.vertical] : [.horizontal]
             config.environmentTexturing = .automatic
-            config.detectionImages = images
-            // Tracked (not just detected) so content follows the card when it moves.
-            config.maximumNumberOfTrackedImages = min(2, images.count)
-            config.automaticImageScaleEstimationEnabled = codeImage != nil
+            config.detectionImages = referenceImages
+            // Tracked (not just detected) so content follows the print when it moves.
+            config.maximumNumberOfTrackedImages = min(1, referenceImages.count)
             if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
                 config.frameSemantics.insert(.personSegmentationWithDepth)
             }
             // Keep tracking and anchors when adding reference images mid-session.
             arView.session.run(config, options: [])
-        }
-
-        // MARK: Cards and the printed code
-
-        private func loadReferenceImages() {
-            let cards = model.tableCards
-            guard !cards.isEmpty else { return }
-            Task { [weak self] in
-                let images = await ReferenceImageLoader.load(cards)
-                guard let self, !images.isEmpty else { return }
-                self.cardImages = images
-                self.startedAt = Date()
-                self.runSession()
-            }
-        }
-
-        private func codeImageReady(_ image: ARReferenceImage) {
-            codeImage = image
-            runSession()
         }
 
         // MARK: Content
@@ -181,7 +156,7 @@ struct ARExperienceView: UIViewRepresentable {
                     self.content = built
                     self.marker = marker
                     self.arView?.installGestures(gestures, for: built)
-                    self.useBestSeenImage()
+                    if let pending = self.pendingImageAnchor { self.placeOnImage(pending) }
                 } catch {
                     // Forget the key so "Try again" rebuilds instead of being skipped as already loaded.
                     self?.loadedKey = nil
@@ -191,9 +166,9 @@ struct ARExperienceView: UIViewRepresentable {
         }
 
         /// Puts the content and marker on an anchor. `facing` orients flat content on a surface
-        /// (wall normal, or toward the guest). On a tracked image everything stands on the print
-        /// in its own frame (+Z is the print's bottom edge, toward the guest), so it travels with it.
-        private func place(at anchorEntity: AnchorEntity, facing: SIMD3<Float>?, as kind: Anchoring) {
+        /// (wall normal, or toward the guest). On a tracked print everything stands on it in the
+        /// print's own frame (+Z is its bottom edge, toward the guest), so it travels with it.
+        private func place(at anchorEntity: AnchorEntity, facing: SIMD3<Float>?, onImage image: Bool) {
             guard let arView, let content, let marker else { return }
             anchor?.removeFromParent()
             content.removeFromParent()
@@ -206,10 +181,10 @@ struct ARExperienceView: UIViewRepresentable {
                 content.position = .zero
                 marker.orientation = upright
                 marker.position = [0, 0.001, 0]
-            } else if kind.tracksAnImage {
+            } else if image {
                 content.orientation = upright
                 content.position = [0, ARContentBuilder.tableLift + contentSize.y / 2, 0]
-                // A wall piece's ring was built upright; lay it flat under the card instead.
+                // A wall piece's ring was built upright; lay it flat under the print instead.
                 marker.orientation = vertical ? simd_quatf(angle: -.pi / 2, axis: [1, 0, 0]) : upright
                 marker.position = [0, 0.001, 0]
             } else if vertical {
@@ -229,21 +204,20 @@ struct ARExperienceView: UIViewRepresentable {
             arView.scene.addAnchor(anchorEntity)
             anchor = anchorEntity
             if model.modelFile != nil { ModelPreparation.playBakedAnimations(in: content) }
-            anchoring = kind
+            onImage = image
 
             if !UIAccessibility.isReduceMotionEnabled, model.phase == .finding {
                 let final = content.transform
                 content.transform.scale = SIMD3(repeating: 0.01)
                 content.move(to: final, relativeTo: anchorEntity, duration: 0.45, timingFunction: .easeOut)
             }
-            UIImpactFeedbackGenerator(style: kind.tracksAnImage ? .medium : .light).impactOccurred()
-            model.phase = .placed(onCard: kind.tracksAnImage)
+            UIImpactFeedbackGenerator(style: image ? .medium : .light).impactOccurred()
+            model.phase = .placed(onCard: image)
         }
 
-        /// Stands the content on the best print ARKit has seen so far, if that beats the current anchor.
-        private func useBestSeenImage() {
-            guard content != nil, let best = seenImages.keys.max(), best > anchoring, let identifier = seenImages[best] else { return }
-            place(at: AnchorEntity(.anchor(identifier: identifier)), facing: nil, as: best)
+        private func placeOnImage(_ identifier: UUID) {
+            guard !onImage, content != nil else { return }
+            place(at: AnchorEntity(.anchor(identifier: identifier)), facing: nil, onImage: true)
         }
 
         private var cameraPosition: SIMD3<Float> {
@@ -253,61 +227,48 @@ struct ARExperienceView: UIViewRepresentable {
         private func place(hit: ARRaycastResult) {
             let position = SIMD3<Float>(hit.worldTransform.columns.3.x, hit.worldTransform.columns.3.y, hit.worldTransform.columns.3.z)
             if model.modelFile != nil {
-                place(at: AnchorEntity(world: hit.worldTransform), facing: nil, as: .surface)
+                place(at: AnchorEntity(world: hit.worldTransform), facing: nil, onImage: false)
             } else if vertical {
                 let normal = ARMath.outwardNormal(hit: hit.worldTransform, camera: cameraPosition)
-                place(at: AnchorEntity(world: position), facing: normal, as: .surface)
+                place(at: AnchorEntity(world: position), facing: normal, onImage: false)
             } else {
-                place(at: AnchorEntity(world: position), facing: cameraPosition - position, as: .surface)
+                place(at: AnchorEntity(world: position), facing: cameraPosition - position, onImage: false)
             }
         }
 
-        /// No print recognised after a few seconds: use the surface under the screen centre.
-        /// A card or code seen later still takes over.
+        /// Surface placement: straight away for surface codes; for a tracked print, only after
+        /// the print has had a fair chance to be seen, so the guest isn't left with nothing.
         private func tryPlaneFallback() {
             guard let arView, content != nil, anchor == nil else { return }
-            let wait: TimeInterval = hasReferenceImages || tracker != nil ? 4 : 1
-            guard Date().timeIntervalSince(startedAt) > wait else { return }
+            if expectsImage {
+                guard let ready = imagesReadyAt, Date().timeIntervalSince(ready) > 3 else { return }
+            } else {
+                guard Date().timeIntervalSince(startedAt) > 1 else { return }
+            }
             let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY * (vertical ? 0.9 : 1.2))
             guard let hit = arView.raycast(from: center, allowing: .estimatedPlane, alignment: alignment).first else { return }
             place(hit: hit)
         }
 
-        /// Tapping a surface moves the content there. Off a card it stops following that card;
-        /// the guest asked for it, and pointing at the card again doesn't yank it back.
+        /// Tapping a surface moves the content there. Off a print it stops following that print;
+        /// the guest asked for it, and pointing at the print again doesn't yank it back.
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let arView, content != nil else { return }
             let point = gesture.location(in: arView)
             guard let hit = arView.raycast(from: point, allowing: .estimatedPlane, alignment: alignment).first else { return }
-            seenImages.removeAll()
+            pendingImageAnchor = nil
             place(hit: hit)
         }
 
         // MARK: ARSessionDelegate
 
-        nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
-            MainActor.assumeIsolated {
-                // Only worth capturing the code while nothing registered is anchoring the content.
-                guard anchoring < .capturedCode, let arView, let tracker else { return }
-                tracker.consider(frame: frame, in: arView) { [weak self] image, _ in
-                    self?.codeImageReady(image)
-                }
-            }
-        }
-
         nonisolated func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
-            let images = anchors.compactMap { $0 as? ARImageAnchor }
-            guard !images.isEmpty else { return }
-            let found = images.map { ($0.identifier, $0.referenceImage.name) }
+            guard let image = anchors.compactMap({ $0 as? ARImageAnchor }).first else { return }
+            let identifier = image.identifier
             MainActor.assumeIsolated {
-                for (identifier, name) in found {
-                    let kind: Anchoring
-                    if let name, name.hasPrefix(QRTracker.namePrefix) { kind = .capturedCode }
-                    else if let name, name == model.visit.spot?.tableCardId { kind = .spotCard }
-                    else { kind = .venueCard }
-                    if seenImages[kind] == nil { seenImages[kind] = identifier }
-                }
-                useBestSeenImage()
+                guard !onImage else { return }
+                pendingImageAnchor = identifier
+                placeOnImage(identifier)
             }
         }
 
@@ -327,6 +288,31 @@ struct ARExperienceView: UIViewRepresentable {
 #endif
 
 enum ReferenceImageLoader {
+    /// Reference image names starting with this are the printed code itself.
+    static let codeNamePrefix = "qr:"
+
+    /// The printed code as an ARKit tracked image: the server's PNG (the dashboard's exact
+    /// render) at the width the venue measured on the print. Nil if ARKit can't track it.
+    static func code(_ code: String, api: VisitorAPI?, width: Float) async -> ARReferenceImage? {
+        guard let api, width > 0.005, let data = try? await api.codeImage(code: code),
+              let cgImage = UIImage(data: data)?.cgImage else { return nil }
+        let image = ARReferenceImage(cgImage, orientation: .up, physicalWidth: CGFloat(width))
+        image.name = codeNamePrefix + code
+        let valid = await withCheckedContinuation { continuation in
+            image.validate { continuation.resume(returning: $0 == nil) }
+        }
+        return valid ? image : nil
+    }
+
+    /// Everything to track for a visit: the printed code and/or the chosen cards.
+    static func load(for visit: Visit, api: VisitorAPI?) async -> Set<ARReferenceImage> {
+        async let code = visit.tracksCode ? Self.code(visit.code!, api: api, width: visit.spot?.qrWidth ?? 0.04) : nil
+        async let cards = load(visit.trackedCards)
+        var images = await cards
+        if let code = await code { images.insert(code) }
+        return images
+    }
+
     /// Downloads card artwork and keeps only images ARKit can actually track;
     /// one bad image would otherwise fail the whole session. Each image is named by card id.
     static func load(_ cards: [PublicTableCard]) async -> Set<ARReferenceImage> {

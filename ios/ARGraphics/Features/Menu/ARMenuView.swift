@@ -6,18 +6,19 @@ import SwiftUI
 /// See ARExperienceView: the Simulator has no ARKit, so the list screen is used instead.
 struct ARMenuView: View {
     let model: MenuExperienceModel
+    let api: VisitorAPI?
     var body: some View { Color.clear }
 }
 #else
-/// The code's menu, in the room. Miniatures of every item stand in an arc on the printed card
-/// with a floating name and price, and follow the card when it moves. Anchoring prefers this
-/// spot's registered card, then any venue card, then the code itself captured from the camera
-/// (QRTracker), then the surface in front of the guest. Tap one and it comes up to real size
-/// in the middle; tap elsewhere to put it back.
+/// The code's menu, in the room. Miniatures of every item stand in an arc on what the venue
+/// chose for this code (the printed QR code or a registered card design, tracked as an ARKit
+/// image so the menu follows the card when it moves; or the table) with a floating name and
+/// price. Tap one and it comes up to real size in the middle; tap elsewhere to put it back.
 struct ARMenuView: UIViewRepresentable {
     let model: MenuExperienceModel
+    let api: VisitorAPI?
 
-    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
+    func makeCoordinator() -> Coordinator { Coordinator(model: model, api: api) }
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
@@ -46,20 +47,17 @@ struct ARMenuView: UIViewRepresentable {
         let facesCamera: Bool
     }
 
-    typealias Anchoring = ARExperienceView.Anchoring
-
     @MainActor
     final class Coordinator: NSObject, ARSessionDelegate {
         private let model: MenuExperienceModel
+        private let api: VisitorAPI?
         private weak var arView: ARView?
-        private let tracker: QRTracker?
         private var anchor: AnchorEntity?
-        private var anchoring: Anchoring = .none
-        private var seenImages: [Anchoring: UUID] = [:]
-        /// Width of what the menu stands round: the card, the code, or a guess.
-        private var codeWidth: Float = QRTracker.assumedCodeWidth
-        private var cardImages = Set<ARReferenceImage>()
-        private var codeImage: ARReferenceImage?
+        private var onImage = false
+        /// Width of what the menu stands round: the code, the card, or a guess.
+        private var codeWidth: Float = 0.06
+        private var referenceImages = Set<ARReferenceImage>()
+        private var imagesReadyAt: Date?
         private var marker: ModelEntity?
         private var placed: [String: Placed] = [:]
         private var building: Set<String> = []
@@ -67,9 +65,11 @@ struct ARMenuView: UIViewRepresentable {
         private var fallbackTimer: Timer?
         private var selectedId: String?
 
-        init(model: MenuExperienceModel) {
+        private var expectsImage: Bool { model.visit.tracksCode || !model.visit.trackedCards.isEmpty }
+
+        init(model: MenuExperienceModel, api: VisitorAPI?) {
             self.model = model
-            tracker = model.expectedCode.map { QRTracker(expectedCode: $0) }
+            self.api = api
         }
 
         func attach(to view: ARView) {
@@ -78,13 +78,13 @@ struct ARMenuView: UIViewRepresentable {
             view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap(_:))))
             runSession()
             startedAt = Date()
-            let cards = model.visit.trackedCards
-            if !cards.isEmpty {
+            if expectsImage {
                 Task { [weak self] in
-                    let images = await ReferenceImageLoader.load(cards)
-                    guard let self, !images.isEmpty else { return }
-                    self.cardImages = images
-                    self.startedAt = Date()
+                    guard let self else { return }
+                    let images = await ReferenceImageLoader.load(for: self.model.visit, api: self.api)
+                    guard !images.isEmpty else { return }
+                    self.referenceImages = images
+                    self.imagesReadyAt = Date()
                     self.runSession()
                 }
             }
@@ -106,19 +106,16 @@ struct ARMenuView: UIViewRepresentable {
 
         private func runSession() {
             guard let arView else { return }
-            var images = cardImages
-            if let codeImage { images.insert(codeImage) }
             let config = ARWorldTrackingConfiguration()
             config.planeDetection = [.horizontal, .vertical]
             config.environmentTexturing = .automatic
-            config.detectionImages = images
-            // Tracked (not just detected) so the menu follows the card when it moves.
-            config.maximumNumberOfTrackedImages = min(2, images.count)
-            config.automaticImageScaleEstimationEnabled = codeImage != nil
+            config.detectionImages = referenceImages
+            // Tracked (not just detected) so the menu follows the print when it moves.
+            config.maximumNumberOfTrackedImages = min(1, referenceImages.count)
             if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
                 config.frameSemantics.insert(.personSegmentationWithDepth)
             }
-            // Keep tracking and anchors when adding the reference image mid-session.
+            // Keep tracking and anchors when adding reference images mid-session.
             arView.session.run(config, options: [])
         }
 
@@ -231,12 +228,12 @@ struct ARMenuView: UIViewRepresentable {
 
         private var cameraPosition: SIMD3<Float> { arView?.cameraTransform.translation ?? .zero }
 
-        /// Moves the whole menu onto `anchorEntity`: a tracked card or code, or a spot on a surface.
+        /// Moves the whole menu onto `anchorEntity`: the tracked print, or a spot on a surface.
         /// `width` is what the arc stands round.
-        private func place(on anchorEntity: AnchorEntity, width: Float, as kind: Anchoring) {
+        private func place(on anchorEntity: AnchorEntity, width: Float, onImage image: Bool) {
             guard let arView else { return }
             codeWidth = width
-            anchoring = kind
+            onImage = image
             anchor?.removeFromParent()
             arView.scene.addAnchor(anchorEntity)
             anchor = anchorEntity
@@ -252,28 +249,22 @@ struct ARMenuView: UIViewRepresentable {
             }
             layout(animated: true)
             if let selected = model.selectedId { selectedId = nil; selectionChanged(selected) }
-            UIImpactFeedbackGenerator(style: kind.tracksAnImage ? .medium : .light).impactOccurred()
-            model.phase = .placed(onCode: kind.tracksAnImage)
+            UIImpactFeedbackGenerator(style: image ? .medium : .light).impactOccurred()
+            model.phase = .placed(onCode: image)
         }
 
-        /// Stands the menu on the best print ARKit has seen, if that beats the current anchor.
-        private func useBestSeenImage() {
-            guard let best = seenImages.keys.max(), best > anchoring, let identifier = seenImages[best] else { return }
-            // A card's registered width; the captured code's measured width.
-            let width = best == .capturedCode ? (tracker?.codeWidth ?? codeWidth) : (imageWidths[identifier] ?? codeWidth)
-            place(on: AnchorEntity(.anchor(identifier: identifier)), width: width, as: best)
-        }
-
-        /// Physical widths of image anchors ARKit has reported, by anchor id.
-        private var imageWidths: [UUID: Float] = [:]
-
-        /// Nothing recognised for a few seconds: use the surface in the middle of the screen so
-        /// the guest sees the menu anyway. A card or code seen later still takes over.
+        /// Surface placement: straight away for surface codes; for a tracked print, only after
+        /// it has had a fair chance to be seen. The print still takes over once it appears.
         private func tryPlaneFallback() {
-            guard let arView, anchor == nil, Date().timeIntervalSince(startedAt) > 3.5 else { return }
+            guard let arView, anchor == nil else { return }
+            if expectsImage {
+                guard let ready = imagesReadyAt, Date().timeIntervalSince(ready) > 3 else { return }
+            } else {
+                guard Date().timeIntervalSince(startedAt) > 1 else { return }
+            }
             let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY * 1.15)
             guard let hit = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal).first else { return }
-            place(on: surfaceAnchor(hit: hit.worldTransform), width: tracker?.codeWidth ?? codeWidth, as: .surface)
+            place(on: surfaceAnchor(hit: hit.worldTransform), width: model.visit.spot?.qrWidth ?? codeWidth, onImage: false)
         }
 
         private func surfaceAnchor(hit transform: simd_float4x4) -> AnchorEntity {
@@ -291,8 +282,8 @@ struct ARMenuView: UIViewRepresentable {
             }
             if model.selectedId != nil {
                 model.select(nil)
-            } else if !anchoring.tracksAnImage, let hit = arView.raycast(from: point, allowing: .estimatedPlane, alignment: .any).first {
-                place(on: surfaceAnchor(hit: hit.worldTransform), width: codeWidth, as: .surface)
+            } else if !onImage, let hit = arView.raycast(from: point, allowing: .estimatedPlane, alignment: .any).first {
+                place(on: surfaceAnchor(hit: hit.worldTransform), width: codeWidth, onImage: false)
             }
         }
 
@@ -308,31 +299,16 @@ struct ARMenuView: UIViewRepresentable {
         // MARK: ARSessionDelegate
 
         nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
-            MainActor.assumeIsolated {
-                faceCamera()
-                // Only worth capturing the code while nothing registered is anchoring the menu.
-                guard anchoring < .capturedCode, let arView, let tracker else { return }
-                tracker.consider(frame: frame, in: arView) { [weak self] image, _ in
-                    self?.codeImage = image
-                    self?.runSession()
-                }
-            }
+            MainActor.assumeIsolated { faceCamera() }
         }
 
         nonisolated func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
-            let images = anchors.compactMap { $0 as? ARImageAnchor }
-            guard !images.isEmpty else { return }
-            let found = images.map { ($0.identifier, $0.referenceImage.name, Float($0.referenceImage.physicalSize.width)) }
+            guard let image = anchors.compactMap({ $0 as? ARImageAnchor }).first else { return }
+            let identifier = image.identifier
+            let width = Float(image.referenceImage.physicalSize.width)
             MainActor.assumeIsolated {
-                for (identifier, name, width) in found {
-                    let kind: Anchoring
-                    if let name, name.hasPrefix(QRTracker.namePrefix) { kind = .capturedCode }
-                    else if let name, name == model.visit.spot?.tableCardId { kind = .spotCard }
-                    else { kind = .venueCard }
-                    imageWidths[identifier] = width
-                    if seenImages[kind] == nil { seenImages[kind] = identifier }
-                }
-                useBestSeenImage()
+                guard !onImage else { return }
+                place(on: AnchorEntity(.anchor(identifier: identifier)), width: width, onImage: true)
             }
         }
 

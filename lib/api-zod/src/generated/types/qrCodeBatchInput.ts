@@ -7,6 +7,7 @@
  */
 import type { Placement } from './placement';
 import type { QrCodeDisplayIds } from './qrCodeDisplayIds';
+import type { SpotAnchor } from './spotAnchor';
 
 export interface QrCodeBatchInput {
   /**
@@ -25,6 +26,13 @@ export interface QrCodeBatchInput {
      * @nullable
      */
   displayId?: string | null;
+  anchor?: SpotAnchor;
+  /**
+     * Printed width of the QR image in centimetres.
+     * @minimum 1
+     * @maximum 100
+     */
+  qrWidthCm?: number;
   /**
      * The card design these codes are printed on.
      * @maxLength 120

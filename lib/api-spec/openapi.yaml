@@ -1424,6 +1424,38 @@ paths:
           description: iOS API key is not configured
         "429":
           description: Rate limit exceeded
+  /v1/codes/{code}/qr.png:
+    get:
+      operationId: getPublicCodeImage
+      tags: [ios]
+      description: >-
+        The QR image for a code exactly as the dashboard prints it (same encoder and options),
+        for the app to track as an ARKit reference image so content stands on the printed code
+        and follows it. Square PNG, white quiet zone included.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string, pattern: "^[a-z0-9]{6,16}$" }
+        - in: header
+          name: x-api-key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PNG image
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "401":
+          description: Missing or invalid iOS API key
+        "404":
+          description: Unknown or retired QR code
+        "503":
+          description: iOS API key is not configured
+        "429":
+          description: Rate limit exceeded
   /v1/venues/{slug}:
     get:
       operationId: getPublicVenue
@@ -2131,9 +2163,13 @@ components:
           type: ["string", "null"]
           description: The single display when exactly one is chosen, otherwise null. Prefer displayIds.
         displayTitle: { type: ["string", "null"] }
+        anchor: { $ref: "#/components/schemas/SpotAnchor" }
+        qrWidthCm:
+          type: number
+          description: Printed width of the QR image in centimetres (quiet zone included). Used when anchor is qr.
         tableCardId:
           type: ["string", "null"]
-          description: The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.
+          description: The card design (see /table-cards) this code is printed on. Used when anchor is card.
         tableCardName: { type: ["string", "null"] }
         code: { type: string }
         path:
@@ -2142,7 +2178,7 @@ components:
         scansThisWeek: { type: integer }
         redemptionsThisWeek: { type: integer }
         createdAt: { type: string, format: date-time }
-      required: [id, label, placement, displayIds, displayTitles, displayId, displayTitle, tableCardId, tableCardName, code, path, scansThisWeek, redemptionsThisWeek, createdAt]
+      required: [id, label, placement, displayIds, displayTitles, displayId, displayTitle, anchor, qrWidthCm, tableCardId, tableCardName, code, path, scansThisWeek, redemptionsThisWeek, createdAt]
     QrCodeDisplayIds:
       type: array
       description: Displays the code shows, in order. Empty means everything live. Send either this or displayId, not both.
@@ -2161,6 +2197,8 @@ components:
         placement: { $ref: "#/components/schemas/Placement" }
         displayIds: { $ref: "#/components/schemas/QrCodeDisplayIds" }
         displayId: { type: ["string", "null"], maxLength: 120, description: Shorthand for a one-item displayIds. }
+        anchor: { $ref: "#/components/schemas/SpotAnchor" }
+        qrWidthCm: { type: number, minimum: 1, maximum: 100, description: Printed width of the QR image in centimetres. }
         tableCardId: { type: ["string", "null"], maxLength: 120, description: The card design these codes are printed on. }
       required: [labels, placement]
     QrCodeUpdate:
@@ -2172,6 +2210,8 @@ components:
         placement: { $ref: "#/components/schemas/Placement" }
         displayIds: { $ref: "#/components/schemas/QrCodeDisplayIds" }
         displayId: { type: ["string", "null"], maxLength: 120, description: Shorthand for a one-item displayIds. }
+        anchor: { $ref: "#/components/schemas/SpotAnchor" }
+        qrWidthCm: { type: number, minimum: 1, maximum: 100, description: Printed width of the QR image in centimetres. }
         tableCardId: { type: ["string", "null"], maxLength: 120, description: The card design this code is printed on; null to clear. }
     TrafficTotals:
       type: object
@@ -2505,14 +2545,26 @@ components:
             - $ref: "#/components/schemas/PublicArtistCredit"
             - type: "null"
       required: [id, type, placement, title, description, mediaUrl, thumbnailUrl, modelUsdzUrl, modelGlbUrl, price, offer, eventStartsAt, artist, modelHeightCm]
+    SpotAnchor:
+      type: string
+      description: What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.
+      enum: [qr, card, surface]
     PublicSpot:
       type: object
       properties:
         label: { type: string }
         placement: { $ref: "#/components/schemas/Placement" }
+        anchor: { $ref: "#/components/schemas/SpotAnchor" }
+        qrWidthCm:
+          type: number
+          description: Printed width of the QR code image (quiet zone included), for tracking it at real size.
+        qrImageUrl:
+          type: string
+          format: uri
+          description: The code's QR image as printed; see /v1/codes/{code}/qr.png.
         tableCardId:
           type: ["string", "null"]
-          description: The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.
+          description: The entry in tableCards this code is printed on, when the venue registered its card design.
       required: [label, placement]
     ScanInput:
       type: object

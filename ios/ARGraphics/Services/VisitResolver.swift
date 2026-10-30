@@ -31,16 +31,31 @@ struct Visit: Hashable, Identifiable {
         tableCards = venue.tableCards
     }
 
-    /// The card this code is printed on, when the venue registered it.
+    /// What the venue chose for this code to stand on. Venue links and older servers have no
+    /// printed code to track, so they use a surface.
+    var anchor: SpotAnchor {
+        guard code != nil, let anchor = spot?.anchor, anchor != .unknown else { return .surface }
+        return anchor
+    }
+
+    /// Whether to fetch and track the printed code's image.
+    var tracksCode: Bool { anchor == .qr && code != nil }
+
+    /// The card this code is printed on, when the venue chose it and it's registered.
     var spotCard: PublicTableCard? {
-        guard let id = spot?.tableCardId else { return nil }
+        guard anchor == .card, let id = spot?.tableCardId else { return nil }
         return tableCards.first { $0.id == id }
     }
 
-    /// Cards for ARKit to track, this spot's first so it's found and preferred soonest.
+    /// Cards for ARKit to track. The venue's choice is exclusive: the printed code tracks only
+    /// the code, a card only that card. Surface placement keeps the older behaviour of
+    /// recognising any registered card art lying on the table.
     var trackedCards: [PublicTableCard] {
-        guard let spotCard else { return tableCards }
-        return [spotCard] + tableCards.filter { $0.id != spotCard.id }
+        switch anchor {
+        case .qr: return []
+        case .card: return spotCard.map { [$0] } ?? []
+        case .surface, .unknown: return tableCards
+        }
     }
 }
 

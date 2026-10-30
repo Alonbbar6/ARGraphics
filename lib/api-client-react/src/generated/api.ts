@@ -5098,6 +5098,80 @@ export const useCreatePublicScan = <TError = ErrorType<void>,
       return useMutation(getCreatePublicScanMutationOptions(options));
     }
 
+export const getGetPublicCodeImageUrl = (code: string,) => {
+
+
+
+
+  return `/api/v1/codes/${code}/qr.png`
+}
+
+/**
+ * The QR image for a code exactly as the dashboard prints it (same encoder and options), for the app to track as an ARKit reference image so content stands on the printed code and follows it. Square PNG, white quiet zone included.
+ */
+export const getPublicCodeImage = async (code: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPublicCodeImageUrl(code),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicCodeImageQueryKey = (code: string,) => {
+    return [
+    `/api/v1/codes/${code}/qr.png`
+    ] as const;
+    }
+
+
+export const getGetPublicCodeImageQueryOptions = <TData = Awaited<ReturnType<typeof getPublicCodeImage>>, TError = ErrorType<void>>(code: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicCodeImage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicCodeImageQueryKey(code);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicCodeImage>>> = ({ signal }) => getPublicCodeImage(code, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicCodeImage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicCodeImageQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicCodeImage>>>
+export type GetPublicCodeImageQueryError = ErrorType<void>
+
+
+
+export function useGetPublicCodeImage<TData = Awaited<ReturnType<typeof getPublicCodeImage>>, TError = ErrorType<void>>(
+ code: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicCodeImage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicCodeImageQueryOptions(code,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetPublicVenueUrl = (slug: string,) => {
 
 

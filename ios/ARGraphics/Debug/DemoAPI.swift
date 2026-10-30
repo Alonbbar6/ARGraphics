@@ -113,5 +113,8 @@ struct DemoAPI: VisitorAPI {
                                           venueSlug: "back-room", neighborhood: "Little Havana"),
                      ])
     }
+
+    /// No printed codes in demo mode; content uses the table.
+    func codeImage(code: String) async throws -> Data { throw APIError.notFound }
 }
 #endif

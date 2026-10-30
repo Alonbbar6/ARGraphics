@@ -9,6 +9,7 @@ import {
   CreatePublicScanResponse,
   GetPublicArtistParams,
   GetPublicArtistResponse,
+  GetPublicCodeImageParams,
   GetPublicNearbyParams,
   GetPublicNearbyResponse,
   GetPublicVenueParams,
@@ -24,10 +25,23 @@ import {
   CLAIM_VALID_MS, distanceMeters, localParts, newConfirmationCode, priceLabel, safeTimeZone, visitorHash,
 } from "../lib/traffic";
 import { isUniqueViolation, partnerKind, publicAssetUrl, rateLimitIos, requireIosKey } from "./argraphics";
+import QRCode from "qrcode";
 
 const router: IRouter = Router();
 const storage = new ObjectStorageService();
 const NEARBY_METERS = 2_000;
+
+/**
+ * Exactly how the dashboard renders codes for print (artifacts/argraphics/src/lib/table-qr.ts,
+ * `qrPngDataUrl`). The app tracks this image as the printed code, so the modules must match
+ * pixel for pixel; change both together or tracking breaks.
+ */
+export const PRINTED_QR_OPTIONS = {
+  errorCorrectionLevel: "H" as const,
+  margin: 2,
+  color: { dark: "#0B0B14", light: "#FFFFFF" },
+};
+const CODE_IMAGE_PX = 1024;
 
 type Bar = typeof barsTable.$inferSelect;
 type DisplayRow = typeof displaysTable.$inferSelect;
@@ -162,13 +176,53 @@ router.post("/v1/scans", async (req, res): Promise<void> => {
   // The card this code is printed on, if the venue registered it (and it's still active),
   // so the app anchors to that card first and content follows it when it moves.
   const tableCardId = tableCards.find((card) => card.id === found.code.tableCardId)?.id ?? null;
+  // A card anchor with no usable card behaves like the code anchor rather than nothing.
+  const anchor = found.code.anchor === "card" && !tableCardId ? "qr" : found.code.anchor;
   res.json(CreatePublicScanResponse.parse({
     venue: venueSummary(found.bar),
-    spot: { label: found.code.label, placement: found.code.placement, tableCardId },
+    spot: {
+      label: found.code.label,
+      placement: found.code.placement,
+      anchor,
+      qrWidthCm: Number(found.code.qrWidthCm),
+      qrImageUrl: codeImageUrl(req, found.code.code),
+      tableCardId,
+    },
     display: serialized.find((display) => display.id === pointed?.id) ?? null,
     displays: serialized,
     tableCards,
   }));
+});
+
+/** The origin printed codes carry; the dashboard uses the same variable (VITE_PUBLIC_APP_URL). */
+function printedOrigin(req: Request) {
+  const configured = (process.env.VITE_PUBLIC_APP_URL ?? process.env.PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+  if (/^https?:\/\/[^/\s]+$/i.test(configured)) return configured;
+  const host = req.get("x-forwarded-host")?.split(",")[0]?.trim() || req.get("host");
+  const protocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim() || req.protocol;
+  return `${protocol}://${host}`;
+}
+
+function codeImageUrl(req: Request, code: string) {
+  const host = req.get("x-forwarded-host")?.split(",")[0]?.trim() || req.get("host");
+  const protocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim() || req.protocol;
+  return `${protocol}://${host}/api/v1/codes/${encodeURIComponent(code)}/qr.png`;
+}
+
+/** The code's QR exactly as printed, for the app to track as an image. */
+router.get("/v1/codes/:code/qr.png", async (req, res): Promise<void> => {
+  if (!requireIosKey(req, res)) return;
+  const params = GetPublicCodeImageParams.safeParse(req.params);
+  if (!params.success) return rejectInvalid(res, "Scan a valid ARGraphics code.");
+  const [found] = await db.select({ code: qrCodesTable.code }).from(qrCodesTable)
+    .where(and(eq(qrCodesTable.code, params.data.code), isNull(qrCodesTable.retiredAt))).limit(1);
+  if (!found) {
+    res.status(404).json({ error: "This code isn't active anymore." });
+    return;
+  }
+  const png = await QRCode.toBuffer(`${printedOrigin(req)}/s/${found.code}`, { ...PRINTED_QR_OPTIONS, type: "png", width: CODE_IMAGE_PX });
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.type("png").send(png);
 });
 
 async function barBySlug(slug: string) {

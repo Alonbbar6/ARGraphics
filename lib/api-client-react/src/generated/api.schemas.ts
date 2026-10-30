@@ -881,6 +881,18 @@ export interface DisplayUpdate {
   floorY?: number | null;
 }
 
+/**
+ * What the app anchors content to. qr tracks the printed code itself; card tracks the registered card design (tableCardId); surface uses the table or wall.
+ */
+export type SpotAnchor = typeof SpotAnchor[keyof typeof SpotAnchor];
+
+
+export const SpotAnchor = {
+  qr: 'qr',
+  card: 'card',
+  surface: 'surface',
+} as const;
+
 export interface QrCode {
   id: string;
   label: string;
@@ -896,8 +908,11 @@ export interface QrCode {
   displayId: string | null;
   /** @nullable */
   displayTitle: string | null;
+  anchor: SpotAnchor;
+  /** Printed width of the QR image in centimetres (quiet zone included). Used when anchor is qr. */
+  qrWidthCm: number;
   /**
-     * The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.
+     * The card design (see /table-cards) this code is printed on. Used when anchor is card.
      * @nullable
      */
   tableCardId: string | null;
@@ -936,6 +951,13 @@ export interface QrCodeBatchInput {
      * @nullable
      */
   displayId?: string | null;
+  anchor?: SpotAnchor;
+  /**
+     * Printed width of the QR image in centimetres.
+     * @minimum 1
+     * @maximum 100
+     */
+  qrWidthCm?: number;
   /**
      * The card design these codes are printed on.
      * @maxLength 120
@@ -959,6 +981,13 @@ export interface QrCodeUpdate {
      * @nullable
      */
   displayId?: string | null;
+  anchor?: SpotAnchor;
+  /**
+     * Printed width of the QR image in centimetres.
+     * @minimum 1
+     * @maximum 100
+     */
+  qrWidthCm?: number;
   /**
      * The card design this code is printed on; null to clear.
      * @maxLength 120
@@ -1369,8 +1398,13 @@ export interface PublicDisplay {
 export interface PublicSpot {
   label: string;
   placement: Placement;
+  anchor?: SpotAnchor;
+  /** Printed width of the QR code image (quiet zone included), for tracking it at real size. */
+  qrWidthCm?: number;
+  /** The code's QR image as printed; see /v1/codes/{code}/qr.png. */
+  qrImageUrl?: string;
   /**
-     * The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.
+     * The entry in tableCards this code is printed on, when the venue registered its card design.
      * @nullable
      */
   tableCardId?: string | null;

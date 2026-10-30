@@ -27,7 +27,7 @@ struct MenuExperienceScreen: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            ARMenuView(model: model).ignoresSafeArea()
+            ARMenuView(model: model, api: environment.api).ignoresSafeArea()
             LinearGradient(colors: [.black.opacity(0.55), .clear, .clear], startPoint: .top, endPoint: .center)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -119,14 +119,16 @@ struct MenuExperienceScreen: View {
             }
             .padding(.horizontal, Spacing.m)
         case .finding:
-            StatusPill(text: model.readyCount == 0 ? "Getting the menu ready" : "Keep the code in view", showsSpinner: true)
+            StatusPill(text: model.readyCount == 0 ? "Getting the menu ready"
+                           : visit.tracksCode ? "Point at the QR code" : visit.spotCard != nil ? "Point at the card" : "Point at the table",
+                       showsSpinner: true)
         case .placed(let onCode):
             if model.selected != nil {
                 StatusPill(text: "Tap the table to put it back", systemImage: "hand.tap").transition(.opacity)
             } else if model.readyCount < model.items.count {
                 StatusPill(text: "\(model.readyCount) of \(model.items.count) ready", showsSpinner: true)
             } else {
-                StatusPill(text: onCode ? "On your code. Tap one to bring it up close" : "Tap one to bring it up close · point at the code to pin the menu to it",
+                StatusPill(text: onCode ? "On your card. Tap one to bring it up close" : visit.anchor == .surface ? "Tap one to bring it up close · tap the table to move the menu" : "Tap one to bring it up close · point at the code to pin the menu to it",
                            systemImage: onCode ? "qrcode" : "hand.tap")
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Spacing.m)

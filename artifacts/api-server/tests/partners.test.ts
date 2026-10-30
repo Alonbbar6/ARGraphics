@@ -226,6 +226,43 @@ describe("QR codes and the guest flow", () => {
     expect(codes.body.find((code: { id: string }) => code.id === menu.id)).toMatchObject({ displayIds: [lastWord.body.id], displayId: lastWord.body.id });
   });
 
+  it("anchors to the printed code by default and serves the exact QR image the dashboard prints", async () => {
+    // The dashboard bakes this origin into every printed code; the server must use the same one.
+    const previousOrigin = process.env.VITE_PUBLIC_APP_URL;
+    process.env.VITE_PUBLIC_APP_URL = "https://argraphics.example/";
+    const cookie = await signIn();
+    const offer = await createDisplay(cookie, { status: "live" }).expect(201);
+    const [table] = await placeCodes(cookie, { labels: ["Table 3"], displayId: offer.body.id });
+    expect(table).toMatchObject({ anchor: "qr", qrWidthCm: 4 });
+
+    const scan = await guest("post", "scans").send({ code: table.code, visitorId: visitor }).expect(200);
+    expectResponseContract("createPublicScan", 200, scan.body);
+    expect(scan.body.spot).toMatchObject({ anchor: "qr", qrWidthCm: 4, tableCardId: null });
+    expect(scan.body.spot.qrImageUrl).toMatch(new RegExp(`/api/v1/codes/${table.code}/qr\\.png$`));
+
+    // The image is what table-qr.ts prints: same encoder, level H, 2-module quiet zone, same payload.
+    const image = await guest("get", `codes/${table.code}/qr.png`).expect(200);
+    expect(image.headers["content-type"]).toMatch(/image\/png/);
+    const { default: QRCode } = await import("qrcode");
+    const { PRINTED_QR_OPTIONS } = await import("../src/routes/public-v1");
+    expect(PRINTED_QR_OPTIONS).toEqual({ errorCorrectionLevel: "H", margin: 2, color: { dark: "#0B0B14", light: "#FFFFFF" } });
+    const expected = await QRCode.toBuffer(`https://argraphics.example/s/${table.code}`, { ...PRINTED_QR_OPTIONS, type: "png", width: 1024 });
+    expect(Buffer.compare(image.body as Buffer, expected)).toBe(0);
+    if (previousOrigin === undefined) delete process.env.VITE_PUBLIC_APP_URL; else process.env.VITE_PUBLIC_APP_URL = previousOrigin;
+    await guest("get", "codes/zzzzzzzz/qr.png").expect(404);
+    await request(app).get(`/api/v1/codes/${table.code}/qr.png`).expect(401);
+
+    // The venue can switch the anchor and tell the app how big the QR is printed.
+    const wide = await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ anchor: "surface", qrWidthCm: 6.5 }).expect(200);
+    expectResponseContract("updateQrCode", 200, wide.body);
+    expect(wide.body).toMatchObject({ anchor: "surface", qrWidthCm: 6.5 });
+    expect((await guest("post", "scans").send({ code: table.code, visitorId: otherVisitor }).expect(200)).body.spot).toMatchObject({ anchor: "surface", qrWidthCm: 6.5 });
+    await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ anchor: "sideways" }).expect(400);
+    // "card" without a usable card falls back to the code, never to nothing.
+    await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ anchor: "card" }).expect(200);
+    expect((await guest("post", "scans").send({ code: table.code, visitorId: otherVisitor }).expect(200)).body.spot.anchor).toBe("qr");
+  });
+
   it("remembers which printed card a code sits on and tells the app, so content can follow the card", async () => {
     const cookie = await signIn();
     uploadArtwork();
@@ -246,7 +283,7 @@ describe("QR codes and the guest flow", () => {
 
     const scan = await guest("post", "scans").send({ code: table.code, visitorId: visitor }).expect(200);
     expectResponseContract("createPublicScan", 200, scan.body);
-    expect(scan.body.spot).toEqual({ label: "Table 9", placement: "table", tableCardId: tent });
+    expect(scan.body.spot).toMatchObject({ label: "Table 9", placement: "table", tableCardId: tent });
     // Only active cards ship to the app, and the spot never points at one that isn't in the list.
     expect(scan.body.tableCards.map((entry: { id: string }) => entry.id)).toEqual([tent]);
     await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ tableCardId: paused }).expect(200);

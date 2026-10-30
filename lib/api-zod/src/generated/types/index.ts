@@ -116,6 +116,7 @@ export * from './scanInput';
 export * from './scanResult';
 export * from './searchArtistsParams';
 export * from './session';
+export * from './spotAnchor';
 export * from './stripeEvent';
 export * from './tableCard';
 export * from './tableCardInput';

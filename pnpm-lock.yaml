@@ -231,6 +231,9 @@ importers:
       pino-http:
         specifier: ^10.5.0
         version: 10.5.0
+      qrcode:
+        specifier: 1.5.4
+        version: 1.5.4
       sharp:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@25.9.6)
@@ -253,6 +256,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.6
+      '@types/qrcode':
+        specifier: 1.5.5
+        version: 1.5.5
       '@types/supertest':
         specifier: ^7.2.1
         version: 7.2.1

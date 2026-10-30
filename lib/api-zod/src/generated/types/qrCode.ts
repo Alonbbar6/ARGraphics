@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Placement } from './placement';
+import type { SpotAnchor } from './spotAnchor';
 
 export interface QrCode {
   id: string;
@@ -22,8 +23,11 @@ export interface QrCode {
   displayId: string | null;
   /** @nullable */
   displayTitle: string | null;
+  anchor: SpotAnchor;
+  /** Printed width of the QR image in centimetres (quiet zone included). Used when anchor is qr. */
+  qrWidthCm: number;
   /**
-     * The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.
+     * The card design (see /table-cards) this code is printed on. Used when anchor is card.
      * @nullable
      */
   tableCardId: string | null;

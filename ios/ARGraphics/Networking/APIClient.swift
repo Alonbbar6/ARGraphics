@@ -45,6 +45,8 @@ protocol VisitorAPI: Sendable {
     func claim(displayId: String, visitorId: String, code: String?) async throws -> ClaimOutcome
     func nearby(slug: String) async throws -> [NearbySpot]
     func artist(slug: String) async throws -> PublicArtist
+    /// The code's QR image exactly as printed (PNG), for ARKit to track so content stands on it.
+    func codeImage(code: String) async throws -> Data
 }
 
 struct APIClient: VisitorAPI {
@@ -87,6 +89,17 @@ struct APIClient: VisitorAPI {
         return try await send(path: ["v1", "artists", slug]).value
     }
 
+    func codeImage(code: String) async throws -> Data {
+        guard ScanLink.isValidCode(code) else { throw APIError.invalidRequest }
+        var request = makeRequest(path: ["v1", "codes", code, "qr.png"])
+        request.setValue("image/png", forHTTPHeaderField: "Accept")
+        let (data, response) = try await fetch(request)
+        guard (response.value(forHTTPHeaderField: "Content-Type") ?? "").hasPrefix("image/png"), !data.isEmpty else {
+            throw APIError.invalidResponse
+        }
+        return data
+    }
+
     /// IDs go into the URL path, so anything that could add a segment or a query is refused.
     static func isSafeIdentifier(_ value: String) -> Bool {
         (1...128).contains(value.count) && value.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil
@@ -108,7 +121,13 @@ struct APIClient: VisitorAPI {
     }
 
     private func send<T: Decodable>(path: [String], method: String = "GET", body: Data? = nil) async throws -> (value: T, status: Int) {
-        let request = makeRequest(path: path, method: method, body: body)
+        let (data, http) = try await fetch(makeRequest(path: path, method: method, body: body))
+        do { return (try JSONDecoder.api.decode(T.self, from: data), http.statusCode) }
+        catch { throw APIError.invalidResponse }
+    }
+
+    /// Performs the request and maps transport failures and non-2xx statuses to APIError.
+    private func fetch(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let data: Data
         let response: URLResponse
         do {
@@ -120,9 +139,7 @@ struct APIClient: VisitorAPI {
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         switch http.statusCode {
-        case 200..<300:
-            do { return (try JSONDecoder.api.decode(T.self, from: data), http.statusCode) }
-            catch { throw APIError.invalidResponse }
+        case 200..<300: return (data, http)
         case 400: throw APIError.invalidRequest
         case 401, 403: throw APIError.unauthorized
         case 404: throw APIError.notFound

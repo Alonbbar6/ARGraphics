@@ -185,7 +185,7 @@ function CardArtMarkers({ codes, cards, onAssigned }: { codes: QrCodeRecord[]; c
   const updateCode = useUpdateQrCode();
   const [assigning, setAssigning] = useState(false);
   const active = cards.filter((card) => card.isActive);
-  const unlinked = codes.filter((code) => !code.tableCardId);
+  const unlinked = codes.filter((code) => code.anchor !== 'card');
   const [bulkCard, setBulkCard] = useState(active[0]?.id ?? '');
   const chosen = active.find((card) => card.id === bulkCard) ?? active[0];
 
@@ -194,7 +194,7 @@ function CardArtMarkers({ codes, cards, onAssigned }: { codes: QrCodeRecord[]; c
     if (!chosen || !unlinked.length) return;
     setAssigning(true);
     try {
-      await Promise.all(unlinked.map((code) => updateCode.mutateAsync({ id: code.id, data: { tableCardId: chosen.id } })));
+      await Promise.all(unlinked.map((code) => updateCode.mutateAsync({ id: code.id, data: { anchor: 'card', tableCardId: chosen.id } })));
       toast({ title: `${countLabel(unlinked.length, 'code')} on “${chosen.name}”`, description: 'Scans now stand on the card and follow it when it moves.' });
       onAssigned();
     } catch {
@@ -225,7 +225,7 @@ function CardArtMarkers({ codes, cards, onAssigned }: { codes: QrCodeRecord[]; c
       </div>
       {active.length > 0 && unlinked.length > 0 && (
         <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center" data-testid="panel-assign-cards">
-          <p className="text-sm sm:flex-1">Put the {countLabel(unlinked.length, 'code')} without a card on</p>
+          <p className="text-sm sm:flex-1">Make the {countLabel(unlinked.length, 'code')} not on a card stand on</p>
           {active.length > 1 ? (
             <select className={`${inputClass} sm:w-56`} value={chosen?.id ?? ''} onChange={(event) => setBulkCard(event.target.value)} aria-label="Card design">
               {active.map((card) => <option key={card.id} value={card.id}>{card.name}</option>)}
@@ -238,15 +238,60 @@ function CardArtMarkers({ codes, cards, onAssigned }: { codes: QrCodeRecord[]; c
   );
 }
 
-/** Which registered card design a code is printed on; none means the table surface. */
-function CardSelect({ cards, value, onChange }: { cards: TableCard[]; value: string; onChange: (value: string) => void }) {
-  const active = cards.filter((card) => card.isActive || card.id === value);
+type Anchor = QrCodeRecord['anchor'];
+type AnchorValue = { anchor: Anchor; qrWidthCm: string; tableCardId: string };
+
+/** What a code's content stands on; the tile and PDF describe it the same way. */
+export function anchorLabel(anchor: Anchor, cardName?: string | null) {
+  switch (anchor) {
+    case 'qr': return 'Stands on the QR code · follows it';
+    case 'card': return cardName ? `Stands on “${cardName}” · follows the card` : 'Stands on the card';
+    default: return 'Stands on the table';
+  }
+}
+
+/**
+ * What the app anchors to when this code is scanned. The QR code itself is the default: the
+ * app tracks the printed code as an image, so content stands on it and follows it when the
+ * card is moved. Needs the printed size of the QR to render at true scale.
+ */
+function AnchorPicker({ cards, value, onChange }: { cards: TableCard[]; value: AnchorValue; onChange: (value: AnchorValue) => void }) {
+  const activeCards = cards.filter((card) => card.isActive || card.id === value.tableCardId);
+  const options: { value: Anchor; label: string }[] = [
+    { value: 'qr', label: 'The QR code' },
+    ...(activeCards.length ? [{ value: 'card' as const, label: 'The card design' }] : []),
+    { value: 'surface', label: 'The table' },
+  ];
   return (
-    <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)} data-testid="select-table-card">
-      <option value="">Not on a card (uses the table)</option>
-      {active.map((card) => <option key={card.id} value={card.id}>{card.name}{card.isActive ? '' : ' (off)'}</option>)}
-    </select>
+    <div className="space-y-2">
+      <SegmentedControl label="What it stands on" size="sm" value={value.anchor} onChange={(anchor) => onChange({ ...value, anchor })} options={options} />
+      {value.anchor === 'qr' && (
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Printed QR width</span>
+          <input type="number" min="1" max="100" step="0.1" value={value.qrWidthCm} onChange={(event) => onChange({ ...value, qrWidthCm: event.target.value })} className={`${inputClass} w-24`} aria-label="Printed QR width in centimetres" data-testid="input-qr-width" />
+          <span className="text-muted-foreground">cm, white border included</span>
+        </label>
+      )}
+      {value.anchor === 'card' && (
+        <select className={inputClass} value={value.tableCardId} onChange={(event) => onChange({ ...value, tableCardId: event.target.value })} data-testid="select-table-card">
+          <option value="">Choose a card design</option>
+          {activeCards.map((card) => <option key={card.id} value={card.id}>{card.name}{card.isActive ? '' : ' (off)'}</option>)}
+        </select>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {value.anchor === 'qr' ? 'The app tracks the printed code itself. Measure the QR on your card, white border included, so it renders at true size.'
+          : value.anchor === 'card' ? 'The app tracks the whole card design you uploaded. Good when the QR is small or glossy.'
+          : 'The app finds the nearest table or wall. Content won’t follow the card.'}
+      </p>
+    </div>
   );
+}
+
+/** Request fields for an anchor choice; an unchosen card design falls back to the QR code. */
+function anchorPayload(value: AnchorValue) {
+  const qrWidthCm = Math.min(100, Math.max(1, Number(value.qrWidthCm) || 4));
+  if (value.anchor === 'card' && !value.tableCardId) return { anchor: 'qr' as const, qrWidthCm, tableCardId: null };
+  return { anchor: value.anchor, qrWidthCm, tableCardId: value.anchor === 'card' ? value.tableCardId : null };
 }
 
 function QrTile({ qr, venueName, displays, cards, editing, onEdit, onDone, onRetire }: {
@@ -288,7 +333,7 @@ function QrTile({ qr, venueName, displays, cards, editing, onEdit, onDone, onRet
           <>
             <p className="flex items-center gap-1.5 text-sm font-semibold"><PlacementIcon size={14} aria-hidden="true" /><span className="truncate">{qr.label}</span></p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground" title={qr.displayTitles.join(', ')}>{showsLabel(qr.displayTitles)}</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">{qr.tableCardName ? `On “${qr.tableCardName}” · follows the card` : 'Not on a card · uses the table'}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{anchorLabel(qr.anchor, qr.tableCardName)}</p>
             <p className="mt-2 text-xs tabular-nums"><span className="font-semibold">{formatCount(qr.scansThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.scansThisWeek, 'scan')} ·</span> <span className="font-semibold">{formatCount(qr.redemptionsThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.redemptionsThisWeek, 'redemption')}</span></p>
             <div className="mt-auto flex items-center gap-1 pt-3">
               <Button variant="ghost" size="sm" icon={Download} onClick={() => void downloadPng()} className="flex-1" aria-label={`Download PNG for ${qr.label}`}>PNG</Button>
@@ -368,11 +413,11 @@ function EditCode({ qr, displays, cards, onDone }: { qr: QrCodeRecord; displays:
   const [label, setLabel] = useState(qr.label);
   const [placement, setPlacement] = useState<Placement>(qr.placement);
   const [displayIds, setDisplayIds] = useState<string[]>(qr.displayIds);
-  const [tableCardId, setTableCardId] = useState(qr.tableCardId ?? '');
+  const [anchor, setAnchor] = useState<AnchorValue>({ anchor: qr.anchor, qrWidthCm: String(qr.qrWidthCm), tableCardId: qr.tableCardId ?? '' });
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!label.trim()) return;
-    updateCode.mutate({ id: qr.id, data: { label: label.trim().slice(0, 40), placement, displayIds, tableCardId: tableCardId || null } }, {
+    updateCode.mutate({ id: qr.id, data: { label: label.trim().slice(0, 40), placement, displayIds, ...anchorPayload(anchor) } }, {
       onSuccess: () => { toast({ title: 'Code updated', description: 'The printed code stays the same. No need to reprint.' }); onDone(); },
       onError: () => toast({ title: 'That didn’t save', description: 'Try again.', variant: 'destructive' }),
     });
@@ -382,7 +427,7 @@ function EditCode({ qr, displays, cards, onDone }: { qr: QrCodeRecord; displays:
       <Field label="Label"><input className={inputClass} value={label} maxLength={40} onChange={(event) => setLabel(event.target.value)} required /></Field>
       <Field label="Where"><select className={inputClass} value={placement} onChange={(event) => setPlacement(event.target.value as Placement)}>{PLACEMENTS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></Field>
       <div><p className="mb-1.5 text-sm font-medium">Shows</p><DisplayPicker displays={displays} value={displayIds} onChange={setDisplayIds} compact /></div>
-      {cards.length > 0 && <Field label="Printed on"><CardSelect cards={cards} value={tableCardId} onChange={setTableCardId} /></Field>}
+      <div><p className="mb-1.5 text-sm font-medium">Stands on</p><AnchorPicker cards={cards} value={anchor} onChange={setAnchor} /></div>
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" loading={updateCode.isPending} className="flex-1">Save</Button>
         <Button variant="quiet" size="sm" onClick={onDone}>Cancel</Button>
@@ -403,9 +448,7 @@ function AddSpots({ displays, cards, onClose, onCreated }: { displays: Display[]
     const preset = new URLSearchParams(window.location.search).get('display');
     return preset ? [preset] : [];
   });
-  // Default to the one active card design when there is exactly one; most venues print one.
-  const activeCards = cards.filter((card) => card.isActive);
-  const [tableCardId, setTableCardId] = useState(activeCards.length === 1 ? activeCards[0].id : '');
+  const [anchor, setAnchor] = useState<AnchorValue>({ anchor: 'qr', qrWidthCm: '4', tableCardId: '' });
   const [error, setError] = useState('');
 
   const labels = useMemo(() => mode === 'numbered' ? numberedLabels(prefix, Number(from), Number(to)) : parseLabelList(custom), [mode, prefix, from, to, custom]);
@@ -414,7 +457,7 @@ function AddSpots({ displays, cards, onClose, onCreated }: { displays: Display[]
     event.preventDefault();
     setError('');
     if (!labels.length) { setError('Add at least one spot.'); return; }
-    createCodes.mutate({ data: { labels, placement, displayIds, tableCardId: tableCardId || null } }, {
+    createCodes.mutate({ data: { labels, placement, displayIds, ...anchorPayload(anchor) } }, {
       onSuccess: (created) => {
         toast({ title: `${countLabel(created.length, 'code')} ready to print`, description: 'Download the PDF below and set them out before service.' });
         onCreated();
@@ -451,11 +494,10 @@ function AddSpots({ displays, cards, onClose, onCreated }: { displays: Display[]
           <DisplayPicker displays={displays} value={displayIds} onChange={setDisplayIds} />
           <p className="mt-1 text-xs text-muted-foreground">One display opens straight away. Several give guests a short menu to pick from, in the order you tick them. Everything live lists whatever's on tonight.</p>
         </div>
-        {cards.length > 0 && (
-          <Field label="Printed on" hint="The card design these codes go on. Content stands on the card and follows it when a guest picks it up.">
-            <CardSelect cards={cards} value={tableCardId} onChange={setTableCardId} />
-          </Field>
-        )}
+        <div>
+          <p className="mb-1.5 text-sm font-medium">What it stands on</p>
+          <AnchorPicker cards={cards} value={anchor} onChange={setAnchor} />
+        </div>
         <p className="text-xs text-muted-foreground" aria-live="polite">{labels.length ? `${countLabel(labels.length, 'spot')}: ${labels.slice(0, 4).join(', ')}${labels.length > 4 ? ` … ${labels[labels.length - 1]}` : ''}` : 'No spots yet.'} · {placementLabel(placement)}</p>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">

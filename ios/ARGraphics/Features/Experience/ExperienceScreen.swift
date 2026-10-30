@@ -70,7 +70,7 @@ struct ExperienceScreen: View {
     private var arLayout: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            ARExperienceView(model: model).ignoresSafeArea()
+            ARExperienceView(model: model, api: environment.api).ignoresSafeArea()
             LinearGradient(colors: [.black.opacity(0.55), .clear, .clear], startPoint: .top, endPoint: .center)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -172,11 +172,12 @@ struct ExperienceScreen: View {
             case .loading:
                 StatusPill(text: display.placement.hint, showsSpinner: true)
             case .finding:
-                StatusPill(text: visit.spotCard != nil ? "Keep the card in view"
+                StatusPill(text: visit.tracksCode ? "Point at the QR code"
+                               : visit.spotCard != nil ? "Point at the card"
                                : model.tableCards.isEmpty ? display.placement.hint : "Point at the table card",
                            showsSpinner: true)
             case .placed(let onCard):
-                StatusPill(text: onCard ? "On your card. Move the card and it follows."
+                StatusPill(text: onCard ? (visit.tracksCode ? "On the QR code. Move the card and it follows." : "On your card. Move the card and it follows.")
                                : display.placement.isVertical ? "Tap the wall to move it" : "Tap the table to move it",
                            systemImage: onCard ? "qrcode" : "hand.tap")
                     .transition(.opacity)

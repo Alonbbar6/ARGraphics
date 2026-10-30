@@ -97,24 +97,39 @@ struct ARMenuRoutingTests {
         #expect(!MenuExperienceModel.canShow(several, cameraStatus: .authorized, arSupported: false))
     }
 
-    @Test func spotCardComesFirstForTracking() throws {
-        let json = """
-        {"venue":\(Fixtures.venueSummary),"spot":{"label":"Table 6","placement":"table","tableCardId":"tc2"},
+    @Test func anchorFollowsTheVenueChoice() throws {
+        let base = """
+        {"venue":\(Fixtures.venueSummary),"spot":{"label":"Table 6","placement":"table",ANCHOR},
          "display":\(Fixtures.menuDisplay),"displays":[\(Fixtures.menuDisplay)],
          "tableCards":[\(Fixtures.tableCard),{"id":"tc2","name":"Patio card","referenceImageUrl":"https://h.example/patio.png","physicalWidthCm":9}]}
         """
-        let onCard = try visit(json)
-        #expect(onCard.spotCard?.id == "tc2")
-        #expect(onCard.trackedCards.map(\.id) == ["tc2", "tc1"])
-        // Older servers, or a code on no card: nothing is preferred and the order is kept.
-        let plain = try visit(Fixtures.scanResult)
-        #expect(plain.spot?.tableCardId == nil)
-        #expect(plain.spotCard == nil)
-        #expect(plain.trackedCards.map(\.id) == ["tc1"])
-        // A spot pointing at a card that isn't in the list (e.g. switched off) is ignored.
-        let missing = try visit(json.replacingOccurrences(of: "\"tableCardId\":\"tc2\"", with: "\"tableCardId\":\"gone\""))
-        #expect(missing.spotCard == nil)
-        #expect(missing.trackedCards.count == 2)
+        // The printed code: track only the code, at the width the venue measured.
+        let qr = try visit(base.replacingOccurrences(of: "ANCHOR", with: "\"anchor\":\"qr\",\"qrWidthCm\":5.5,\"qrImageUrl\":\"https://h.example/api/v1/codes/k7m2qx9a/qr.png\""))
+        #expect(qr.anchor == .qr)
+        #expect(qr.tracksCode)
+        #expect(abs((qr.spot?.qrWidth ?? 0) - 0.055) < 1e-6)
+        #expect(qr.trackedCards.isEmpty)
+        #expect(qr.spotCard == nil)
+        // A card design: track only that card.
+        let card = try visit(base.replacingOccurrences(of: "ANCHOR", with: "\"anchor\":\"card\",\"tableCardId\":\"tc2\""))
+        #expect(card.anchor == .card)
+        #expect(!card.tracksCode)
+        #expect(card.spotCard?.id == "tc2")
+        #expect(card.trackedCards.map(\.id) == ["tc2"])
+        // The table: no code tracking; any registered card art still counts, as before.
+        let surface = try visit(base.replacingOccurrences(of: "ANCHOR", with: "\"anchor\":\"surface\""))
+        #expect(surface.anchor == .surface)
+        #expect(!surface.tracksCode)
+        #expect(surface.trackedCards.map(\.id) == ["tc1", "tc2"])
+        // Older servers send none of this; a venue link has no printed code at all.
+        let legacy = try visit(Fixtures.scanResult)
+        #expect(legacy.anchor == .surface && !legacy.tracksCode)
+        let link = Visit(venue: try JSONDecoder.api.decode(PublicVenue.self, from: Data(Fixtures.publicVenue.utf8)))
+        #expect(link.anchor == .surface && !link.tracksCode)
+        // An anchor value this build doesn't know decodes safely and behaves like a surface.
+        let future = try visit(base.replacingOccurrences(of: "ANCHOR", with: "\"anchor\":\"hologram\""))
+        #expect(future.spot?.anchor == .unknown && future.anchor == .surface)
+        #expect(abs((future.spot?.qrWidth ?? 0) - 0.04) < 1e-6, "default printed width when unmeasured")
     }
 
     @Test func menuKeepsOnlyPlaceableItemsInOrder() throws {

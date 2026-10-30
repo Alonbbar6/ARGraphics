@@ -31,6 +31,7 @@ actor FakeVisitorAPI: VisitorAPI {
 
     func nearby(slug: String) async throws -> [NearbySpot] { [] }
     func artist(slug: String) async throws -> PublicArtist { throw APIError.notFound }
+    func codeImage(code: String) async throws -> Data { throw APIError.notFound }
 }
 
 @MainActor
@@ -98,7 +99,7 @@ struct VisitFlowTests {
         #expect(art.mode == .ar)
         if case .panel(_, let framed) = art.content { #expect(framed) } else { Issue.record("expected panel") }
         if case .artist(let credit) = art.card { #expect(credit.slug == "ana-ruiz") } else { Issue.record("expected artist") }
-        #expect(art.tableCards.map(\.id) == ["tc1"], "a wall piece on a printed card still stands on, and follows, the card")
+        #expect(art.tableCards.map(\.id) == ["tc1"], "surface placement keeps recognising registered card art")
 
         let menu = ExperienceModel(visit: visit, display: byType[.menuItem]!, cameraStatus: .authorized, arSupported: true)
         if case .model(let url) = menu.content { #expect(url.lastPathComponent == "m.usdz") } else { Issue.record("expected model") }

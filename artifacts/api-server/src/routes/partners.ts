@@ -507,6 +507,8 @@ async function serializeQrCodes(barId: string, rows: (typeof qrCodesTable.$infer
       displayTitles: chosen.map((display) => display.title),
       displayId: chosen.length === 1 ? chosen[0].id : null,
       displayTitle: chosen.length === 1 ? chosen[0].title : null,
+      anchor: (["qr", "card", "surface"].includes(row.anchor) ? row.anchor : "qr") as "qr" | "card" | "surface",
+      qrWidthCm: Number(row.qrWidthCm),
       tableCardId: card?.id ?? null,
       tableCardName: card?.name ?? null,
       code: row.code,
@@ -581,6 +583,8 @@ router.post("/qr-codes", async (req, res): Promise<void> => {
           barId: bar.id,
           displayIds,
           tableCardId,
+          ...(parsed.data.anchor !== undefined ? { anchor: parsed.data.anchor } : {}),
+          ...(parsed.data.qrWidthCm !== undefined ? { qrWidthCm: parsed.data.qrWidthCm.toFixed(2) } : {}),
           code: newQrCode(),
           label: label.trim(),
           placement: parsed.data.placement,
@@ -621,6 +625,8 @@ router.patch("/qr-codes/:id", async (req, res): Promise<void> => {
     ...(parsed.data.placement !== undefined ? { placement: parsed.data.placement } : {}),
     ...(displayIds !== undefined ? { displayIds } : {}),
     ...(tableCardId !== undefined ? { tableCardId } : {}),
+    ...(parsed.data.anchor !== undefined ? { anchor: parsed.data.anchor } : {}),
+    ...(parsed.data.qrWidthCm !== undefined ? { qrWidthCm: parsed.data.qrWidthCm.toFixed(2) } : {}),
   }).where(and(
     eq(qrCodesTable.id, params.data.id), eq(qrCodesTable.barId, bar.id), isNull(qrCodesTable.retiredAt),
   )).returning();
