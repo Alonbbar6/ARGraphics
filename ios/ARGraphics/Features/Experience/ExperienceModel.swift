@@ -128,8 +128,8 @@ final class ExperienceModel {
 
     var placement: Placement { display.placement }
 
-    /// Table cards only help content that sits on the table.
-    var tableCards: [PublicTableCard] { placement.isVertical ? [] : visit.tableCards }
+    /// The venue's printed cards to track, the one this code is printed on first.
+    var tableCards: [PublicTableCard] { visit.trackedCards }
 
     func prepare(assets: AssetCache, images: ImageLoader) async {
         guard modelFile == nil, panelImage == nil else { return }

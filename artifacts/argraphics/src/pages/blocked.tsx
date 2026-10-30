@@ -171,7 +171,7 @@ export function TableCardsPage() {
   return (
     <div className="rise">
       <Link href="/qr-codes" className="mb-3 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={15} aria-hidden="true" /> QR Codes</Link>
-      <PageHeader title="Art the app can see" lede={<>Printed artwork works like a code: guests point the ARGraphics app at the card and your display appears on it.{traffic.data ? <> Your spot had <strong className="font-semibold text-foreground">{countLabel(traffic.data.totals.scans, 'scan')}</strong> this week.</> : null}</>} />
+      <PageHeader title="Your printed cards" lede={<>Register each card design once and the app tracks the whole card: what a guest scans stands on the card and follows it when they pick it up. Then set which codes are printed on it from QR Codes.{traffic.data ? <> Your spot had <strong className="font-semibold text-foreground">{countLabel(traffic.data.totals.scans, 'scan')}</strong> this week.</> : null}</>} />
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,.8fr)]">
         <section className="rounded-3xl border border-border bg-card p-5 sm:p-7">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-primary">New artwork</p>
@@ -185,6 +185,7 @@ export function TableCardsPage() {
               <span className="mt-2 flex min-h-24 cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-background px-4 text-sm text-muted-foreground hover:border-primary">
                 {artwork ? <><Check size={17} className="text-primary" />{artwork.file.name}</> : <><Upload size={17} />Choose a PNG, JPEG, or WebP (up to 10 MB)</>}
               </span>
+              <span className="mt-2 block text-xs font-normal leading-5 text-muted-foreground">Best: the print file itself. Or a photo of the card lying flat, shot straight from above in even light, cropped to the card's edges with nothing else in frame. The width below is measured across exactly what's in the image.</span>
             </label>
             {artwork && <div className="grid gap-4 rounded-2xl bg-background p-4 sm:grid-cols-[120px_1fr]">
               <img src={artwork.previewUrl} alt="Artwork preview" className="max-h-36 w-full rounded-xl object-contain" />

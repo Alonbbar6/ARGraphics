@@ -31,7 +31,7 @@ import {
   UpdateQrCodeParams,
   UpdateQrCodeResponse,
 } from "@workspace/api-zod";
-import { artworkLicensesTable, artworksTable, barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable } from "@workspace/db";
+import { artworkLicensesTable, artworksTable, barsTable, db, displaysTable, drinksTable, qrCodesTable, redemptionsTable, scansTable, tableCardsTable } from "@workspace/db";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import { InvalidArtworkError, MAX_ARTWORK_BYTES, validateRasterImage } from "../lib/tableCardArtwork";
 import {
@@ -484,28 +484,63 @@ router.delete("/displays/:id", async (req, res): Promise<void> => {
 
 async function serializeQrCodes(barId: string, rows: (typeof qrCodesTable.$inferSelect)[]) {
   if (rows.length === 0) return [];
-  const displayIds = rows.map((row) => row.displayId).filter((id): id is string => Boolean(id));
+  const displayIds = [...new Set(rows.flatMap((row) => row.displayIds))];
   const displays = displayIds.length
     ? await db.select({ id: displaysTable.id, title: displaysTable.title }).from(displaysTable)
       .where(inArray(displaysTable.id, displayIds)) : [];
+  const cardIds = [...new Set(rows.map((row) => row.tableCardId).filter((id): id is string => Boolean(id)))];
+  const cards = cardIds.length
+    ? await db.select({ id: tableCardsTable.id, name: tableCardsTable.name }).from(tableCardsTable)
+      .where(inArray(tableCardsTable.id, cardIds)) : [];
   const counts = await weeklyCounts(barId, "qrCodeId");
-  return rows.map((row) => ({
-    id: row.id,
-    label: row.label,
-    placement: row.placement as Placement,
-    displayId: row.displayId,
-    displayTitle: displays.find((display) => display.id === row.displayId)?.title ?? null,
-    code: row.code,
-    path: `/s/${row.code}`,
-    scansThisWeek: counts.scans.get(row.id) ?? 0,
-    redemptionsThisWeek: counts.redemptions.get(row.id) ?? 0,
-    createdAt: row.createdAt,
-  }));
+  return rows.map((row) => {
+    // A display deleted since the code was set drops out of the list.
+    const chosen = row.displayIds
+      .map((id) => displays.find((display) => display.id === id))
+      .filter((display): display is NonNullable<typeof display> => Boolean(display));
+    const card = cards.find((entry) => entry.id === row.tableCardId) ?? null;
+    return {
+      id: row.id,
+      label: row.label,
+      placement: row.placement as Placement,
+      displayIds: chosen.map((display) => display.id),
+      displayTitles: chosen.map((display) => display.title),
+      displayId: chosen.length === 1 ? chosen[0].id : null,
+      displayTitle: chosen.length === 1 ? chosen[0].title : null,
+      tableCardId: card?.id ?? null,
+      tableCardName: card?.name ?? null,
+      code: row.code,
+      path: `/s/${row.code}`,
+      scansThisWeek: counts.scans.get(row.id) ?? 0,
+      redemptionsThisWeek: counts.redemptions.get(row.id) ?? 0,
+      createdAt: row.createdAt,
+    };
+  });
 }
 
-async function ownedDisplayId(barId: string, displayId: string | null | undefined) {
-  if (!displayId) return null;
-  return (await ownedDisplay(barId, displayId))?.id ?? undefined;
+/**
+ * The displays a code should show, from either `displayIds` or the one-item `displayId`
+ * shorthand. `undefined` when the request doesn't touch them; `null` when one isn't this
+ * partner's. Order is kept and duplicates dropped.
+ */
+async function ownedDisplayIds(barId: string, body: { displayIds?: string[]; displayId?: string | null }) {
+  const requested = body.displayIds ?? (body.displayId === undefined ? undefined : body.displayId ? [body.displayId] : []);
+  if (requested === undefined) return undefined;
+  const ids = [...new Set(requested)];
+  if (ids.length === 0) return [];
+  const owned = await db.select({ id: displaysTable.id }).from(displaysTable)
+    .where(and(eq(displaysTable.barId, barId), inArray(displaysTable.id, ids)));
+  return owned.length === ids.length ? ids : null;
+}
+
+/** The card design a code is printed on: `undefined` when untouched, `null` to clear or when
+ * the card isn't this partner's (callers tell those apart with `wanted`). */
+async function ownedTableCardId(barId: string, wanted: string | null | undefined) {
+  if (wanted === undefined) return undefined;
+  if (wanted === null) return null;
+  const [card] = await db.select({ id: tableCardsTable.id }).from(tableCardsTable)
+    .where(and(eq(tableCardsTable.id, wanted), eq(tableCardsTable.barId, barId))).limit(1);
+  return card?.id ?? null;
 }
 
 router.get("/qr-codes", async (req, res): Promise<void> => {
@@ -525,9 +560,15 @@ router.post("/qr-codes", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Name each spot (up to 60 at once) and pick where it goes." });
     return;
   }
-  const displayId = await ownedDisplayId(bar.id, parsed.data.displayId);
-  if (displayId === undefined) {
+  const owned = await ownedDisplayIds(bar.id, parsed.data);
+  if (owned === null) {
     res.status(400).json({ error: "That display isn't yours." });
+    return;
+  }
+  const displayIds = owned ?? [];
+  const tableCardId = (await ownedTableCardId(bar.id, parsed.data.tableCardId)) ?? null;
+  if (parsed.data.tableCardId && !tableCardId) {
+    res.status(400).json({ error: "That card isn't yours." });
     return;
   }
   const created: (typeof qrCodesTable.$inferSelect)[] = [];
@@ -538,7 +579,8 @@ router.post("/qr-codes", async (req, res): Promise<void> => {
         const [row] = await db.insert(qrCodesTable).values({
           id: randomUUID(),
           barId: bar.id,
-          displayId,
+          displayIds,
+          tableCardId,
           code: newQrCode(),
           label: label.trim(),
           placement: parsed.data.placement,
@@ -564,16 +606,21 @@ router.patch("/qr-codes/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Enter valid QR code details." });
     return;
   }
-  const displayId = parsed.data.displayId === undefined
-    ? undefined : await ownedDisplayId(bar.id, parsed.data.displayId);
-  if (parsed.data.displayId && displayId === undefined) {
+  const displayIds = await ownedDisplayIds(bar.id, parsed.data);
+  if (displayIds === null) {
     res.status(400).json({ error: "That display isn't yours." });
+    return;
+  }
+  const tableCardId = await ownedTableCardId(bar.id, parsed.data.tableCardId);
+  if (parsed.data.tableCardId && !tableCardId) {
+    res.status(400).json({ error: "That card isn't yours." });
     return;
   }
   const [updated] = await db.update(qrCodesTable).set({
     ...(parsed.data.label !== undefined ? { label: parsed.data.label.trim() } : {}),
     ...(parsed.data.placement !== undefined ? { placement: parsed.data.placement } : {}),
-    ...(parsed.data.displayId !== undefined ? { displayId } : {}),
+    ...(displayIds !== undefined ? { displayIds } : {}),
+    ...(tableCardId !== undefined ? { tableCardId } : {}),
   }).where(and(
     eq(qrCodesTable.id, params.data.id), eq(qrCodesTable.barId, bar.id), isNull(qrCodesTable.retiredAt),
   )).returning();

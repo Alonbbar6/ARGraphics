@@ -47,8 +47,10 @@ final class AppEnvironment {
 }
 
 enum Route: Hashable {
-    /// The venue's live displays, for links that don't point at one display.
+    /// The venue's live displays as a list, for links that don't point at one display.
     case venue(Visit)
+    /// A scanned code that shows several things: all of them in AR round the printed code.
+    case menu(Visit)
     case experience(Visit, PublicDisplay)
 }
 
@@ -63,6 +65,10 @@ struct RootView: View {
                     switch route {
                     case .venue(let visit):
                         VenueScreen(visit: visit) { path.append(.experience(visit, $0)) }
+                    case .menu(let visit):
+                        MenuExperienceScreen(visit: visit,
+                                             onOpen: { path.append(.experience(visit, $0)) },
+                                             onShowList: { path.append(.venue(visit)) })
                     case .experience(let visit, let display):
                         ExperienceScreen(visit: visit, display: display) {
                             path.append(.venue(visit))
@@ -101,6 +107,8 @@ struct RootView: View {
             guard case .resolved(let current) = resolver.state, current.id == visit.id else { return }
             if let display = visit.display {
                 path = [.experience(visit, display)]
+            } else if MenuExperienceModel.canShow(visit) {
+                path = [.menu(visit)]
             } else {
                 path = [.venue(visit)]
             }

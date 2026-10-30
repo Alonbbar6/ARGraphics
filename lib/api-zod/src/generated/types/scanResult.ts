@@ -13,7 +13,9 @@ import type { PublicVenueSummary } from './publicVenueSummary';
 export interface ScanResult {
   venue: PublicVenueSummary;
   spot: PublicSpot;
+  /** The one display this code opens, when it is set to exactly one and it is live; otherwise null. */
   display: PublicDisplay | null;
+  /** What to list for this code. A code set to several displays lists just those (the live ones); any other code lists everything live at the venue. */
   displays: PublicDisplay[];
   tableCards: PublicTableCard[];
 }

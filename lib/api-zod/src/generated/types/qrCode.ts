@@ -11,10 +11,24 @@ export interface QrCode {
   id: string;
   label: string;
   placement: Placement;
-  /** @nullable */
+  /** What the code shows, in order. Empty means everything live at the venue; one opens that display; several give guests a short menu of just those. */
+  displayIds: string[];
+  /** Titles matching displayIds, for labels and print. */
+  displayTitles: string[];
+  /**
+     * The single display when exactly one is chosen, otherwise null. Prefer displayIds.
+     * @nullable
+     */
   displayId: string | null;
   /** @nullable */
   displayTitle: string | null;
+  /**
+     * The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.
+     * @nullable
+     */
+  tableCardId: string | null;
+  /** @nullable */
+  tableCardName: string | null;
   code: string;
   /** Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin. */
   path: string;

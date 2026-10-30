@@ -44,7 +44,8 @@ async function seedDemoTruck(passwordHash: string, timezone: string) {
     { id: "demo-truck-display-lunch", barId: DEMO_TRUCK_ID, type: "promo_offer", placement: "window", status: "live", title: "Lunch line special", description: "Show this at the window.", offerTitle: "Free agua fresca with any two tacos", offerDetails: "Weekdays before 2pm. One per person." },
   ]).onConflictDoNothing();
   await db.insert(qrCodesTable).values([
-    { id: "demo-truck-qr-window", barId: DEMO_TRUCK_ID, displayId: "demo-truck-display-birria", code: "demotruck", label: "Service window", placement: "window" },
+    // One code, the whole window menu: guests pick a dish, then see it in front of them.
+    { id: "demo-truck-qr-window", barId: DEMO_TRUCK_ID, displayIds: ["demo-truck-display-birria", "demo-truck-display-fries", "demo-truck-display-agua", "demo-truck-display-lunch"], code: "demotruck", label: "Service window", placement: "window" },
   ]).onConflictDoNothing();
 }
 
@@ -120,11 +121,11 @@ export async function seedDemoPartners(demoBarId: string) {
   ].filter((display) => !("drinkId" in display && display.drinkId && taken.has(display.drinkId)))).onConflictDoNothing();
   await db.insert(qrCodesTable).values([
     ...Array.from({ length: 6 }, (_, index) => ({
-      id: `demo-qr-table-${index + 1}`, barId: demoBarId, displayId: "demo-display-wednesday",
+      id: `demo-qr-table-${index + 1}`, barId: demoBarId, displayIds: ["demo-display-wednesday"],
       code: `demotbl${index + 1}`, label: `Table ${index + 1}`, placement: "table",
     })),
-    { id: "demo-qr-wall", barId: demoBarId, displayId: "demo-display-bloom", code: "demowall", label: "Back wall", placement: "wall" },
-    { id: "demo-qr-bar", barId: demoBarId, displayId: "demo-display-spritz", code: "demobar1", label: "Bar top", placement: "table" },
+    { id: "demo-qr-wall", barId: demoBarId, displayIds: ["demo-display-bloom"], code: "demowall", label: "Back wall", placement: "wall" },
+    { id: "demo-qr-bar", barId: demoBarId, displayIds: ["demo-display-spritz"], code: "demobar1", label: "Bar top", placement: "table" },
   ]).onConflictDoNothing();
   await seedDemoTruck(await bcrypt.hash("ARGraphics-demo-2026!", 12), safeTimeZone(demo.timezone));
   await seedDemoActivity(demoBarId, safeTimeZone(demo.timezone));
@@ -153,7 +154,8 @@ async function seedDemoActivity(barId: string, timeZone: string) {
   const now = windows.open ? Date.now() : (windows.lastNight?.to.getTime() ?? Date.now()) - 5 * 60_000;
   const scans = DEMO_SCAN_OFFSETS.map((minutes, index) => {
     const code = codes[index % codes.length];
-    const display = displays.find((row) => row.id === code.displayId && row.status === "live") ?? null;
+    const display = code.displayIds.length === 1
+      ? displays.find((row) => row.id === code.displayIds[0] && row.status === "live") ?? null : null;
     return {
       id: `demo-scan-${String(index + 1).padStart(2, "0")}`,
       barId, qrCodeId: code.id, displayId: display?.id ?? null,
@@ -168,7 +170,7 @@ async function seedDemoActivity(barId: string, timeZone: string) {
   }
   const offer = displays.find((row) => row.offerTitle && row.status === "live");
   if (!offer) return;
-  const code = codes.find((row) => row.displayId === offer.id) ?? codes[0];
+  const code = codes.find((row) => row.displayIds.includes(offer.id)) ?? codes[0];
   const claims = DEMO_CLAIM_OFFSETS.map((minutes, index) => {
     const claimedAt = new Date(now - minutes * 60_000);
     return {

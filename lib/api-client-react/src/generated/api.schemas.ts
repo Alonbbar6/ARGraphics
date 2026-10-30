@@ -31,6 +31,8 @@ export interface SavedPhotoCleanup {
   /** @nullable */
   error: string | null;
   createdAt: string;
+  /** Whether the owner traced the liquid or garnish on this photo (see the `parts` cleanup parameter). */
+  hasParts: boolean;
 }
 
 export interface HealthStatus {
@@ -164,6 +166,8 @@ export interface Drink {
      * @nullable
      */
   realHeightCm: number | null;
+  /** Whether the last build treated the item as served in clear glass (see DrinkGenerationInput). */
+  clearGlass: boolean;
 }
 
 export type DrinkPhotoUploadInputKind = typeof DrinkPhotoUploadInputKind[keyof typeof DrinkPhotoUploadInputKind];
@@ -204,11 +208,56 @@ export interface DrinkPhotoUpload {
   objectPath: string;
 }
 
+export interface GlassTouchUpInput {
+  /**
+     * Triangles to make solid, each `[primitiveIndex, triangleIndex]`.
+     * @maxItems 20000
+     * @items.minItems 2
+     * @items.maxItems 2
+     * @items.items.minimum 0
+     */
+  solid: number[][];
+  /**
+     * Triangles to make clear glass, each `[primitiveIndex, triangleIndex]`.
+     * @maxItems 20000
+     * @items.minItems 2
+     * @items.maxItems 2
+     * @items.items.minimum 0
+     */
+  glass: number[][];
+  /**
+     * Triangles to make solid and texturise, each `[primitiveIndex, triangleIndex]`. Their spot of the texture is repainted by copying colour and texture from the model's neighbouring solid parts, so a see-through hole in the drink is filled in to match its surroundings.
+     * @maxItems 20000
+     * @items.minItems 2
+     * @items.maxItems 2
+     * @items.items.minimum 0
+     */
+  fill?: number[][];
+  /**
+     * Triangles of the glass wall behind which the inside of the drink is filled in, each `[primitiveIndex, triangleIndex]`. The wall stays clear glass; a textured inner surface of the drink is added just inside it, painted like the drink around the spot, so the glass no longer looks hollow there.
+     * @maxItems 20000
+     * @items.minItems 2
+     * @items.maxItems 2
+     * @items.items.minimum 0
+     */
+  inside?: number[][];
+  /**
+     * Triangles whose texture is copied into the `fill` and `inside` spots, each `[primitiveIndex, triangleIndex]`, like a clone stamp. When omitted or empty, the texture comes from the model's solid parts around each spot.
+     * @maxItems 20000
+     * @items.minItems 2
+     * @items.maxItems 2
+     * @items.items.minimum 0
+     */
+  source?: number[][];
+}
+
 export interface DrinkGenerationInput {
   /** @minLength 1 */
   sourcePhotoPath: string;
   /** @minLength 1 */
   cleanedPhotoPath: string;
+  /** The item is served in clear glass. The build asks for a clear glass and the glass is made see-through in the finished 3D and AR files. Leave off for creamy or milky drinks. Defaults to the drink's saved setting. */
+  clearGlass?: boolean;
 }
 
 export type DrinkGenerationStatus = typeof DrinkGenerationStatus[keyof typeof DrinkGenerationStatus];
@@ -836,10 +885,24 @@ export interface QrCode {
   id: string;
   label: string;
   placement: Placement;
-  /** @nullable */
+  /** What the code shows, in order. Empty means everything live at the venue; one opens that display; several give guests a short menu of just those. */
+  displayIds: string[];
+  /** Titles matching displayIds, for labels and print. */
+  displayTitles: string[];
+  /**
+     * The single display when exactly one is chosen, otherwise null. Prefer displayIds.
+     * @nullable
+     */
   displayId: string | null;
   /** @nullable */
   displayTitle: string | null;
+  /**
+     * The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.
+     * @nullable
+     */
+  tableCardId: string | null;
+  /** @nullable */
+  tableCardName: string | null;
   code: string;
   /** Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin. */
   path: string;
@@ -847,6 +910,14 @@ export interface QrCode {
   redemptionsThisWeek: number;
   createdAt: string;
 }
+
+/**
+ * Displays the code shows, in order. Empty means everything live. Send either this or displayId, not both.
+ * @maxItems 30
+ * @items.minLength 1
+ * @items.maxLength 120
+ */
+export type QrCodeDisplayIds = string[];
 
 export interface QrCodeBatchInput {
   /**
@@ -858,11 +929,19 @@ export interface QrCodeBatchInput {
      */
   labels: string[];
   placement: Placement;
+  displayIds?: QrCodeDisplayIds;
   /**
+     * Shorthand for a one-item displayIds.
      * @maxLength 120
      * @nullable
      */
   displayId?: string | null;
+  /**
+     * The card design these codes are printed on.
+     * @maxLength 120
+     * @nullable
+     */
+  tableCardId?: string | null;
 }
 
 export interface QrCodeUpdate {
@@ -873,11 +952,19 @@ export interface QrCodeUpdate {
      */
   label?: string;
   placement?: Placement;
+  displayIds?: QrCodeDisplayIds;
   /**
+     * Shorthand for a one-item displayIds.
      * @maxLength 120
      * @nullable
      */
   displayId?: string | null;
+  /**
+     * The card design this code is printed on; null to clear.
+     * @maxLength 120
+     * @nullable
+     */
+  tableCardId?: string | null;
 }
 
 export interface TrafficTotals {
@@ -1282,6 +1369,11 @@ export interface PublicDisplay {
 export interface PublicSpot {
   label: string;
   placement: Placement;
+  /**
+     * The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.
+     * @nullable
+     */
+  tableCardId?: string | null;
 }
 
 export interface ScanInput {
@@ -1294,7 +1386,9 @@ export interface ScanInput {
 export interface ScanResult {
   venue: PublicVenueSummary;
   spot: PublicSpot;
+  /** The one display this code opens, when it is set to exactly one and it is live; otherwise null. */
   display: PublicDisplay | null;
+  /** What to list for this code. A code set to several displays lists just those (the live ones); any other code lists everything live at the venue. */
   displays: PublicDisplay[];
   tableCards: PublicTableCard[];
 }
@@ -1372,14 +1466,50 @@ export type NotFoundResponse = Error;
  */
 export type BadRequestResponse = Error;
 
+/**
+ * Optional closed outline the owner traced around the item, as `x,y` fractions (0–1) of the upright photo joined by `;` (3–400 points). The cleanup focuses on the outlined item and clears everything outside it. A malformed outline is refused with 400 before any attempt is counted.
+ */
+export type CleanupOutlineParameter = string;
+
+/**
+ * Optional parts the owner traced inside the outline, as JSON `{"liquid":[[x,y],…],"garnish":[[[x,y],…],…]}` in the same 0–1 photo fractions (up to 6 garnish loops). Not used for the cutout; kept with it so a clear-glass build can be split into see-through glass and solid drink and garnish. Malformed parts are refused with 400 before any attempt is counted.
+ */
+export type CleanupPartsParameter = string;
+
 export type GetSavedPhotoCleanup200 = {
   draft: SavedPhotoCleanup | null;
   /** Earlier saved cutout available when the newest attempt failed */
   previousReadyDraft: SavedPhotoCleanup | null;
 };
 
+export type SavePhotoCleanupParams = {
+/**
+ * Optional closed outline the owner traced around the item, as `x,y` fractions (0–1) of the upright photo joined by `;` (3–400 points). The cleanup focuses on the outlined item and clears everything outside it. A malformed outline is refused with 400 before any attempt is counted.
+ * @maxLength 8000
+ */
+outline?: CleanupOutlineParameter;
+/**
+ * Optional parts the owner traced inside the outline, as JSON `{"liquid":[[x,y],…],"garnish":[[[x,y],…],…]}` in the same 0–1 photo fractions (up to 6 garnish loops). Not used for the cutout; kept with it so a clear-glass build can be split into see-through glass and solid drink and garnish. Malformed parts are refused with 400 before any attempt is counted.
+ * @maxLength 40000
+ */
+parts?: CleanupPartsParameter;
+};
+
 export type SavePhotoCleanup200 = {
   draft: SavedPhotoCleanup;
+};
+
+export type CleanupDrinkPhotoParams = {
+/**
+ * Optional closed outline the owner traced around the item, as `x,y` fractions (0–1) of the upright photo joined by `;` (3–400 points). The cleanup focuses on the outlined item and clears everything outside it. A malformed outline is refused with 400 before any attempt is counted.
+ * @maxLength 8000
+ */
+outline?: CleanupOutlineParameter;
+/**
+ * Optional parts the owner traced inside the outline, as JSON `{"liquid":[[x,y],…],"garnish":[[[x,y],…],…]}` in the same 0–1 photo fractions (up to 6 garnish loops). Not used for the cutout; kept with it so a clear-glass build can be split into see-through glass and solid drink and garnish. Malformed parts are refused with 400 before any attempt is counted.
+ * @maxLength 40000
+ */
+parts?: CleanupPartsParameter;
 };
 
 export type GetAnalyticsParams = {

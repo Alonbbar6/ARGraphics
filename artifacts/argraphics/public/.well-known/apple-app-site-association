@@ -3,8 +3,8 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.app.argraphics.visitor",
-        "appIDs": ["TEAMID.app.argraphics.visitor"],
+        "appID": "8CN54MQ3P6.app.argraphics.visitor",
+        "appIDs": ["8CN54MQ3P6.app.argraphics.visitor"],
         "paths": ["/s/*"],
         "components": [
           { "/": "/s/*", "comment": "Spot QR codes open the ARGraphics visitor app" }

@@ -60,7 +60,14 @@ export const PRINT_TEMPLATES: { value: PrintTemplate; label: string; size: strin
   { value: "window", label: "Window card", size: "Letter, 1 per page", note: "Laminate it for the service window or the menu board. Says what to do in one line." },
 ];
 
+/** `displayTitle` is one display's name, or a short list ("A · B · C") when the code shows a menu. */
 export type PrintCode = { label: string; url: string; displayTitle?: string | null };
+
+function tentLine(displayTitle: string | null | undefined) {
+  if (!displayTitle) return "Something is waiting at this table. Open the ARGraphics app and scan to see it.";
+  if (displayTitle.includes(" · ")) return `${displayTitle}: pick one, then see it right here. Open the ARGraphics app and scan.`;
+  return `${displayTitle} is waiting at this table. Open the ARGraphics app and scan to see it.`;
+}
 
 const MIDNIGHT: [number, number, number] = [11, 11, 20];
 const VIOLET: [number, number, number] = [109, 40, 217];
@@ -127,10 +134,7 @@ async function drawTent(pdf: jsPDF, venue: string, code: PrintCode, slot: number
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10.5);
   pdf.setTextColor(70);
-  const lines = pdf.splitTextToSize(
-    code.displayTitle ? `${code.displayTitle} is waiting at this table. Open the ARGraphics app and scan to see it.` : "Something is waiting at this table. Open the ARGraphics app and scan to see it.",
-    textWidth,
-  ) as string[];
+  const lines = pdf.splitTextToSize(tentLine(code.displayTitle), textWidth) as string[];
   pdf.text(lines.slice(0, 3), textX, qrY + 30);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(12);

@@ -176,6 +176,89 @@ describe("QR codes and the guest flow", () => {
     await request(app).patch(`/api/qr-codes/${table1.id}`).set("Cookie", cookie).send({ label: "Back" }).expect(404);
   });
 
+  it("lets one code show a chosen set of displays, in order, skipping ones that aren't live", async () => {
+    const cookie = await signIn();
+    const spritz = await createDisplay(cookie, { title: "Blood Orange Spritz", status: "live" }).expect(201);
+    const gimlet = await createDisplay(cookie, { title: "Garden Gimlet", status: "live" }).expect(201);
+    const lastWord = await createDisplay(cookie, { title: "Last Word", status: "live" }).expect(201);
+    const other = await createDisplay(await signIn("other@example.test"), { status: "live" }).expect(201);
+
+    await request(app).post("/api/qr-codes").set("Cookie", cookie)
+      .send({ labels: ["X"], placement: "table", displayIds: [spritz.body.id, other.body.id] }).expect(400);
+    const [dupes] = await placeCodes(cookie, { labels: ["Bar"], displayIds: [spritz.body.id, spritz.body.id] });
+    expect(dupes).toMatchObject({ displayIds: [spritz.body.id], displayId: spritz.body.id });
+
+    const [menu] = await placeCodes(cookie, { labels: ["Patio"], displayIds: [gimlet.body.id, spritz.body.id] });
+    expect(menu).toMatchObject({
+      displayIds: [gimlet.body.id, spritz.body.id], displayTitles: ["Garden Gimlet", "Blood Orange Spritz"],
+      displayId: null, displayTitle: null,
+    });
+
+    // Several picks: no single display, and the list is only the picks, in the partner's order.
+    const scan = await guest("post", "scans").send({ code: menu.code, visitorId: visitor }).expect(200);
+    expectResponseContract("createPublicScan", 200, scan.body);
+    expect(scan.body.display).toBeNull();
+    expect(scan.body.displays.map((display: { title: string }) => display.title)).toEqual(["Garden Gimlet", "Blood Orange Spritz"]);
+    expect((await db.select().from(schema.scansTable))[0].displayId).toBeNull();
+
+    // A paused pick drops out; when every pick is gone the code falls back to everything live.
+    await request(app).patch(`/api/displays/${gimlet.body.id}`).set("Cookie", cookie).send({ status: "paused" }).expect(200);
+    const one = await guest("post", "scans").send({ code: menu.code, visitorId: otherVisitor }).expect(200);
+    expect(one.body.displays.map((display: { id: string }) => display.id)).toEqual([spritz.body.id]);
+    await request(app).patch(`/api/displays/${spritz.body.id}`).set("Cookie", cookie).send({ status: "paused" }).expect(200);
+    const fallback = await guest("post", "scans").send({ code: menu.code, visitorId: otherVisitor }).expect(200);
+    expect(fallback.body.displays.map((display: { id: string }) => display.id)).toEqual([lastWord.body.id]);
+
+    // Editing: a one-item list behaves like the old single display; an empty list means everything.
+    const single = await request(app).patch(`/api/qr-codes/${menu.id}`).set("Cookie", cookie).send({ displayIds: [lastWord.body.id] }).expect(200);
+    expectResponseContract("updateQrCode", 200, single.body);
+    expect(single.body).toMatchObject({ displayId: lastWord.body.id, displayTitle: "Last Word", displayIds: [lastWord.body.id] });
+    expect((await guest("post", "scans").send({ code: menu.code, visitorId: visitor }).expect(200)).body.display.id).toBe(lastWord.body.id);
+    const all = await request(app).patch(`/api/qr-codes/${menu.id}`).set("Cookie", cookie).send({ displayIds: [] }).expect(200);
+    expect(all.body).toMatchObject({ displayIds: [], displayId: null });
+    await request(app).patch(`/api/qr-codes/${menu.id}`).set("Cookie", cookie).send({ displayIds: [other.body.id] }).expect(400);
+
+    // A deleted display disappears from the code's list.
+    await request(app).patch(`/api/qr-codes/${menu.id}`).set("Cookie", cookie).send({ displayIds: [lastWord.body.id, gimlet.body.id] }).expect(200);
+    await request(app).delete(`/api/displays/${gimlet.body.id}`).set("Cookie", cookie).expect(200);
+    const codes = await request(app).get("/api/qr-codes").set("Cookie", cookie).expect(200);
+    expectResponseContract("listQrCodes", 200, codes.body);
+    expect(codes.body.find((code: { id: string }) => code.id === menu.id)).toMatchObject({ displayIds: [lastWord.body.id], displayId: lastWord.body.id });
+  });
+
+  it("remembers which printed card a code sits on and tells the app, so content can follow the card", async () => {
+    const cookie = await signIn();
+    uploadArtwork();
+    const card = async (barId: string, name: string, active = true) => {
+      const id = `card-${name.toLowerCase().replace(/\s+/g, "-")}`;
+      await db.insert(schema.tableCardsTable).values({ id, barId, name, referenceImageUrl: artworkPath, physicalWidthMeters: "0.12000", isActive: active });
+      return id;
+    };
+    const tent = await card("argraphics-demo-bar", "Table tent");
+    const paused = await card("argraphics-demo-bar", "Old tent", false);
+    const theirs = await card("other-bar", "Their card");
+    const offer = await createDisplay(cookie, { status: "live" }).expect(201);
+
+    await request(app).post("/api/qr-codes").set("Cookie", cookie)
+      .send({ labels: ["X"], placement: "table", tableCardId: theirs }).expect(400);
+    const [table] = await placeCodes(cookie, { labels: ["Table 9"], displayId: offer.body.id, tableCardId: tent });
+    expect(table).toMatchObject({ tableCardId: tent, tableCardName: "Table tent" });
+
+    const scan = await guest("post", "scans").send({ code: table.code, visitorId: visitor }).expect(200);
+    expectResponseContract("createPublicScan", 200, scan.body);
+    expect(scan.body.spot).toEqual({ label: "Table 9", placement: "table", tableCardId: tent });
+    // Only active cards ship to the app, and the spot never points at one that isn't in the list.
+    expect(scan.body.tableCards.map((entry: { id: string }) => entry.id)).toEqual([tent]);
+    await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ tableCardId: paused }).expect(200);
+    const unlisted = await guest("post", "scans").send({ code: table.code, visitorId: otherVisitor }).expect(200);
+    expect(unlisted.body.spot.tableCardId).toBeNull();
+
+    await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ tableCardId: theirs }).expect(400);
+    const cleared = await request(app).patch(`/api/qr-codes/${table.id}`).set("Cookie", cookie).send({ tableCardId: null }).expect(200);
+    expectResponseContract("updateQrCode", 200, cleared.body);
+    expect(cleared.body).toMatchObject({ tableCardId: null, tableCardName: null });
+  });
+
   it("sends any display's 3D library model to guests at its real height, without a menu price", async () => {
     const cookie = await signIn();
     const created = await request(app).post("/api/drinks").set("Cookie", cookie)

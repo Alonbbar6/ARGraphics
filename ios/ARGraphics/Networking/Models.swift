@@ -126,6 +126,9 @@ struct PublicDisplay: Codable, Hashable, Identifiable {
 struct PublicSpot: Codable, Hashable {
     let label: String
     let placement: Placement
+    /// The entry in `tableCards` this code is printed on, so content can stand on that card
+    /// and follow it. Older servers omit it.
+    var tableCardId: String? = nil
 }
 
 struct PublicTableCard: Codable, Hashable, Identifiable {

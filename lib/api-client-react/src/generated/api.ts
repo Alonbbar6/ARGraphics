@@ -34,6 +34,7 @@ import type {
   CheckoutUrl,
   Claim,
   ClaimInput,
+  CleanupDrinkPhotoParams,
   Display,
   DisplayInput,
   DisplayUpdate,
@@ -49,6 +50,7 @@ import type {
   GetAnalyticsParams,
   GetLiveBoardParams,
   GetSavedPhotoCleanup200,
+  GlassTouchUpInput,
   HealthStatus,
   Insights,
   LicenseRequestInput,
@@ -75,6 +77,7 @@ import type {
   QrCodeUpdate,
   Redemption,
   SavePhotoCleanup200,
+  SavePhotoCleanupParams,
   ScanInput,
   ScanResult,
   SearchArtistsParams,
@@ -982,6 +985,96 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getDeleteDrinkMutationOptions(options));
     }
 
+export const getTouchUpDrinkGlassUrl = (id: string,) => {
+
+
+
+
+  return `/api/drinks/${id}/glass-touch-up`
+}
+
+/**
+ * Each pick names a triangle of the stored model by the index of the primitive it is in and the triangle's index within that primitive, as the web viewer reports them. The labels are kept on the drink and reapplied on later touch-ups; a new build starts over. Filled-in spots are made solid and their texture repainted from the surrounding solid parts; the repainted texture is kept in the stored files. No Meshy credits.
+ * @summary Re-split a clear-glass model with spots the owner lassoed as solid, glass or filled in
+ */
+export const touchUpDrinkGlass = async (id: string,
+    glassTouchUpInput: GlassTouchUpInput, options?: Parameters<typeof customFetch>[1]): Promise<Drink> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Drink>(getTouchUpDrinkGlassUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(glassTouchUpInput)
+  }
+);}
+
+
+
+
+
+export const getTouchUpDrinkGlassMutationKey = () => ['touchUpDrinkGlass'] as const;
+
+export const getTouchUpDrinkGlassMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof touchUpDrinkGlass>>, TError,TouchUpDrinkGlassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof touchUpDrinkGlass>>, TError,TouchUpDrinkGlassMutationVariables, TContext> => {
+
+const mutationKey = getTouchUpDrinkGlassMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof touchUpDrinkGlass>>, TouchUpDrinkGlassMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  touchUpDrinkGlass(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TouchUpDrinkGlassMutationResult = NonNullable<Awaited<ReturnType<typeof touchUpDrinkGlass>>>
+    export type TouchUpDrinkGlassMutationBody = BodyType<GlassTouchUpInput>
+    export type TouchUpDrinkGlassMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error>
+    export type TouchUpDrinkGlassMutationVariables = {id: string;data: BodyType<GlassTouchUpInput>}
+
+    /**
+ * @summary Re-split a clear-glass model with spots the owner lassoed as solid, glass or filled in
+ */
+export const useTouchUpDrinkGlass = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof touchUpDrinkGlass>>, TError,TouchUpDrinkGlassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof touchUpDrinkGlass>>,
+        TError,
+        TouchUpDrinkGlassMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTouchUpDrinkGlassMutationOptions(options));
+    }
+
 export const getGetSavedPhotoCleanupUrl = (id: string,) => {
 
 
@@ -1059,12 +1152,20 @@ export function useGetSavedPhotoCleanup<TData = Awaited<ReturnType<typeof getSav
 
 
 
-export const getSavePhotoCleanupUrl = (id: string,) => {
+export const getSavePhotoCleanupUrl = (id: string,
+    params?: SavePhotoCleanupParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/drinks/${id}/photo-cleanup`
+  return stringifiedParams.length > 0 ? `/api/drinks/${id}/photo-cleanup?${stringifiedParams}` : `/api/drinks/${id}/photo-cleanup`
 }
 
 /**
@@ -1072,7 +1173,8 @@ export const getSavePhotoCleanupUrl = (id: string,) => {
  * @summary Clean a photo and save both private images before approval
  */
 export const savePhotoCleanup = async (id: string,
-    savePhotoCleanupBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<SavePhotoCleanup200> => {
+    savePhotoCleanupBody: Blob,
+    params?: SavePhotoCleanupParams, options?: Parameters<typeof customFetch>[1]): Promise<SavePhotoCleanup200> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1088,7 +1190,7 @@ export const savePhotoCleanup = async (id: string,
     }
     return headers;
   };
-return customFetch<SavePhotoCleanup200>(getSavePhotoCleanupUrl(id),
+return customFetch<SavePhotoCleanup200>(getSavePhotoCleanupUrl(id,params),
   {
     ...options,
     method: 'POST',
@@ -1118,9 +1220,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePhotoCleanup>>, SavePhotoCleanupMutationVariables> = (props) => {
-          const {id,data} = props ?? {};
+          const {id,data,params} = props ?? {};
 
-          return  savePhotoCleanup(id,data,requestOptions)
+          return  savePhotoCleanup(id,data,params,requestOptions)
         }
 
 
@@ -1133,7 +1235,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SavePhotoCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof savePhotoCleanup>>>
     export type SavePhotoCleanupMutationBody = BodyType<Blob>
     export type SavePhotoCleanupMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | void>
-    export type SavePhotoCleanupMutationVariables = {id: string;data: BodyType<Blob>}
+    export type SavePhotoCleanupMutationVariables = {id: string;data: BodyType<Blob>;params?: SavePhotoCleanupParams}
 
     /**
  * @summary Clean a photo and save both private images before approval
@@ -1230,19 +1332,27 @@ export function useGetSavedPhotoCleanupImage<TData = Awaited<ReturnType<typeof g
 
 
 
-export const getCleanupDrinkPhotoUrl = () => {
+export const getCleanupDrinkPhotoUrl = (params?: CleanupDrinkPhotoParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/drinks/photo-cleanup`
+  return stringifiedParams.length > 0 ? `/api/drinks/photo-cleanup?${stringifiedParams}` : `/api/drinks/photo-cleanup`
 }
 
 /**
  * Requires an owner session. Accepts a still image up to 15 MB. Limited to four admitted attempts per owner per ten-minute window and one simultaneous cleanup, shared across server instances and restarts. Failed attempts also count. Abandoned cleanup leases expire after five minutes; requests have a four-minute deadline.
  * @summary Remove a drink photo background using the owner's OpenAI connection
  */
-export const cleanupDrinkPhoto = async (cleanupDrinkPhotoBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+export const cleanupDrinkPhoto = async (cleanupDrinkPhotoBody: Blob,
+    params?: CleanupDrinkPhotoParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1258,7 +1368,7 @@ export const cleanupDrinkPhoto = async (cleanupDrinkPhotoBody: Blob, options?: P
     }
     return headers;
   };
-return customFetch<Blob>(getCleanupDrinkPhotoUrl(),
+return customFetch<Blob>(getCleanupDrinkPhotoUrl(params),
   {
     ...options,
     method: 'POST',
@@ -1288,9 +1398,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof cleanupDrinkPhoto>>, CleanupDrinkPhotoMutationVariables> = (props) => {
-          const {data} = props ?? {};
+          const {data,params} = props ?? {};
 
-          return  cleanupDrinkPhoto(data,requestOptions)
+          return  cleanupDrinkPhoto(data,params,requestOptions)
         }
 
 
@@ -1303,7 +1413,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CleanupDrinkPhotoMutationResult = NonNullable<Awaited<ReturnType<typeof cleanupDrinkPhoto>>>
     export type CleanupDrinkPhotoMutationBody = BodyType<Blob>
     export type CleanupDrinkPhotoMutationError = ErrorType<void>
-    export type CleanupDrinkPhotoMutationVariables = {data: BodyType<Blob>}
+    export type CleanupDrinkPhotoMutationVariables = {data: BodyType<Blob>;params?: CleanupDrinkPhotoParams}
 
     /**
  * @summary Remove a drink photo background using the owner's OpenAI connection

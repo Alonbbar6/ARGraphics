@@ -1,4 +1,5 @@
-import { pgTable, text, integer, boolean, timestamp, numeric, real, uniqueIndex, index, doublePrecision, check } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, numeric, real, uniqueIndex, index, doublePrecision, check, jsonb } from "drizzle-orm/pg-core";
+import type { PhotoParts, SubjectBox } from "./photo-cleanups";
 import { sql } from "drizzle-orm";
 
 export const barsTable = pgTable("bars", {
@@ -66,6 +67,15 @@ export const drinksTable = pgTable("drinks", {
   modelUsdzUrl: text("model_usdz_url"),
   // Real-world height the AR app renders the model at; null = app default.
   realHeightCm: real("real_height_cm"),
+  // Served in clear glass: the build asks Meshy for a clear glass and the glass is made
+  // see-through in the finished model (see api-server/src/lib/glb-glass.ts).
+  clearGlass: boolean("clear_glass").notNull().default(false),
+  // Copied from the cutout the build used, so the finished model can be split into glass and drink.
+  parts: jsonb("parts").$type<PhotoParts>(),
+  subjectBox: jsonb("subject_box").$type<SubjectBox>(),
+  // The owner's own glass/solid labels, lassoed on the finished model: "a,b,c" vertex triple →
+  // "solid" | "glass". Tied to this build's mesh, so a new build clears them.
+  glassOverrides: jsonb("glass_overrides").$type<Record<string, "solid" | "glass">>(),
   thumbnailUrl: text("thumbnail_url"),
   generationStatus: text("generation_status").notNull().default("none"),
   generationProgress: integer("generation_progress").notNull().default(0),
@@ -184,7 +194,11 @@ export const artworkLicensesTable = pgTable("artwork_licenses", {
 export const qrCodesTable = pgTable("qr_codes", {
   id: text("id").primaryKey(),
   barId: text("bar_id").notNull().references(() => barsTable.id, { onDelete: "cascade" }),
-  displayId: text("display_id").references(() => displaysTable.id, { onDelete: "set null" }),
+  // What the code shows, in order. Empty = everything live at the venue; one = opens that
+  // display; several = a short menu of just those. Deleted or paused displays are skipped.
+  displayIds: text("display_ids").array().notNull().default(sql`'{}'::text[]`),
+  // The printed card design this code sits on, so the app can anchor content to the card.
+  tableCardId: text("table_card_id").references(() => tableCardsTable.id, { onDelete: "set null" }),
   code: text("code").notNull().unique(),
   label: text("label").notNull(),
   placement: text("placement").notNull(),

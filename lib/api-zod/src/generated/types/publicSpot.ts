@@ -10,4 +10,9 @@ import type { Placement } from './placement';
 export interface PublicSpot {
   label: string;
   placement: Placement;
+  /**
+     * The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.
+     * @nullable
+     */
+  tableCardId?: string | null;
 }

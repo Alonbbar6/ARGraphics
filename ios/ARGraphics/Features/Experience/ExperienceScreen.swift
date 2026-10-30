@@ -172,11 +172,13 @@ struct ExperienceScreen: View {
             case .loading:
                 StatusPill(text: display.placement.hint, showsSpinner: true)
             case .finding:
-                StatusPill(text: model.tableCards.isEmpty ? display.placement.hint : "Point at the table card",
+                StatusPill(text: visit.spotCard != nil ? "Keep the card in view"
+                               : model.tableCards.isEmpty ? display.placement.hint : "Point at the table card",
                            showsSpinner: true)
-            case .placed:
-                StatusPill(text: display.placement.isVertical ? "Tap the wall to move it" : "Tap the table to move it",
-                           systemImage: "hand.tap")
+            case .placed(let onCard):
+                StatusPill(text: onCard ? "On your card. Move the card and it follows."
+                               : display.placement.isVertical ? "Tap the wall to move it" : "Tap the table to move it",
+                           systemImage: onCard ? "qrcode" : "hand.tap")
                     .transition(.opacity)
             }
         }

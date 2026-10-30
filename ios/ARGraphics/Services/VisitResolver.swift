@@ -30,6 +30,18 @@ struct Visit: Hashable, Identifiable {
         displays = venue.displays
         tableCards = venue.tableCards
     }
+
+    /// The card this code is printed on, when the venue registered it.
+    var spotCard: PublicTableCard? {
+        guard let id = spot?.tableCardId else { return nil }
+        return tableCards.first { $0.id == id }
+    }
+
+    /// Cards for ARKit to track, this spot's first so it's found and preferred soonest.
+    var trackedCards: [PublicTableCard] {
+        guard let spotCard else { return tableCards }
+        return [spotCard] + tableCards.filter { $0.id != spotCard.id }
+    }
 }
 
 /// Turns a scanned or opened link into a Visit. Drives the scan landing's states.

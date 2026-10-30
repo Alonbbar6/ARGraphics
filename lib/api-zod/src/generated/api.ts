@@ -142,7 +142,8 @@ export const ListDrinksResponseItem = zod.object({
   "modelUsdzUrl": zod.string().url().nullable(),
   "generationError": zod.string().nullable(),
   "updatedAt": zod.coerce.date(),
-  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.')
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.'),
+  "clearGlass": zod.boolean().describe('Whether the last build treated the item as served in clear glass (see DrinkGenerationInput).')
 })
 export const ListDrinksResponse = zod.array(ListDrinksResponseItem)
 
@@ -179,7 +180,8 @@ export const CreateDrinkResponse = zod.object({
   "modelUsdzUrl": zod.string().url().nullable(),
   "generationError": zod.string().nullable(),
   "updatedAt": zod.coerce.date(),
-  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.')
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.'),
+  "clearGlass": zod.boolean().describe('Whether the last build treated the item as served in clear glass (see DrinkGenerationInput).')
 })
 
 
@@ -222,7 +224,8 @@ export const UpdateDrinkResponse = zod.object({
   "modelUsdzUrl": zod.string().url().nullable(),
   "generationError": zod.string().nullable(),
   "updatedAt": zod.coerce.date(),
-  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.')
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.'),
+  "clearGlass": zod.boolean().describe('Whether the last build treated the item as served in clear glass (see DrinkGenerationInput).')
 })
 
 
@@ -232,6 +235,80 @@ export const DeleteDrinkParams = zod.object({
 
 export const DeleteDrinkResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * Each pick names a triangle of the stored model by the index of the primitive it is in and the triangle's index within that primitive, as the web viewer reports them. The labels are kept on the drink and reapplied on later touch-ups; a new build starts over. Filled-in spots are made solid and their texture repainted from the surrounding solid parts; the repainted texture is kept in the stored files. No Meshy credits.
+ * @summary Re-split a clear-glass model with spots the owner lassoed as solid, glass or filled in
+ */
+export const TouchUpDrinkGlassParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const touchUpDrinkGlassBodySolidItemItemMin = 0;
+
+export const touchUpDrinkGlassBodySolidItemMin = 2;
+export const touchUpDrinkGlassBodySolidItemMax = 2;
+
+export const touchUpDrinkGlassBodySolidMax = 20000;
+
+export const touchUpDrinkGlassBodyGlassItemItemMin = 0;
+
+export const touchUpDrinkGlassBodyGlassItemMin = 2;
+export const touchUpDrinkGlassBodyGlassItemMax = 2;
+
+export const touchUpDrinkGlassBodyGlassMax = 20000;
+
+export const touchUpDrinkGlassBodyFillItemItemMin = 0;
+
+export const touchUpDrinkGlassBodyFillItemMin = 2;
+export const touchUpDrinkGlassBodyFillItemMax = 2;
+
+export const touchUpDrinkGlassBodyFillMax = 20000;
+
+export const touchUpDrinkGlassBodyInsideItemItemMin = 0;
+
+export const touchUpDrinkGlassBodyInsideItemMin = 2;
+export const touchUpDrinkGlassBodyInsideItemMax = 2;
+
+export const touchUpDrinkGlassBodyInsideMax = 20000;
+
+export const touchUpDrinkGlassBodySourceItemItemMin = 0;
+
+export const touchUpDrinkGlassBodySourceItemMin = 2;
+export const touchUpDrinkGlassBodySourceItemMax = 2;
+
+export const touchUpDrinkGlassBodySourceMax = 20000;
+
+
+
+export const TouchUpDrinkGlassBody = zod.object({
+  "solid": zod.array(zod.array(zod.number().int().min(touchUpDrinkGlassBodySolidItemItemMin)).min(touchUpDrinkGlassBodySolidItemMin).max(touchUpDrinkGlassBodySolidItemMax)).max(touchUpDrinkGlassBodySolidMax).describe('Triangles to make solid, each `[primitiveIndex, triangleIndex]`.'),
+  "glass": zod.array(zod.array(zod.number().int().min(touchUpDrinkGlassBodyGlassItemItemMin)).min(touchUpDrinkGlassBodyGlassItemMin).max(touchUpDrinkGlassBodyGlassItemMax)).max(touchUpDrinkGlassBodyGlassMax).describe('Triangles to make clear glass, each `[primitiveIndex, triangleIndex]`.'),
+  "fill": zod.array(zod.array(zod.number().int().min(touchUpDrinkGlassBodyFillItemItemMin)).min(touchUpDrinkGlassBodyFillItemMin).max(touchUpDrinkGlassBodyFillItemMax)).max(touchUpDrinkGlassBodyFillMax).optional().describe('Triangles to make solid and texturise, each `[primitiveIndex, triangleIndex]`. Their spot of the texture is repainted by copying colour and texture from the model\'s neighbouring solid parts, so a see-through hole in the drink is filled in to match its surroundings.'),
+  "inside": zod.array(zod.array(zod.number().int().min(touchUpDrinkGlassBodyInsideItemItemMin)).min(touchUpDrinkGlassBodyInsideItemMin).max(touchUpDrinkGlassBodyInsideItemMax)).max(touchUpDrinkGlassBodyInsideMax).optional().describe('Triangles of the glass wall behind which the inside of the drink is filled in, each `[primitiveIndex, triangleIndex]`. The wall stays clear glass; a textured inner surface of the drink is added just inside it, painted like the drink around the spot, so the glass no longer looks hollow there.'),
+  "source": zod.array(zod.array(zod.number().int().min(touchUpDrinkGlassBodySourceItemItemMin)).min(touchUpDrinkGlassBodySourceItemMin).max(touchUpDrinkGlassBodySourceItemMax)).max(touchUpDrinkGlassBodySourceMax).optional().describe('Triangles whose texture is copied into the `fill` and `inside` spots, each `[primitiveIndex, triangleIndex]`, like a clone stamp. When omitted or empty, the texture comes from the model\'s solid parts around each spot.')
+})
+
+export const TouchUpDrinkGlassResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "priceCents": zod.number().int(),
+  "category": zod.string(),
+  "isAvailable": zod.boolean(),
+  "isPublished": zod.boolean(),
+  "sortOrder": zod.number().int(),
+  "thumbnailUrl": zod.string().nullable(),
+  "generationStatus": zod.string(),
+  "generationProgress": zod.number().int(),
+  "modelGlbUrl": zod.string().url().nullable(),
+  "modelUsdzUrl": zod.string().url().nullable(),
+  "generationError": zod.string().nullable(),
+  "updatedAt": zod.coerce.date(),
+  "realHeightCm": zod.number().nullable().describe('Real-world height in centimetres the AR app renders this model at; null uses the app default.'),
+  "clearGlass": zod.boolean().describe('Whether the last build treated the item as served in clear glass (see DrinkGenerationInput).')
 })
 
 
@@ -250,7 +327,8 @@ export const GetSavedPhotoCleanupResponse = zod.object({
   "sourcePhotoPath": zod.string(),
   "cleanedPhotoPath": zod.string().nullable(),
   "error": zod.string().nullable(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "hasParts": zod.boolean().describe('Whether the owner traced the liquid or garnish on this photo (see the `parts` cleanup parameter).')
 }),zod.null()]),
   "previousReadyDraft": zod.union([zod.object({
   "id": zod.string(),
@@ -259,7 +337,8 @@ export const GetSavedPhotoCleanupResponse = zod.object({
   "sourcePhotoPath": zod.string(),
   "cleanedPhotoPath": zod.string().nullable(),
   "error": zod.string().nullable(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "hasParts": zod.boolean().describe('Whether the owner traced the liquid or garnish on this photo (see the `parts` cleanup parameter).')
 }),zod.null()]).describe('Earlier saved cutout available when the newest attempt failed')
 })
 
@@ -272,6 +351,17 @@ export const SavePhotoCleanupParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const savePhotoCleanupQueryOutlineMax = 8000;
+
+export const savePhotoCleanupQueryPartsMax = 40000;
+
+
+
+export const SavePhotoCleanupQueryParams = zod.object({
+  "outline": zod.coerce.string().max(savePhotoCleanupQueryOutlineMax).optional().describe('Optional closed outline the owner traced around the item, as `x,y` fractions (0–1) of the upright photo joined by `;` (3–400 points). The cleanup focuses on the outlined item and clears everything outside it. A malformed outline is refused with 400 before any attempt is counted.'),
+  "parts": zod.coerce.string().max(savePhotoCleanupQueryPartsMax).optional().describe('Optional parts the owner traced inside the outline, as JSON `{"liquid":[[x,y],…],"garnish":[[[x,y],…],…]}` in the same 0–1 photo fractions (up to 6 garnish loops). Not used for the cutout; kept with it so a clear-glass build can be split into see-through glass and solid drink and garnish. Malformed parts are refused with 400 before any attempt is counted.')
+})
+
 export const SavePhotoCleanupResponse = zod.object({
   "draft": zod.object({
   "id": zod.string(),
@@ -280,7 +370,8 @@ export const SavePhotoCleanupResponse = zod.object({
   "sourcePhotoPath": zod.string(),
   "cleanedPhotoPath": zod.string().nullable(),
   "error": zod.string().nullable(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "hasParts": zod.boolean().describe('Whether the owner traced the liquid or garnish on this photo (see the `parts` cleanup parameter).')
 })
 })
 
@@ -298,6 +389,17 @@ export const GetSavedPhotoCleanupImageResponse = zod.unknown()
  * Requires an owner session. Accepts a still image up to 15 MB. Limited to four admitted attempts per owner per ten-minute window and one simultaneous cleanup, shared across server instances and restarts. Failed attempts also count. Abandoned cleanup leases expire after five minutes; requests have a four-minute deadline.
  * @summary Remove a drink photo background using the owner's OpenAI connection
  */
+export const cleanupDrinkPhotoQueryOutlineMax = 8000;
+
+export const cleanupDrinkPhotoQueryPartsMax = 40000;
+
+
+
+export const CleanupDrinkPhotoQueryParams = zod.object({
+  "outline": zod.coerce.string().max(cleanupDrinkPhotoQueryOutlineMax).optional().describe('Optional closed outline the owner traced around the item, as `x,y` fractions (0–1) of the upright photo joined by `;` (3–400 points). The cleanup focuses on the outlined item and clears everything outside it. A malformed outline is refused with 400 before any attempt is counted.'),
+  "parts": zod.coerce.string().max(cleanupDrinkPhotoQueryPartsMax).optional().describe('Optional parts the owner traced inside the outline, as JSON `{"liquid":[[x,y],…],"garnish":[[[x,y],…],…]}` in the same 0–1 photo fractions (up to 6 garnish loops). Not used for the cutout; kept with it so a clear-glass build can be split into see-through glass and solid drink and garnish. Malformed parts are refused with 400 before any attempt is counted.')
+})
+
 export const CleanupDrinkPhotoResponse = zod.unknown()
 
 
@@ -326,7 +428,8 @@ export const StartDrinkGenerationParams = zod.object({
 
 export const StartDrinkGenerationBody = zod.object({
   "sourcePhotoPath": zod.string().min(1),
-  "cleanedPhotoPath": zod.string().min(1)
+  "cleanedPhotoPath": zod.string().min(1),
+  "clearGlass": zod.boolean().optional().describe('The item is served in clear glass. The build asks for a clear glass and the glass is made see-through in the finished 3D and AR files. Leave off for creamy or milky drinks. Defaults to the drink\'s saved setting.')
 })
 
 export const StartDrinkGenerationResponse = zod.object({
@@ -955,8 +1058,12 @@ export const ListQrCodesResponseItem = zod.object({
   "id": zod.string(),
   "label": zod.string(),
   "placement": zod.enum(['table', 'wall', 'window', 'poster']),
-  "displayId": zod.string().nullable(),
+  "displayIds": zod.array(zod.string()).describe('What the code shows, in order. Empty means everything live at the venue; one opens that display; several give guests a short menu of just those.'),
+  "displayTitles": zod.array(zod.string()).describe('Titles matching displayIds, for labels and print.'),
+  "displayId": zod.string().nullable().describe('The single display when exactly one is chosen, otherwise null. Prefer displayIds.'),
   "displayTitle": zod.string().nullable(),
+  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.'),
+  "tableCardName": zod.string().nullable(),
   "code": zod.string(),
   "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
   "scansThisWeek": zod.number().int(),
@@ -975,22 +1082,34 @@ export const createQrCodesBodyLabelsItemMax = 40;
 export const createQrCodesBodyLabelsItemRegExp = new RegExp('\\S');
 export const createQrCodesBodyLabelsMax = 60;
 
+export const createQrCodesBodyDisplayIdsItemMax = 120;
+
+export const createQrCodesBodyDisplayIdsMax = 30;
+
 export const createQrCodesBodyDisplayIdMax = 120;
+
+export const createQrCodesBodyTableCardIdMax = 120;
 
 
 
 export const CreateQrCodesBody = zod.object({
   "labels": zod.array(zod.string().min(1).max(createQrCodesBodyLabelsItemMax).regex(createQrCodesBodyLabelsItemRegExp)).min(1).max(createQrCodesBodyLabelsMax),
   "placement": zod.enum(['table', 'wall', 'window', 'poster']),
-  "displayId": zod.string().max(createQrCodesBodyDisplayIdMax).nullish()
+  "displayIds": zod.array(zod.string().min(1).max(createQrCodesBodyDisplayIdsItemMax)).max(createQrCodesBodyDisplayIdsMax).optional().describe('Displays the code shows, in order. Empty means everything live. Send either this or displayId, not both.'),
+  "displayId": zod.string().max(createQrCodesBodyDisplayIdMax).nullish().describe('Shorthand for a one-item displayIds.'),
+  "tableCardId": zod.string().max(createQrCodesBodyTableCardIdMax).nullish().describe('The card design these codes are printed on.')
 })
 
 export const CreateQrCodesResponseItem = zod.object({
   "id": zod.string(),
   "label": zod.string(),
   "placement": zod.enum(['table', 'wall', 'window', 'poster']),
-  "displayId": zod.string().nullable(),
+  "displayIds": zod.array(zod.string()).describe('What the code shows, in order. Empty means everything live at the venue; one opens that display; several give guests a short menu of just those.'),
+  "displayTitles": zod.array(zod.string()).describe('Titles matching displayIds, for labels and print.'),
+  "displayId": zod.string().nullable().describe('The single display when exactly one is chosen, otherwise null. Prefer displayIds.'),
   "displayTitle": zod.string().nullable(),
+  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.'),
+  "tableCardName": zod.string().nullable(),
   "code": zod.string(),
   "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
   "scansThisWeek": zod.number().int(),
@@ -1011,22 +1130,34 @@ export const updateQrCodeBodyLabelMax = 40;
 
 
 export const updateQrCodeBodyLabelRegExp = new RegExp('\\S');
+export const updateQrCodeBodyDisplayIdsItemMax = 120;
+
+export const updateQrCodeBodyDisplayIdsMax = 30;
+
 export const updateQrCodeBodyDisplayIdMax = 120;
+
+export const updateQrCodeBodyTableCardIdMax = 120;
 
 
 
 export const UpdateQrCodeBody = zod.object({
   "label": zod.string().min(1).max(updateQrCodeBodyLabelMax).regex(updateQrCodeBodyLabelRegExp).optional(),
   "placement": zod.enum(['table', 'wall', 'window', 'poster']).optional(),
-  "displayId": zod.string().max(updateQrCodeBodyDisplayIdMax).nullish()
+  "displayIds": zod.array(zod.string().min(1).max(updateQrCodeBodyDisplayIdsItemMax)).max(updateQrCodeBodyDisplayIdsMax).optional().describe('Displays the code shows, in order. Empty means everything live. Send either this or displayId, not both.'),
+  "displayId": zod.string().max(updateQrCodeBodyDisplayIdMax).nullish().describe('Shorthand for a one-item displayIds.'),
+  "tableCardId": zod.string().max(updateQrCodeBodyTableCardIdMax).nullish().describe('The card design this code is printed on; null to clear.')
 })
 
 export const UpdateQrCodeResponse = zod.object({
   "id": zod.string(),
   "label": zod.string(),
   "placement": zod.enum(['table', 'wall', 'window', 'poster']),
-  "displayId": zod.string().nullable(),
+  "displayIds": zod.array(zod.string()).describe('What the code shows, in order. Empty means everything live at the venue; one opens that display; several give guests a short menu of just those.'),
+  "displayTitles": zod.array(zod.string()).describe('Titles matching displayIds, for labels and print.'),
+  "displayId": zod.string().nullable().describe('The single display when exactly one is chosen, otherwise null. Prefer displayIds.'),
   "displayTitle": zod.string().nullable(),
+  "tableCardId": zod.string().nullable().describe('The card design (see /table-cards) this code is printed on, so the app anchors content to the card and follows it. Null when not printed on a registered card.'),
+  "tableCardName": zod.string().nullable(),
   "code": zod.string(),
   "path": zod.string().describe('Site-relative scan link, for example /s/k7m2x9qp. Prefix it with the public site origin.'),
   "scansThisWeek": zod.number().int(),
@@ -1642,7 +1773,8 @@ export const CreatePublicScanResponse = zod.object({
 }),
   "spot": zod.object({
   "label": zod.string(),
-  "placement": zod.enum(['table', 'wall', 'window', 'poster'])
+  "placement": zod.enum(['table', 'wall', 'window', 'poster']),
+  "tableCardId": zod.string().nullish().describe('The entry in tableCards this code is printed on, when the venue registered its card design. The app tracks that card first so content stands on it and follows it.')
 }),
   "display": zod.union([zod.object({
   "id": zod.string(),
@@ -1668,7 +1800,7 @@ export const CreatePublicScanResponse = zod.object({
   "slug": zod.string().nullable(),
   "bio": zod.string().nullable()
 }),zod.null()])
-}),zod.null()]),
+}),zod.null()]).describe('The one display this code opens, when it is set to exactly one and it is live; otherwise null.'),
   "displays": zod.array(zod.object({
   "id": zod.string(),
   "type": zod.enum(['menu_item', 'promo_offer', 'art_piece', 'event_teaser']),
@@ -1693,7 +1825,7 @@ export const CreatePublicScanResponse = zod.object({
   "slug": zod.string().nullable(),
   "bio": zod.string().nullable()
 }),zod.null()])
-})),
+})).describe('What to list for this code. A code set to several displays lists just those (the live ones); any other code lists everything live at the venue.'),
   "tableCards": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),

@@ -141,8 +141,14 @@ router.post("/v1/scans", async (req, res): Promise<void> => {
     res.status(404).json({ error: "This code isn't active anymore." });
     return;
   }
-  const displays = await liveDisplays(found.bar.id);
-  const pointed = displays.find((display) => display.id === found.code.displayId) ?? null;
+  const live = await liveDisplays(found.bar.id);
+  // The code's own picks, in its order, skipping anything no longer live. One pick opens
+  // directly; several make a short menu; none (or none still live) means everything live.
+  const picked = found.code.displayIds
+    .map((id) => live.find((display) => display.id === id))
+    .filter((display): display is NonNullable<typeof display> => Boolean(display));
+  const pointed = found.code.displayIds.length === 1 ? picked[0] ?? null : null;
+  const displays = found.code.displayIds.length > 1 && picked.length > 0 ? picked : live;
   await db.insert(scansTable).values({
     id: randomUUID(),
     barId: found.bar.id,
@@ -152,12 +158,16 @@ router.post("/v1/scans", async (req, res): Promise<void> => {
     createdAt: new Date(Date.now()),
   });
   const serialized = await publicDisplays(req, displays);
+  const tableCards = await publicTableCards(req, found.bar.id);
+  // The card this code is printed on, if the venue registered it (and it's still active),
+  // so the app anchors to that card first and content follows it when it moves.
+  const tableCardId = tableCards.find((card) => card.id === found.code.tableCardId)?.id ?? null;
   res.json(CreatePublicScanResponse.parse({
     venue: venueSummary(found.bar),
-    spot: { label: found.code.label, placement: found.code.placement },
+    spot: { label: found.code.label, placement: found.code.placement, tableCardId },
     display: serialized.find((display) => display.id === pointed?.id) ?? null,
     displays: serialized,
-    tableCards: await publicTableCards(req, found.bar.id),
+    tableCards,
   }));
 });
 

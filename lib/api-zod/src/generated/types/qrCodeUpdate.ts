@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Placement } from './placement';
+import type { QrCodeDisplayIds } from './qrCodeDisplayIds';
 
 export interface QrCodeUpdate {
   /**
@@ -15,9 +16,17 @@ export interface QrCodeUpdate {
      */
   label?: string;
   placement?: Placement;
+  displayIds?: QrCodeDisplayIds;
   /**
+     * Shorthand for a one-item displayIds.
      * @maxLength 120
      * @nullable
      */
   displayId?: string | null;
+  /**
+     * The card design this code is printed on; null to clear.
+     * @maxLength 120
+     * @nullable
+     */
+  tableCardId?: string | null;
 }

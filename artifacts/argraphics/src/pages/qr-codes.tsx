@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListQrCodesQueryKey, useCreateQrCodes, useDeleteQrCode, useGetPartnerProfile, useGetSession, useListDisplays,
-  useListQrCodes, useListTableCards, useUpdateQrCode, type Display, type Placement, type QrCode as QrCodeRecord,
+  useListQrCodes, useListTableCards, useUpdateQrCode, type Display, type Placement, type QrCode as QrCodeRecord, type TableCard,
 } from '@workspace/api-client-react';
 import { ArrowRight, Download, FileDown, ImageIcon, Pencil, Plus, QrCode, Trash2, X } from 'lucide-react';
 import { Button, buttonClass, ConfirmDialog, EmptyState, ErrorPanel, Field, inputClass, PageHeader, SegmentedControl, Skeleton } from '@/components/partner-ui';
@@ -80,6 +80,7 @@ export function QrCodesPage() {
   const profile = useGetPartnerProfile();
   const codes = useListQrCodes();
   const displays = useListDisplays();
+  const cards = useListTableCards();
   const deleteCode = useDeleteQrCode();
   const [adding, setAdding] = useState(() => new URLSearchParams(window.location.search).has('display'));
   const [template, setTemplate] = useState<PrintTemplate>('tent');
@@ -99,7 +100,7 @@ export function QrCodesPage() {
     if (!list.length) return;
     setPrinting(true);
     try {
-      const pdf = await createQrPrintPdf(template, venueName, list.map((qr) => ({ label: qr.label, url: codeUrl(qr), displayTitle: qr.displayTitle })));
+      const pdf = await createQrPrintPdf(template, venueName, list.map((qr) => ({ label: qr.label, url: codeUrl(qr), displayTitle: printTitle(qr.displayTitles) })));
       pdf.save(`${fileSafe(venueName)}-${template}-codes.pdf`);
       toast({ title: 'Your print file is ready', description: `${countLabel(list.length, PRINT_TEMPLATES.find((t) => t.value === template)?.label.toLowerCase() ?? 'code')}. Print at 100% scale.` });
     } catch (error) {
@@ -133,9 +134,9 @@ export function QrCodesPage() {
         actions={<Button variant="primary" icon={Plus} onClick={() => setAdding(true)} data-testid="button-add-spots">Add spots</Button>}
       />
 
-      <CardArtMarkers />
+      <CardArtMarkers codes={list} cards={cards.data ?? []} onAssigned={() => void refresh()} />
 
-      {adding && <AddSpots displays={displays.data ?? []} onClose={() => setAdding(false)} onCreated={() => { setAdding(false); void refresh(); }} />}
+      {adding && <AddSpots displays={displays.data ?? []} cards={cards.data ?? []} onClose={() => setAdding(false)} onCreated={() => { setAdding(false); void refresh(); }} />}
 
       {list.length > 0 && (
         <section className="pa-card mb-6 p-4 sm:p-5" aria-labelledby="print-heading">
@@ -163,7 +164,7 @@ export function QrCodesPage() {
       ) : (
         <ul className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {list.map((qr) => (
-            <QrTile key={qr.id} qr={qr} venueName={venueName} displays={displays.data ?? []} editing={editing === qr.id} onEdit={() => setEditing(qr.id)} onDone={() => { setEditing(null); void refresh(); }} onRetire={() => setRetiring(qr)} />
+            <QrTile key={qr.id} qr={qr} venueName={venueName} displays={displays.data ?? []} cards={cards.data ?? []} editing={editing === qr.id} onEdit={() => setEditing(qr.id)} onDone={() => { setEditing(null); void refresh(); }} onRetire={() => setRetiring(qr)} />
           ))}
         </ul>
       )}
@@ -175,38 +176,84 @@ export function QrCodesPage() {
   );
 }
 
-/** Printed artwork the app recognizes in place of a code. Lives at the top of QR Codes. */
-function CardArtMarkers() {
-  const cards = useListTableCards();
-  const list = cards.data ?? [];
-  const active = list.filter((card) => card.isActive).length;
+/**
+ * The printed card designs the app can track. A code printed on a registered card makes
+ * content stand on the card and follow it when a guest picks it up; codes on no card fall
+ * back to the table surface. Lives at the top of QR Codes.
+ */
+function CardArtMarkers({ codes, cards, onAssigned }: { codes: QrCodeRecord[]; cards: TableCard[]; onAssigned: () => void }) {
+  const updateCode = useUpdateQrCode();
+  const [assigning, setAssigning] = useState(false);
+  const active = cards.filter((card) => card.isActive);
+  const unlinked = codes.filter((code) => !code.tableCardId);
+  const [bulkCard, setBulkCard] = useState(active[0]?.id ?? '');
+  const chosen = active.find((card) => card.id === bulkCard) ?? active[0];
+
+  // Puts every code that isn't on a card yet onto the chosen design.
+  const assignAll = async () => {
+    if (!chosen || !unlinked.length) return;
+    setAssigning(true);
+    try {
+      await Promise.all(unlinked.map((code) => updateCode.mutateAsync({ id: code.id, data: { tableCardId: chosen.id } })));
+      toast({ title: `${countLabel(unlinked.length, 'code')} on “${chosen.name}”`, description: 'Scans now stand on the card and follow it when it moves.' });
+      onAssigned();
+    } catch {
+      toast({ title: 'Some codes didn’t update', description: 'Try again.', variant: 'destructive' });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   return (
     <section className="pa-card mb-6 p-4 sm:p-5" aria-labelledby="card-art-heading">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <h2 id="card-art-heading" className="text-base font-semibold">Card art markers</h2>
-          <p className="text-xs text-muted-foreground">Upload printed art the app can anchor content to, for tables without a code.</p>
-          {list.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{countLabel(list.length, 'card')} saved · {active} active in the app</p>}
+          <h2 id="card-art-heading" className="text-base font-semibold">Your printed cards</h2>
+          <p className="text-xs text-muted-foreground">Upload a flat photo of each card design with its width. Codes printed on a registered card make the app stand things on the card itself, and follow it when guests pick it up.</p>
+          {cards.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{countLabel(cards.length, 'card')} saved · {active.length} active in the app{codes.length ? ` · ${unlinked.length ? `${countLabel(unlinked.length, 'code')} not on a card yet` : 'every code is on a card'}` : ''}</p>}
         </div>
-        {list.length > 0 && (
+        {cards.length > 0 && (
           <ul className="flex shrink-0 gap-2" aria-label="Saved card art">
-            {list.slice(0, 4).map((card) => (
+            {cards.slice(0, 4).map((card) => (
               <li key={card.id}><img src={card.referenceImageUrl} alt={card.name} className="h-12 w-12 rounded-lg border border-border bg-muted object-cover" loading="lazy" /></li>
             ))}
           </ul>
         )}
         <Link href="/table-cards" className={buttonClass('ghost', 'sm', 'shrink-0')}>
-          {list.length ? <>Manage card art <ArrowRight size={14} aria-hidden="true" /></> : <><ImageIcon size={15} aria-hidden="true" /> Add card art</>}
+          {cards.length ? <>Manage cards <ArrowRight size={14} aria-hidden="true" /></> : <><ImageIcon size={15} aria-hidden="true" /> Add a card</>}
         </Link>
       </div>
+      {active.length > 0 && unlinked.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center" data-testid="panel-assign-cards">
+          <p className="text-sm sm:flex-1">Put the {countLabel(unlinked.length, 'code')} without a card on</p>
+          {active.length > 1 ? (
+            <select className={`${inputClass} sm:w-56`} value={chosen?.id ?? ''} onChange={(event) => setBulkCard(event.target.value)} aria-label="Card design">
+              {active.map((card) => <option key={card.id} value={card.id}>{card.name}</option>)}
+            </select>
+          ) : <span className="text-sm font-semibold">“{chosen?.name}”</span>}
+          <Button size="sm" loading={assigning} onClick={() => void assignAll()} data-testid="button-assign-cards">Put them on this card</Button>
+        </div>
+      )}
     </section>
   );
 }
 
-function QrTile({ qr, venueName, displays, editing, onEdit, onDone, onRetire }: {
+/** Which registered card design a code is printed on; none means the table surface. */
+function CardSelect({ cards, value, onChange }: { cards: TableCard[]; value: string; onChange: (value: string) => void }) {
+  const active = cards.filter((card) => card.isActive || card.id === value);
+  return (
+    <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)} data-testid="select-table-card">
+      <option value="">Not on a card (uses the table)</option>
+      {active.map((card) => <option key={card.id} value={card.id}>{card.name}{card.isActive ? '' : ' (off)'}</option>)}
+    </select>
+  );
+}
+
+function QrTile({ qr, venueName, displays, cards, editing, onEdit, onDone, onRetire }: {
   qr: QrCodeRecord;
   venueName: string;
   displays: Display[];
+  cards: TableCard[];
   editing: boolean;
   onEdit: () => void;
   onDone: () => void;
@@ -237,10 +284,11 @@ function QrTile({ qr, venueName, displays, editing, onEdit, onDone, onRetire }: 
         {image ? <img src={image} alt={`QR code for ${qr.label}`} className="mx-auto aspect-square w-full max-w-[200px]" /> : <div className="mx-auto aspect-square w-full max-w-[200px] animate-pulse rounded bg-slate-100" aria-hidden="true" />}
       </div>
       <div className="flex flex-1 flex-col p-3.5">
-        {editing ? <EditCode qr={qr} displays={displays} onDone={onDone} /> : (
+        {editing ? <EditCode qr={qr} displays={displays} cards={cards} onDone={onDone} /> : (
           <>
             <p className="flex items-center gap-1.5 text-sm font-semibold"><PlacementIcon size={14} aria-hidden="true" /><span className="truncate">{qr.label}</span></p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">{qr.displayTitle ? `Shows ${qr.displayTitle}` : 'Shows everything live'}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={qr.displayTitles.join(', ')}>{showsLabel(qr.displayTitles)}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{qr.tableCardName ? `On “${qr.tableCardName}” · follows the card` : 'Not on a card · uses the table'}</p>
             <p className="mt-2 text-xs tabular-nums"><span className="font-semibold">{formatCount(qr.scansThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.scansThisWeek, 'scan')} ·</span> <span className="font-semibold">{formatCount(qr.redemptionsThisWeek)}</span> <span className="text-muted-foreground">{plural(qr.redemptionsThisWeek, 'redemption')}</span></p>
             <div className="mt-auto flex items-center gap-1 pt-3">
               <Button variant="ghost" size="sm" icon={Download} onClick={() => void downloadPng()} className="flex-1" aria-label={`Download PNG for ${qr.label}`}>PNG</Button>
@@ -254,24 +302,77 @@ function QrTile({ qr, venueName, displays, editing, onEdit, onDone, onRetire }: 
   );
 }
 
-function DisplaySelect({ displays, value, onChange }: { displays: Display[]; value: string; onChange: (value: string) => void }) {
+/** How the tile and print describe what a code shows. */
+export function showsLabel(titles: string[]) {
+  if (titles.length === 0) return 'Shows everything live';
+  if (titles.length <= 2) return `Shows ${titles.join(' and ')}`;
+  return `Shows ${titles[0]}, ${titles[1]} and ${titles.length - 2} more`;
+}
+
+/** The headline for a printed code: one display's name, or a short menu. */
+export function printTitle(titles: string[]) {
+  if (titles.length === 0) return null;
+  if (titles.length === 1) return titles[0];
+  return titles.length <= 3 ? titles.join(' · ') : `${titles.slice(0, 3).join(' · ')} + ${titles.length - 3} more`;
+}
+
+type ShowsMode = 'all' | 'one' | 'some';
+
+/**
+ * What a code shows: everything live, one display, or a hand-picked few. Picks keep the
+ * order they were ticked in, which is the order guests see them.
+ */
+function DisplayPicker({ displays, value, onChange, compact = false }: { displays: Display[]; value: string[]; onChange: (value: string[]) => void; compact?: boolean }) {
+  const [mode, setMode] = useState<ShowsMode>(() => value.length > 1 ? 'some' : value.length === 1 ? 'one' : 'all');
+  const choices = displays.filter((display) => display.status !== 'paused');
+  const switchMode = (next: ShowsMode) => {
+    setMode(next);
+    if (next === 'all') onChange([]);
+    else if (next === 'one') onChange(value.slice(0, 1));
+  };
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((entry) => entry !== id) : [...value, id]);
   return (
-    <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">Everything live at your spot</option>
-      {displays.filter((display) => display.status !== 'paused').map((display) => <option key={display.id} value={display.id}>{display.title}{display.status === 'draft' ? ' (draft)' : ''}</option>)}
-    </select>
+    <div className="space-y-2">
+      <SegmentedControl label="What they show" size="sm" value={mode} onChange={switchMode} options={[{ value: 'all', label: 'Everything live' }, { value: 'one', label: 'One display' }, { value: 'some', label: 'Pick several' }]} />
+      {mode === 'one' && (
+        <select className={inputClass} value={value[0] ?? ''} onChange={(event) => onChange(event.target.value ? [event.target.value] : [])} data-testid="select-display">
+          <option value="">Choose a display</option>
+          {choices.map((display) => <option key={display.id} value={display.id}>{display.title}{display.status === 'draft' ? ' (draft)' : ''}</option>)}
+        </select>
+      )}
+      {mode === 'some' && (
+        choices.length === 0 ? <p className="text-xs text-muted-foreground">Add a display first.</p> : (
+          <ul className={`space-y-1 overflow-y-auto rounded-xl border border-border bg-background p-1.5 ${compact ? 'max-h-40' : 'max-h-64'}`} aria-label="Displays this code shows" data-testid="list-display-picks">
+            {choices.map((display) => {
+              const position = value.indexOf(display.id);
+              return (
+                <li key={display.id}>
+                  <label className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm hover:bg-muted">
+                    <input type="checkbox" checked={position >= 0} onChange={() => toggle(display.id)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
+                    <span className="min-w-0 flex-1 truncate">{display.title}{display.status === 'draft' ? <span className="text-muted-foreground"> (draft)</span> : null}</span>
+                    {position >= 0 && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{position + 1}</span>}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )
+      )}
+      {mode === 'some' && value.length === 1 && <p className="text-xs text-muted-foreground">Tick at least one more, or guests go straight to {displays.find((display) => display.id === value[0])?.title ?? 'that display'}.</p>}
+    </div>
   );
 }
 
-function EditCode({ qr, displays, onDone }: { qr: QrCodeRecord; displays: Display[]; onDone: () => void }) {
+function EditCode({ qr, displays, cards, onDone }: { qr: QrCodeRecord; displays: Display[]; cards: TableCard[]; onDone: () => void }) {
   const updateCode = useUpdateQrCode();
   const [label, setLabel] = useState(qr.label);
   const [placement, setPlacement] = useState<Placement>(qr.placement);
-  const [displayId, setDisplayId] = useState(qr.displayId ?? '');
+  const [displayIds, setDisplayIds] = useState<string[]>(qr.displayIds);
+  const [tableCardId, setTableCardId] = useState(qr.tableCardId ?? '');
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!label.trim()) return;
-    updateCode.mutate({ id: qr.id, data: { label: label.trim().slice(0, 40), placement, displayId: displayId || null } }, {
+    updateCode.mutate({ id: qr.id, data: { label: label.trim().slice(0, 40), placement, displayIds, tableCardId: tableCardId || null } }, {
       onSuccess: () => { toast({ title: 'Code updated', description: 'The printed code stays the same. No need to reprint.' }); onDone(); },
       onError: () => toast({ title: 'That didn’t save', description: 'Try again.', variant: 'destructive' }),
     });
@@ -280,7 +381,8 @@ function EditCode({ qr, displays, onDone }: { qr: QrCodeRecord; displays: Displa
     <form onSubmit={submit} className="space-y-2.5">
       <Field label="Label"><input className={inputClass} value={label} maxLength={40} onChange={(event) => setLabel(event.target.value)} required /></Field>
       <Field label="Where"><select className={inputClass} value={placement} onChange={(event) => setPlacement(event.target.value as Placement)}>{PLACEMENTS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></Field>
-      <Field label="Shows"><DisplaySelect displays={displays} value={displayId} onChange={setDisplayId} /></Field>
+      <div><p className="mb-1.5 text-sm font-medium">Shows</p><DisplayPicker displays={displays} value={displayIds} onChange={setDisplayIds} compact /></div>
+      {cards.length > 0 && <Field label="Printed on"><CardSelect cards={cards} value={tableCardId} onChange={setTableCardId} /></Field>}
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" loading={updateCode.isPending} className="flex-1">Save</Button>
         <Button variant="quiet" size="sm" onClick={onDone}>Cancel</Button>
@@ -289,7 +391,7 @@ function EditCode({ qr, displays, onDone }: { qr: QrCodeRecord; displays: Displa
   );
 }
 
-function AddSpots({ displays, onClose, onCreated }: { displays: Display[]; onClose: () => void; onCreated: () => void }) {
+function AddSpots({ displays, cards, onClose, onCreated }: { displays: Display[]; cards: TableCard[]; onClose: () => void; onCreated: () => void }) {
   const createCodes = useCreateQrCodes();
   const [mode, setMode] = useState<'numbered' | 'custom'>('numbered');
   const [prefix, setPrefix] = useState('Table');
@@ -297,7 +399,13 @@ function AddSpots({ displays, onClose, onCreated }: { displays: Display[]; onClo
   const [to, setTo] = useState('12');
   const [custom, setCustom] = useState('');
   const [placement, setPlacement] = useState<Placement>('table');
-  const [displayId, setDisplayId] = useState(() => new URLSearchParams(window.location.search).get('display') ?? '');
+  const [displayIds, setDisplayIds] = useState<string[]>(() => {
+    const preset = new URLSearchParams(window.location.search).get('display');
+    return preset ? [preset] : [];
+  });
+  // Default to the one active card design when there is exactly one; most venues print one.
+  const activeCards = cards.filter((card) => card.isActive);
+  const [tableCardId, setTableCardId] = useState(activeCards.length === 1 ? activeCards[0].id : '');
   const [error, setError] = useState('');
 
   const labels = useMemo(() => mode === 'numbered' ? numberedLabels(prefix, Number(from), Number(to)) : parseLabelList(custom), [mode, prefix, from, to, custom]);
@@ -306,7 +414,7 @@ function AddSpots({ displays, onClose, onCreated }: { displays: Display[]; onClo
     event.preventDefault();
     setError('');
     if (!labels.length) { setError('Add at least one spot.'); return; }
-    createCodes.mutate({ data: { labels, placement, displayId: displayId || null } }, {
+    createCodes.mutate({ data: { labels, placement, displayIds, tableCardId: tableCardId || null } }, {
       onSuccess: (created) => {
         toast({ title: `${countLabel(created.length, 'code')} ready to print`, description: 'Download the PDF below and set them out before service.' });
         onCreated();
@@ -338,7 +446,16 @@ function AddSpots({ displays, onClose, onCreated }: { displays: Display[]; onClo
           <p className="mb-1.5 text-sm font-medium">Where they go</p>
           <SegmentedControl label="Where they go" value={placement} onChange={setPlacement} options={PLACEMENTS.map((p) => ({ value: p.value, label: p.label, icon: PLACEMENT_ICONS[p.value] }))} />
         </div>
-        <Field label="What they show" hint="Pick one display, or let the code show everything live."><DisplaySelect displays={displays} value={displayId} onChange={setDisplayId} /></Field>
+        <div>
+          <p className="mb-1.5 text-sm font-medium">What they show</p>
+          <DisplayPicker displays={displays} value={displayIds} onChange={setDisplayIds} />
+          <p className="mt-1 text-xs text-muted-foreground">One display opens straight away. Several give guests a short menu to pick from, in the order you tick them. Everything live lists whatever's on tonight.</p>
+        </div>
+        {cards.length > 0 && (
+          <Field label="Printed on" hint="The card design these codes go on. Content stands on the card and follows it when a guest picks it up.">
+            <CardSelect cards={cards} value={tableCardId} onChange={setTableCardId} />
+          </Field>
+        )}
         <p className="text-xs text-muted-foreground" aria-live="polite">{labels.length ? `${countLabel(labels.length, 'spot')}: ${labels.slice(0, 4).join(', ')}${labels.length > 4 ? ` … ${labels[labels.length - 1]}` : ''}` : 'No spots yet.'} · {placementLabel(placement)}</p>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">

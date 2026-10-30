@@ -78,6 +78,15 @@ enum ARContentBuilder {
         return ModelEntity(mesh: mesh, materials: [material(ring)])
     }
 
+    /// "● Birria tacos  $12" as a small capsule floating over a miniature, facing +Z.
+    /// Returns the plane and its real-world size.
+    static func label(name: String, price: String?, height: Float = 0.022) async throws -> (ModelEntity, SIMD2<Float>) {
+        let image = labelImage(name: name, price: price)
+        let size = SIMD2<Float>(height * Float(image.size.width / image.size.height), height)
+        let plane = ModelEntity(mesh: .generatePlane(width: size.x, height: size.y), materials: [material(try await texture(from: image))])
+        return (plane, size)
+    }
+
     private static func material(_ texture: TextureResource) -> UnlitMaterial {
         var material = UnlitMaterial()
         material.color = .init(tint: .white, texture: .init(texture))
@@ -138,6 +147,33 @@ enum ARContentBuilder {
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
             context.cgContext.drawRadialGradient(gradient, startCenter: center, startRadius: 0,
                                                  endCenter: center, endRadius: size.width / 2, options: [])
+        }
+    }
+
+    /// Matches the on-screen PriceChip: dark capsule, Coral dot, white name, Tangerine price.
+    private static func labelImage(name: String, price: String?) -> UIImage {
+        let scale: CGFloat = 4 // texture pixels per point
+        let nameFont = UIFont.systemFont(ofSize: 14 * scale, weight: .semibold)
+        let nameText = NSAttributedString(string: String(name.prefix(28)), attributes: [.font: nameFont, .foregroundColor: UIColor.white])
+        let priceText = price.map { NSAttributedString(string: $0, attributes: [.font: nameFont, .foregroundColor: UIColor(hex: 0xFB923C)]) }
+        let dot = 7 * scale, gap = 8 * scale, padX = 14 * scale
+        let height = 32 * scale
+        let width = padX + dot + gap + nameText.size().width + (priceText.map { gap + $0.size().width } ?? 0) + padX
+        let size = CGSize(width: ceil(width), height: height)
+        return renderer(size).image { context in
+            UIColor.black.withAlphaComponent(0.6).setFill()
+            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: height / 2).fill()
+            UIColor.white.withAlphaComponent(0.14).setStroke()
+            let outline = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: scale / 2, dy: scale / 2), cornerRadius: height / 2)
+            outline.lineWidth = scale
+            outline.stroke()
+            var x = padX
+            UIColor(hex: 0xF43F5E).setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: x, y: (height - dot) / 2, width: dot, height: dot))
+            x += dot + gap
+            nameText.draw(at: CGPoint(x: x, y: (height - nameText.size().height) / 2))
+            x += nameText.size().width + gap
+            priceText?.draw(at: CGPoint(x: x, y: (height - (priceText?.size().height ?? 0)) / 2))
         }
     }
 

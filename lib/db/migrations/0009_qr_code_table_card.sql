@@ -1,0 +1,2 @@
+ALTER TABLE "qr_codes" ADD COLUMN "table_card_id" text;--> statement-breakpoint
+ALTER TABLE "qr_codes" ADD CONSTRAINT "qr_codes_table_card_id_table_cards_id_fk" FOREIGN KEY ("table_card_id") REFERENCES "public"."table_cards"("id") ON DELETE set null ON UPDATE no action;

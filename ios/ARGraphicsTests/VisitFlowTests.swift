@@ -98,7 +98,7 @@ struct VisitFlowTests {
         #expect(art.mode == .ar)
         if case .panel(_, let framed) = art.content { #expect(framed) } else { Issue.record("expected panel") }
         if case .artist(let credit) = art.card { #expect(credit.slug == "ana-ruiz") } else { Issue.record("expected artist") }
-        #expect(art.tableCards.isEmpty, "wall pieces don't use table cards")
+        #expect(art.tableCards.map(\.id) == ["tc1"], "a wall piece on a printed card still stands on, and follows, the card")
 
         let menu = ExperienceModel(visit: visit, display: byType[.menuItem]!, cameraStatus: .authorized, arSupported: true)
         if case .model(let url) = menu.content { #expect(url.lastPathComponent == "m.usdz") } else { Issue.record("expected model") }

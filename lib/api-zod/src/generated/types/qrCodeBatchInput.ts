@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Placement } from './placement';
+import type { QrCodeDisplayIds } from './qrCodeDisplayIds';
 
 export interface QrCodeBatchInput {
   /**
@@ -17,9 +18,17 @@ export interface QrCodeBatchInput {
      */
   labels: string[];
   placement: Placement;
+  displayIds?: QrCodeDisplayIds;
   /**
+     * Shorthand for a one-item displayIds.
      * @maxLength 120
      * @nullable
      */
   displayId?: string | null;
+  /**
+     * The card design these codes are printed on.
+     * @maxLength 120
+     * @nullable
+     */
+  tableCardId?: string | null;
 }
